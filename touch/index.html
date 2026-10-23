@@ -22,6 +22,7 @@
   #npc { display: none; align-items: center; gap: 10px; padding: 4px 10px; background: rgba(18,22,27,.7); }
   #npc img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; border: 2px solid #2d3b52; }
   #npc span { font-weight: 600; color: #8fb4e8; }
+  #npc #credit { display: none; margin-left: auto; font-size: 11px; color: #8b949e; text-decoration: none; }
   #gegner img { max-height: 14vh; max-width: 70%; object-fit: contain; filter: drop-shadow(0 0 12px #000); }
   .xterm-viewport, #knoepfe { overscroll-behavior: contain; }
   #status { padding: 4px 10px; font-size: 13px; color: #8b949e; min-height: 1.2em; }
@@ -51,7 +52,7 @@
 <div id="hintergrund" class="leer"></div>
 <div id="hud"></div>
 <div id="gegner"><img alt=""><div class="balken"><i></i><span></span></div></div>
-<div id="npc"><img alt=""><span></span></div>
+<div id="npc"><img alt=""><span></span><a id="credit" href="https://linktr.ee/coraxdigitalart" target="_blank" rel="noopener">Bild: Corax Digital Art</a></div>
 <div id="terminal"></div>
 <div id="knoepfe"></div>
 <form id="leiste" autocomplete="off">
@@ -159,6 +160,8 @@ function kampfLeisteSetzen(zeilen) {
 }
 
 // Sprecher: letzte Zeile "[Name] ..." auf dem Bildschirm; Porträt aus bilder/npc_<name>.webp.
+// Porträts aus dem Pack von Corax Digital Art (Credit-Pflicht laut Lizenz).
+const NPC_AUS_PACK = new Set(["marek", "ahrens", "elian", "edda", "sera", "joris", "raban", "levin", "koehler", "rika", "schreiber", "nela", "ida", "arvid", "selene", "gerrit", "mira", "kiran", "fischer", "tarek", "runa", "enno"]);
 let aktuellerNpc = "";
 function npcSetzen(zeilen) {
   let name = "";
@@ -172,7 +175,10 @@ function npcSetzen(zeilen) {
   if (!name) { box.style.display = "none"; anpassen(); return; }
   bildLaden("npc_" + bildName(name), (src) => {
     if (name !== aktuellerNpc) return;
-    if (src) { box.querySelector("img").src = src; box.querySelector("span").textContent = name; }
+    if (src) {
+      box.querySelector("img").src = src; box.querySelector("span").textContent = name;
+      box.querySelector("#credit").style.display = NPC_AUS_PACK.has(bildName(name)) ? "block" : "none";
+    }
     box.style.display = src ? "flex" : "none";
     anpassen();
   });
