@@ -20,6 +20,11 @@
 </head>
 <body>
 <div id="status">Starte …</div>
+<script>
+addEventListener("error", (e) => { document.getElementById("status").textContent = "Fehler: " + (e.message || e.target && e.target.src || "unbekannt"); }, true);
+addEventListener("unhandledrejection", (e) => { document.getElementById("status").textContent = "Fehler: " + e.reason; });
+setTimeout(() => { const s = document.getElementById("status"); if (s.textContent === "Starte …") s.textContent = "Startet nicht. Chrome-Version: " + ((navigator.userAgent.match(/Chrome\/(\d+)/) || [])[1] || "?") + ", JSPI: " + (typeof WebAssembly.Suspending); }, 8000);
+</script>
 <div id="terminal"></div>
 <form id="leiste" autocomplete="off">
   <input id="eingabe" inputmode="text" enterkeyhint="send" placeholder="Eingabe, dann Enter" autocapitalize="off" autocorrect="off" spellcheck="false">
