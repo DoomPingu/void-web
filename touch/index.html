@@ -20,12 +20,12 @@
   .balken > span { position: absolute; inset: 0; text-align: center; font-size: 11px; line-height: 14px; color: #fff; text-shadow: 0 0 2px #000; }
   #hp > i { background: #b33a3a; }
   #xp > i { background: #3a7bb3; }
-  #terminal { flex: 1; min-height: 0; padding: 0 6px; }
-  #knoepfe { display: none; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px 8px 0; max-height: 40vh; overflow-y: auto; }
-  #knoepfe button { font-size: 17px; padding: 14px 10px; min-height: 52px; background: #1a2230; color: #e6e8eb; border: 1px solid #2d3b52; border-radius: 10px; text-align: left; }
+  #terminal { flex: 1; min-height: 25vh; padding: 0 6px; }
+  #knoepfe { display: none; grid-template-columns: 1fr 1fr; gap: 6px; padding: 6px 8px 0; max-height: 30vh; overflow-y: auto; }
+  #knoepfe button { font-size: 15px; line-height: 1.2; padding: 8px 10px; min-height: 40px; background: #1a2230; color: #e6e8eb; border: 1px solid #2d3b52; border-radius: 8px; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   #knoepfe button:active { background: #2b5d9b; }
   #knoepfe button.eine { grid-column: 1 / -1; }
-  #knoepfe button.sonder { background: #161b22; color: #8fb4e8; }
+  #knoepfe button.sonder { background: #161b22; color: #8fb4e8; min-height: 34px; font-size: 14px; }
   #leiste { display: flex; gap: 8px; padding: 8px; border-top: 1px solid #22272e; }
   #eingabe { flex: 1; min-width: 0; font-size: 18px; padding: 10px; background: #12161b; color: #e6e8eb; border: 1px solid #2d333b; border-radius: 8px; }
   #senden { font-size: 18px; padding: 10px 16px; background: #2b5d9b; color: #fff; border: 0; border-radius: 8px; }
@@ -115,7 +115,8 @@ function knoepfeBauen() {
   for (const e of eintraege) {
     const b = document.createElement("button");
     b.type = "button";
-    const text = e.text.replace(/\s+/g, " ");
+    // Lange Beschreibung steht im Text darüber: der Button zeigt nur den Namen vor dem Gedankenstrich.
+    const text = e.text.replace(/\s+/g, " ").replace(/ [-–] .+$/, "");
     b.textContent = e.weiter ? "↵ " + text : (e.sonder ? "[" + e.wert.toUpperCase() + "] " : e.wert + ". ") + text;
     if (e.sonder) b.className = "sonder";
     b.onclick = () => antwort(e.wert);
