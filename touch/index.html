@@ -10,10 +10,15 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
 <style>
   html, body { margin: 0; height: 100%; overscroll-behavior: none; background: #0b0d10; color: #d7dbe0; font-family: system-ui, sans-serif; }
-  body { display: flex; flex-direction: column; }
+  body { display: flex; flex-direction: column; position: relative; }
+  #hintergrund { position: fixed; inset: 0; z-index: -1; background: #0b0d10 center / cover no-repeat; transition: background-image .4s; }
+  #hintergrund::after { content: ""; position: absolute; inset: 0; background: linear-gradient(rgba(11,13,16,.72), rgba(11,13,16,.82)); }
+  #hintergrund.leer::after { display: none; }
+  #gegner { display: none; justify-content: center; padding: 4px 0 0; }
+  #gegner img { max-height: 22vh; max-width: 70%; object-fit: contain; filter: drop-shadow(0 0 12px #000); }
   .xterm-viewport, #knoepfe { overscroll-behavior: contain; }
   #status { padding: 4px 10px; font-size: 13px; color: #8b949e; min-height: 1.2em; }
-  #hud { display: none; padding: 6px 10px; background: #12161b; border-bottom: 1px solid #22272e; font-size: 13px; }
+  #hud { display: none; padding: 6px 10px; background: rgba(18,22,27,.85); border-bottom: 1px solid #22272e; font-size: 13px; }
   #hud .zeile { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
   #hud .ort { color: #8fb4e8; font-weight: 600; }
   .balken { position: relative; height: 14px; background: #1c222a; border-radius: 7px; overflow: hidden; margin-bottom: 4px; }
@@ -27,14 +32,16 @@
   #knoepfe button:active { background: #2b5d9b; }
   #knoepfe button.eine { grid-column: 1 / -1; }
   #knoepfe button.sonder { background: #161b22; color: #8fb4e8; min-height: 34px; font-size: 14px; }
-  #leiste { display: flex; gap: 8px; padding: 8px; border-top: 1px solid #22272e; }
+  #leiste { display: flex; gap: 8px; padding: 8px; border-top: 1px solid #22272e; background: rgba(11,13,16,.85); }
   #eingabe { flex: 1; min-width: 0; font-size: 18px; padding: 10px; background: #12161b; color: #e6e8eb; border: 1px solid #2d333b; border-radius: 8px; }
   #senden { font-size: 18px; padding: 10px 16px; background: #2b5d9b; color: #fff; border: 0; border-radius: 8px; }
 </style>
 </head>
 <body>
 <div id="status">Starte …</div>
+<div id="hintergrund" class="leer"></div>
 <div id="hud"></div>
+<div id="gegner"><img alt=""></div>
 <div id="terminal"></div>
 <div id="knoepfe"></div>
 <form id="leiste" autocomplete="off">
@@ -69,7 +76,45 @@ function balken(id, text, wert, max) {
   el.lastChild.textContent = text;
 }
 
+// Bilder liegen in bilder/ (ort_<name>.webp, gegner_<name>.webp). Fehlt eins, bleibt es beim dunklen Hintergrund.
+const ORT_NAMEN = { spieler_zimmer: "spielerzimmer", alte_schmiede: "schmiede", bjorns_schmiede: "schmiede" };
+const bildName = (s) => String(s).toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+  .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+const fehlend = new Set();
+function bildLaden(name, fertig) {
+  if (fehlend.has(name)) return fertig(null);
+  const img = new Image();
+  img.onload = () => fertig(img.src);
+  img.onerror = () => { fehlend.add(name); fertig(null); };
+  img.src = "bilder/" + name + ".webp";
+}
+let aktuellerOrt = "";
+function hintergrundSetzen(ort) {
+  const n = bildName(ort);
+  if (n === aktuellerOrt) return;
+  aktuellerOrt = n;
+  bildLaden("ort_" + (ORT_NAMEN[n] || n), (src) => {
+    if (n !== aktuellerOrt) return;
+    const el = document.getElementById("hintergrund");
+    el.style.backgroundImage = src ? 'url("' + src + '")' : "none";
+    el.classList.toggle("leer", !src);
+  });
+}
+let aktuellerGegner = "";
+function gegnerSetzen(name) {
+  aktuellerGegner = name;
+  const box = document.getElementById("gegner");
+  if (!name) { box.style.display = "none"; anpassen(); return; }
+  bildLaden("gegner_" + bildName(name), (src) => {
+    if (name !== aktuellerGegner) return;
+    if (src) box.firstChild.src = src;
+    box.style.display = src ? "flex" : "none";
+    anpassen();
+  });
+}
+
 function hudZeigen(d) {
+  hintergrundSetzen(d.ort);
   if (!hudEl.firstChild) {
     hudEl.innerHTML = '<div class="zeile"><span class="ort"></span><span class="gold"></span></div>' +
       '<div class="balken" id="hp"><i></i><span></span></div><div class="balken" id="xp"><i></i><span></span></div>';
@@ -135,7 +180,7 @@ async function starten() {
     return;
   }
   const term = new Terminal({ convertEol: true, fontSize: 15, scrollback: 5000, disableStdin: true,
-    cursorBlink: false, theme: { background: "#0b0d10" } });
+    cursorBlink: false, allowTransparency: true, theme: { background: "rgba(0,0,0,0)" } });
   const fit = new FitAddon.FitAddon();
   term.loadAddon(fit);
   term.open(document.getElementById("terminal"));
@@ -178,6 +223,7 @@ async function starten() {
       }
     }
     else if (m.typ === "hud") hudZeigen(m.daten);
+    else if (m.typ === "gegner") gegnerSetzen(m.name);
     else if (m.typ === "status") statusZeile.textContent = m.text;
     else if (m.typ === "eingabe") { wartet = true; term.write("", knoepfeBauen); }
     else if (m.typ === "speichern") { try { localStorage.setItem("void:" + m.name, m.text); } catch (err) {} }
