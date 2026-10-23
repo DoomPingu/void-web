@@ -166,7 +166,14 @@ async function starten() {
   worker.onmessage = (e) => {
     const m = e.data;
     if (m.typ === "text") {
-      term.write(m.text);
+      // Bildschirm geleert: gelesen wird erst ab dem neuen Bildschirmanfang.
+      const klar = m.text.lastIndexOf("\x1b[H");
+      if (m.text.includes("\x1b[2J") && klar >= 0) {
+        term.write(m.text.slice(0, klar + 3), () => { leseStart = term.buffer.active.baseY; });
+        term.write(m.text.slice(klar + 3));
+      } else {
+        term.write(m.text);
+      }
     }
     else if (m.typ === "hud") hudZeigen(m.daten);
     else if (m.typ === "status") statusZeile.textContent = m.text;
