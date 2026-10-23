@@ -83,7 +83,10 @@ function balken(id, text, wert, max) {
 
 // Bilder liegen in bilder/ (ort_<name>.webp, gegner_<name>.webp). Fehlt eins, bleibt es beim dunklen Hintergrund.
 const ORT_NAMEN = { spieler_zimmer: "spielerzimmer", alte_schmiede: "schmiede", bjorns_schmiede: "schmiede",
-  tiefen_messgang: "tiefen", oros_zentrale_halle: "oros_halle" };
+  tiefen_messgang: "tiefen", die_tiefen: "tiefen", oros_zentrale_halle: "oros_halle", oros_haupttor: "oros_tor",
+  universitaet_von_oros: "oros_tor", brandschneise: "koehlerei", koehlerei_am_waldrand: "koehlerei",
+  huette_am_waldrand: "huette", marktplatz_von_eichenruh: "marktplatz", die_alte_versorgungskehre: "versorgungskehre",
+  letzthafen: "wrackstrand" };
 const bildName = (s) => String(s).toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
   .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 const fehlend = new Set();
@@ -102,12 +105,23 @@ function hintergrundSetzen(ort) {
   const n = bildName(ort);
   if (n === aktuellerOrt) return;
   aktuellerOrt = n;
-  bildLaden("ort_" + (ORT_NAMEN[n] || n), (src) => {
+  // Erst der ganze Name, dann nur die Endstücke ("wald_bachlauf" -> "bachlauf"), dann ohne Endstücke ("wald").
+  const teile = n.split("_");
+  const namen = [n];
+  for (let i = 1; i < teile.length; i++) namen.push(teile.slice(i).join("_"));
+  for (let i = teile.length - 1; i >= 1; i--) namen.push(teile.slice(0, i).join("_"));
+  const kandidaten = [...new Set(namen.map((x) => ORT_NAMEN[x] || x))];
+  const versuchen = (i) => {
     if (n !== aktuellerOrt) return;
+    if (i >= kandidaten.length) return anzeigen(null);
+    bildLaden("ort_" + kandidaten[i], (src) => (src ? anzeigen(src) : versuchen(i + 1)));
+  };
+  const anzeigen = (src) => {
     const el = document.getElementById("hintergrund");
     el.style.backgroundImage = src ? 'url("' + src + '")' : "none";
     el.classList.toggle("leer", !src);
-  });
+  };
+  versuchen(0);
 }
 let aktuellerGegner = "";
 function gegnerSetzen(name) {
