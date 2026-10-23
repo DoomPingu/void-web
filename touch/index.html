@@ -9,16 +9,17 @@
 <link rel="icon" href="../icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
 <style>
-  html, body { margin: 0; height: 100%; overscroll-behavior: none; background: #0b0d10; color: #d7dbe0; font-family: system-ui, sans-serif; }
+  html { background: #0b0d10; }
+  html, body { margin: 0; height: 100%; overscroll-behavior: none; color: #d7dbe0; font-family: system-ui, sans-serif; }
   body { display: flex; flex-direction: column; position: relative; }
   #hintergrund { position: fixed; inset: 0; z-index: -1; background: #0b0d10 center / cover no-repeat; transition: background-image .4s; }
-  #hintergrund::after { content: ""; position: absolute; inset: 0; background: linear-gradient(rgba(11,13,16,.72), rgba(11,13,16,.82)); }
+  #hintergrund::after { content: ""; position: absolute; inset: 0; background: linear-gradient(rgba(11,13,16,.5), rgba(11,13,16,.75)); }
   #hintergrund.leer::after { display: none; }
   #gegner { display: none; justify-content: center; padding: 4px 0 0; }
   #npc { display: none; align-items: center; gap: 10px; padding: 4px 10px; background: rgba(18,22,27,.7); }
   #npc img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; border: 2px solid #2d3b52; }
   #npc span { font-weight: 600; color: #8fb4e8; }
-  #gegner img { max-height: 22vh; max-width: 70%; object-fit: contain; filter: drop-shadow(0 0 12px #000); }
+  #gegner img { max-height: 16vh; max-width: 70%; object-fit: contain; filter: drop-shadow(0 0 12px #000); }
   .xterm-viewport, #knoepfe { overscroll-behavior: contain; }
   #status { padding: 4px 10px; font-size: 13px; color: #8b949e; min-height: 1.2em; }
   #hud { display: none; padding: 6px 10px; background: rgba(18,22,27,.85); border-bottom: 1px solid #22272e; font-size: 13px; }
@@ -85,12 +86,15 @@ const ORT_NAMEN = { spieler_zimmer: "spielerzimmer", alte_schmiede: "schmiede", 
 const bildName = (s) => String(s).toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
   .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 const fehlend = new Set();
-function bildLaden(name, fertig) {
+function bildLaden(name, fertig, endungen = ["webp", "svg"]) {
   if (fehlend.has(name)) return fertig(null);
   const img = new Image();
   img.onload = () => fertig(img.src);
-  img.onerror = () => { fehlend.add(name); fertig(null); };
-  img.src = "bilder/" + name + ".webp";
+  img.onerror = () => {
+    if (endungen.length > 1) return bildLaden(name, fertig, endungen.slice(1));
+    fehlend.add(name); fertig(null);
+  };
+  img.src = "bilder/" + name + "." + endungen[0];
 }
 let aktuellerOrt = "";
 function hintergrundSetzen(ort) {

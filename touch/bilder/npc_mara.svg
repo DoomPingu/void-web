@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><defs>
+<linearGradient id="b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a2f2a"/><stop offset="1" stop-color="#1e1815"/></linearGradient></defs>
+<rect width="300" height="300" fill="url(#b)"/>
+<path d="M40 300C50 235 100 215 150 215C200 215 250 235 260 300Z" fill="#7a4a3a"/>
+<path d="M115 215L150 250L185 215Z" fill="#d9b48f"/>
+<rect x="132" y="185" width="36" height="40" fill="#d9b48f"/>
+<ellipse cx="150" cy="140" rx="48" ry="58" fill="#e2bf9b"/>
+<path d="M98 135C95 70 130 55 150 55C175 55 207 70 202 135C195 105 185 92 150 90C115 92 105 105 98 135Z" fill="#5a3a26"/>
+<path d="M98 135C90 175 98 205 112 215L108 150Z M202 135C210 175 202 205 188 215L192 150Z" fill="#5a3a26"/>
+<circle cx="132" cy="140" r="4" fill="#2a1d14"/><circle cx="168" cy="140" r="4" fill="#2a1d14"/>
+<path d="M135 170Q150 180 165 170" stroke="#9a5a4a" stroke-width="3" fill="none" stroke-linecap="round"/>
+<path d="M120 122Q132 117 143 122M157 122Q168 117 180 122" stroke="#4a3020" stroke-width="3" fill="none"/>
+</svg>
