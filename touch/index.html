@@ -21,8 +21,7 @@
   .balken > span { position: absolute; inset: 0; text-align: center; font-size: 11px; line-height: 14px; color: #fff; text-shadow: 0 0 2px #000; }
   #hp > i { background: #b33a3a; }
   #xp > i { background: #3a7bb3; }
-  #terminal { flex: 1; min-height: 25vh; padding: 0 6px; touch-action: pan-y; }
-  #terminal .xterm-screen, #terminal .xterm-viewport { touch-action: pan-y; }
+  #terminal { flex: 1; min-height: 25vh; padding: 0 6px; touch-action: none; }
   #knoepfe { display: none; grid-template-columns: 1fr 1fr; gap: 6px; padding: 6px 8px 0; max-height: 30vh; overflow-y: auto; }
   #knoepfe button { font-size: 15px; line-height: 1.2; padding: 8px 10px; min-height: 40px; background: #1a2230; color: #e6e8eb; border: 1px solid #2d3b52; border-radius: 8px; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   #knoepfe button:active { background: #2b5d9b; }
@@ -209,6 +208,41 @@ async function starten() {
     if (!wartet) worker.postMessage({ typ: "ueberspringen" });
   });
   new ResizeObserver(() => anpassen()).observe(document.getElementById("terminal"));
+
+  // Eigenes Touch-Scrollen: xterm scrollt per Finger nur zeilenweise ruckelnd. Hier fließend, mit Schwung.
+  const termEl = document.getElementById("terminal");
+  let ty = 0, rest = 0, tempo = 0, tZeit = 0, anim = 0;
+  const zeilenHoehe = () => (termEl.querySelector(".xterm-screen").clientHeight / term.rows) || 17;
+  const schieben = (dy) => {
+    rest += dy;
+    const h = zeilenHoehe();
+    const n = Math.trunc(rest / h);
+    if (n) { term.scrollLines(n); rest -= n * h; }
+  };
+  termEl.addEventListener("touchstart", (e) => {
+    cancelAnimationFrame(anim);
+    ty = e.touches[0].clientY; rest = 0; tempo = 0; tZeit = e.timeStamp;
+    e.stopPropagation();
+  }, { capture: true, passive: true });
+  termEl.addEventListener("touchmove", (e) => {
+    const y = e.touches[0].clientY;
+    const dy = ty - y;
+    const dt = Math.max(1, e.timeStamp - tZeit);
+    tempo = dy / dt;
+    ty = y; tZeit = e.timeStamp;
+    schieben(dy);
+    e.preventDefault();
+    e.stopPropagation();
+  }, { capture: true, passive: false });
+  termEl.addEventListener("touchend", (e) => {
+    e.stopPropagation();
+    const schwung = () => {
+      tempo *= 0.95;
+      schieben(tempo * 16);
+      if (Math.abs(tempo) > 0.03) anim = requestAnimationFrame(schwung);
+    };
+    anim = requestAnimationFrame(schwung);
+  }, { capture: true, passive: true });
   document.getElementById("leiste").addEventListener("submit", (e) => {
     e.preventDefault();
     const zeile = feld.value;
