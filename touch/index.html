@@ -82,7 +82,8 @@ function balken(id, text, wert, max) {
 }
 
 // Bilder liegen in bilder/ (ort_<name>.webp, gegner_<name>.webp). Fehlt eins, bleibt es beim dunklen Hintergrund.
-const ORT_NAMEN = { spieler_zimmer: "spielerzimmer", alte_schmiede: "schmiede", bjorns_schmiede: "schmiede" };
+const ORT_NAMEN = { spieler_zimmer: "spielerzimmer", alte_schmiede: "schmiede", bjorns_schmiede: "schmiede",
+  tiefen_messgang: "tiefen", oros_zentrale_halle: "oros_halle" };
 const bildName = (s) => String(s).toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
   .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 const fehlend = new Set();

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><defs>
+<radialGradient id="a" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#7a6a58" stop-opacity=".4"/><stop offset="1" stop-color="#7a6a58" stop-opacity="0"/></radialGradient></defs>
+<circle cx="150" cy="150" r="145" fill="url(#a)"/>
+<path d="M45 215C35 150 80 105 150 100C220 105 265 150 255 215C240 250 200 262 150 262C100 262 60 250 45 215Z" fill="#3e332a" stroke="#1e1812" stroke-width="4"/>
+<path d="M75 110L90 80L110 108M225 110L210 80L190 108" fill="#3e332a" stroke="#1e1812" stroke-width="4" stroke-linejoin="round"/>
+<path d="M105 215C90 205 80 180 82 160M195 215C210 205 220 180 218 160" stroke="#e8e2cc" stroke-width="12" fill="none" stroke-linecap="round"/>
+<ellipse cx="150" cy="215" rx="36" ry="26" fill="#5a4a3c"/><circle cx="138" cy="215" r="5" fill="#111"/><circle cx="162" cy="215" r="5" fill="#111"/>
+<circle cx="110" cy="160" r="6" fill="#d44"/><circle cx="190" cy="160" r="6" fill="#d44"/>
+<path d="M100 130L120 150M200 130L180 150" stroke="#1e1812" stroke-width="5"/>
+</svg>

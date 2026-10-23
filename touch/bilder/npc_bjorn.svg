@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><defs>
+<linearGradient id="b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a2a22"/><stop offset="1" stop-color="#1c1410"/></linearGradient></defs>
+<rect width="300" height="300" fill="url(#b)"/>
+<path d="M30 300C40 230 95 212 150 212C205 212 260 230 270 300Z" fill="#3b3b40"/>
+<path d="M95 300L110 235L190 235L205 300Z" fill="#5a3a22"/>
+<rect x="128" y="185" width="44" height="40" fill="#cf9f7a"/>
+<ellipse cx="150" cy="140" rx="55" ry="60" fill="#d9ab85"/>
+<path d="M95 150C95 215 115 232 150 232C185 232 205 215 205 150C195 185 175 195 150 195C125 195 105 185 95 150Z" fill="#4a2e1a"/>
+<path d="M96 120C92 70 125 55 150 55C178 55 208 70 204 120C190 95 175 90 150 90C125 90 108 95 96 120Z" fill="#4a2e1a"/>
+<circle cx="130" cy="135" r="4" fill="#2a1d14"/><circle cx="170" cy="135" r="4" fill="#2a1d14"/>
+<path d="M112 118Q130 108 145 118M155 118Q170 108 188 118" stroke="#3a2415" stroke-width="5" fill="none"/>
+<path d="M135 172Q150 180 165 172" stroke="#8a4a3a" stroke-width="3" fill="none" stroke-linecap="round"/>
+</svg>
