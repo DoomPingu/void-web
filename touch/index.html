@@ -15,6 +15,9 @@
   #hintergrund::after { content: ""; position: absolute; inset: 0; background: linear-gradient(rgba(11,13,16,.72), rgba(11,13,16,.82)); }
   #hintergrund.leer::after { display: none; }
   #gegner { display: none; justify-content: center; padding: 4px 0 0; }
+  #npc { display: none; align-items: center; gap: 10px; padding: 4px 10px; background: rgba(18,22,27,.7); }
+  #npc img { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; border: 2px solid #2d3b52; }
+  #npc span { font-weight: 600; color: #8fb4e8; }
   #gegner img { max-height: 22vh; max-width: 70%; object-fit: contain; filter: drop-shadow(0 0 12px #000); }
   .xterm-viewport, #knoepfe { overscroll-behavior: contain; }
   #status { padding: 4px 10px; font-size: 13px; color: #8b949e; min-height: 1.2em; }
@@ -42,6 +45,7 @@
 <div id="hintergrund" class="leer"></div>
 <div id="hud"></div>
 <div id="gegner"><img alt=""></div>
+<div id="npc"><img alt=""><span></span></div>
 <div id="terminal"></div>
 <div id="knoepfe"></div>
 <form id="leiste" autocomplete="off">
@@ -113,6 +117,26 @@ function gegnerSetzen(name) {
   });
 }
 
+// Sprecher: letzte Zeile "[Name] ..." auf dem Bildschirm; Porträt aus bilder/npc_<name>.webp.
+let aktuellerNpc = "";
+function npcSetzen(zeilen) {
+  let name = "";
+  for (const z of zeilen) {
+    const m = z.match(/^\s*\[([A-Za-zÄÖÜäöü][^\]]{2,22})\]\s/);
+    if (m && m[1] !== "Beliebige Taste") name = m[1];
+  }
+  if (name === aktuellerNpc) return;
+  aktuellerNpc = name;
+  const box = document.getElementById("npc");
+  if (!name) { box.style.display = "none"; anpassen(); return; }
+  bildLaden("npc_" + bildName(name), (src) => {
+    if (name !== aktuellerNpc) return;
+    if (src) { box.querySelector("img").src = src; box.querySelector("span").textContent = name; }
+    box.style.display = src ? "flex" : "none";
+    anpassen();
+  });
+}
+
 function hudZeigen(d) {
   hintergrundSetzen(d.ort);
   if (!hudEl.firstChild) {
@@ -133,6 +157,7 @@ function hudZeigen(d) {
 function knoepfeBauen() {
   knoepfeEl.replaceChildren();
   const zeilen = bildschirmZeilen();
+  npcSetzen(zeilen);
   const nichtLeer = zeilen.filter((z) => z.trim());
   const letzte = nichtLeer.length ? nichtLeer[nichtLeer.length - 1] : "";
   let eintraege = [];
