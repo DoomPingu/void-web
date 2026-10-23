@@ -9,8 +9,9 @@
 <link rel="icon" href="../icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
 <style>
-  html, body { margin: 0; height: 100%; background: #0b0d10; color: #d7dbe0; font-family: system-ui, sans-serif; }
+  html, body { margin: 0; height: 100%; overscroll-behavior: none; background: #0b0d10; color: #d7dbe0; font-family: system-ui, sans-serif; }
   body { display: flex; flex-direction: column; }
+  .xterm-viewport, #knoepfe { overscroll-behavior: contain; }
   #status { padding: 4px 10px; font-size: 13px; color: #8b949e; min-height: 1.2em; }
   #hud { display: none; padding: 6px 10px; background: #12161b; border-bottom: 1px solid #22272e; font-size: 13px; }
   #hud .zeile { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
