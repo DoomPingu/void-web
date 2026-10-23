@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
+<meta name="theme-color" content="#0b0d10">
+<title>VOID</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0d10; color: #d7dbe0; font-family: system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; }
+  #status { padding: 4px 10px; font-size: 13px; color: #8b949e; min-height: 1.2em; }
+  #hud { display: none; padding: 6px 10px; background: #12161b; border-bottom: 1px solid #22272e; font-size: 13px; }
+  #hud .zeile { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+  #hud .ort { color: #8fb4e8; font-weight: 600; }
+  .balken { position: relative; height: 14px; background: #1c222a; border-radius: 7px; overflow: hidden; margin-bottom: 4px; }
+  .balken > i { position: absolute; inset: 0 auto 0 0; width: 0; transition: width .4s; }
+  .balken > span { position: absolute; inset: 0; text-align: center; font-size: 11px; line-height: 14px; color: #fff; text-shadow: 0 0 2px #000; }
+  #hp > i { background: #b33a3a; }
+  #xp > i { background: #3a7bb3; }
+  #terminal { flex: 1; min-height: 0; padding: 0 6px; }
+  #knoepfe { display: none; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px 8px 0; max-height: 40vh; overflow-y: auto; }
+  #knoepfe button { font-size: 17px; padding: 14px 10px; min-height: 52px; background: #1a2230; color: #e6e8eb; border: 1px solid #2d3b52; border-radius: 10px; text-align: left; }
+  #knoepfe button:active { background: #2b5d9b; }
+  #knoepfe button.eine { grid-column: 1 / -1; }
+  #knoepfe button.sonder { background: #161b22; color: #8fb4e8; }
+  #leiste { display: flex; gap: 8px; padding: 8px; border-top: 1px solid #22272e; }
+  #eingabe { flex: 1; min-width: 0; font-size: 18px; padding: 10px; background: #12161b; color: #e6e8eb; border: 1px solid #2d333b; border-radius: 8px; }
+  #senden { font-size: 18px; padding: 10px 16px; background: #2b5d9b; color: #fff; border: 0; border-radius: 8px; }
+</style>
+</head>
+<body>
+<div id="status">Starte …</div>
+<div id="hud"></div>
+<div id="terminal"></div>
+<div id="knoepfe"></div>
+<form id="leiste" autocomplete="off">
+  <input id="eingabe" inputmode="text" enterkeyhint="send" placeholder="Eingabe, dann Enter" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <button id="senden" type="submit" aria-label="Senden">↵</button>
+</form>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+<script>
+const statusZeile = document.getElementById("status");
+const hudEl = document.getElementById("hud");
+const knoepfeEl = document.getElementById("knoepfe");
+let leseStart = 0;
+let bildschirmZeilen = () => [];
+let antwort = () => {};
+let anpassen = () => {};
+
+function spielstaende() {
+  const st = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k.startsWith("void:")) st[k.slice(5)] = localStorage.getItem(k);
+    }
+  } catch (e) {}
+  return st;
+}
+
+function balken(id, text, wert, max) {
+  const el = hudEl.querySelector("#" + id);
+  el.firstChild.style.width = (max ? Math.max(0, Math.min(100, (wert / max) * 100)) : 100) + "%";
+  el.lastChild.textContent = text;
+}
+
+function hudZeigen(d) {
+  if (!hudEl.firstChild) {
+    hudEl.innerHTML = '<div class="zeile"><span class="ort"></span><span class="gold"></span></div>' +
+      '<div class="balken" id="hp"><i></i><span></span></div><div class="balken" id="xp"><i></i><span></span></div>';
+  }
+  const ort = String(d.ort).replace(/_/g, " ").replace(/(^|\s)\S/g, (c) => c.toUpperCase());
+  hudEl.querySelector(".ort").textContent = d.name + " · " + ort;
+  hudEl.querySelector(".gold").textContent = d.gold + " Gold" + (d.diamanten ? " · " + d.diamanten + " Diamanten" : "");
+  balken("hp", "HP " + d.hp + " / " + d.hp_max, d.hp, d.hp_max);
+  balken("xp", "Level " + d.level + " · EP " + (d.exp_ziel ? d.exp + " / " + d.exp_ziel : "Max"), d.exp, d.exp_ziel);
+  hudEl.style.display = "block";
+  anpassen();
+}
+
+// Liest die Auswahl aus dem Text vor dem Prompt: "1. Text" und "[S] Text".
+// Passt nichts, bleibt nur das Textfeld.
+function knoepfeBauen() {
+  knoepfeEl.replaceChildren();
+  const zeilen = bildschirmZeilen();
+  const nichtLeer = zeilen.filter((z) => z.trim());
+  const letzte = nichtLeer.length ? nichtLeer[nichtLeer.length - 1] : "";
+  let eintraege = [];
+  const gesehen = new Set();
+  let letzterEintrag = null;
+  for (const z of zeilen) {
+    const m = z.match(/^\s*(\d{1,2})[.)]\s+(.+)$/) || z.match(/^\s*\[([A-Za-z])\]\s+(.+)$/);
+    if (m && !gesehen.has(m[1].toLowerCase())) {
+      gesehen.add(m[1].toLowerCase());
+      letzterEintrag = { wert: m[1].toLowerCase(), text: m[2], sonder: !/^\d/.test(m[1]) };
+      eintraege.push(letzterEintrag);
+    } else if (m) {
+      letzterEintrag = null;
+    } else if (letzterEintrag && z.trim() && z.trim() !== letzte.trim()) {
+      // Umbruch: Zeile direkt unter einem Eintrag gehört dazu.
+      letzterEintrag.text += " " + z.trim();
+    } else {
+      letzterEintrag = null;
+    }
+  }
+  if (/Enter|Beliebige Taste/i.test(letzte)) {
+    eintraege = [{ wert: "", text: letzte.replace(/^\[Beliebige Taste\]\s*/, "") || "Weiter", weiter: true }];
+  } else if (!/[:>]\s*$/.test(letzte)) {
+    eintraege = [];
+  }
+  for (const e of eintraege) {
+    const b = document.createElement("button");
+    b.type = "button";
+    const text = e.text.replace(/\s+/g, " ");
+    b.textContent = e.weiter ? "↵ " + text : (e.sonder ? "[" + e.wert.toUpperCase() + "] " : e.wert + ". ") + text;
+    if (e.sonder) b.className = "sonder";
+    b.onclick = () => antwort(e.wert);
+    knoepfeEl.append(b);
+  }
+  if (eintraege.length === 1) knoepfeEl.firstChild.classList.add("eine");
+  knoepfeEl.style.display = eintraege.length ? "grid" : "none";
+  anpassen();
+}
+
+async function starten() {
+  if (typeof WebAssembly.Suspending !== "function") {
+    statusZeile.textContent = "Dieser Browser ist zu alt für VOID. Bitte Chrome aktualisieren (Version 137 oder neuer).";
+    return;
+  }
+  const term = new Terminal({ convertEol: true, fontSize: 15, scrollback: 5000, disableStdin: true,
+    cursorBlink: false, theme: { background: "#0b0d10" } });
+  const fit = new FitAddon.FitAddon();
+  term.loadAddon(fit);
+  term.open(document.getElementById("terminal"));
+  fit.fit();
+
+  const worker = new Worker("worker.js");
+  let wartet = false;
+  // Text seit der letzten Antwort, so wie er wirklich auf dem Bildschirm steht (ohne Schreibmaschinen-Zwischenstände).
+  bildschirmZeilen = () => {
+    const buf = term.buffer.active;
+    const ende = buf.baseY + buf.cursorY;
+    const out = [];
+    for (let y = leseStart > ende ? buf.baseY : leseStart; y <= ende; y++) {
+      const zeile = buf.getLine(y);
+      if (!zeile) continue;
+      const t = zeile.translateToString(true);
+      if (zeile.isWrapped && out.length) out[out.length - 1] += t;
+      else out.push(t);
+    }
+    return out;
+  };
+
+  anpassen = function () {
+    fit.fit();
+    worker.postMessage({ typ: "spalten", spalten: term.cols });
+  };
+  setTimeout(anpassen, 300);
+  addEventListener("resize", anpassen);
+
+  worker.onmessage = (e) => {
+    const m = e.data;
+    if (m.typ === "text") {
+      term.write(m.text);
+    }
+    else if (m.typ === "hud") hudZeigen(m.daten);
+    else if (m.typ === "status") statusZeile.textContent = m.text;
+    else if (m.typ === "eingabe") { wartet = true; term.write("", knoepfeBauen); }
+    else if (m.typ === "speichern") { try { localStorage.setItem("void:" + m.name, m.text); } catch (err) {} }
+    else if (m.typ === "loeschen") { try { localStorage.removeItem("void:" + m.name); } catch (err) {} }
+    else if (m.typ === "ende") statusZeile.textContent = "Spiel beendet. Seite neu laden, um wieder zu starten.";
+  };
+  const dateien = await (await fetch("../dateien.json", { cache: "no-cache" })).json();
+  worker.postMessage({ typ: "start", dateien, spielstaende: spielstaende(), spalten: term.cols });
+
+  const feld = document.getElementById("eingabe");
+  antwort = (zeile) => {
+    if (!wartet) {
+      // Text läuft noch: Tippen zeigt den Rest sofort.
+      worker.postMessage({ typ: "ueberspringen" });
+      return;
+    }
+    wartet = false;
+    knoepfeEl.style.display = "none";
+    term.write(zeile + "\n", () => {
+      const buf = term.buffer.active;
+      leseStart = buf.baseY + buf.cursorY;
+    });
+    worker.postMessage({ typ: "zeile", text: zeile });
+    anpassen();
+  };
+  document.getElementById("leiste").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const zeile = feld.value;
+    if (wartet) feld.value = "";
+    antwort(zeile);
+    feld.focus();
+  });
+  feld.focus();
+}
+starten();
+</script>
+</body>
+</html>
