@@ -5888,7 +5888,7 @@ def dialog_sera():
                     [
                         "[Sera] Wieder da? Was darf es sein?",
                         "[Sera] Na? Was hast du diesmal herausgefunden?",
-                        "[Sera] Ich höre.",
+                        "[Sera] Was darf es sein?",
                         "[Sera] Setz dich, wenn du bleiben willst.",
                         (
                             "[Sera] Du kennst den Weg inzwischen. "
@@ -6150,7 +6150,7 @@ def dialog_sera():
                             print()
 
                             text_ausgeben(
-                                "Sera hält einen Moment inne."
+                                "Sera hält inne."
                             )
 
                             print()
@@ -7213,7 +7213,7 @@ def marek_erstbegegnung():
         print()
 
         text_ausgeben(
-            "Marek schweigt einen Moment."
+            "Marek schweigt."
         )
 
         print()
@@ -7675,7 +7675,7 @@ def dialog_marek():
                     "marek",
                     [
                         "[Marek] Wieder da? Frag ruhig.",
-                        "[Marek] Ich höre.",
+                        "[Marek] Frag ruhig.",
                         (
                             "[Marek] Viel Neues weiß ich vermutlich nicht. "
                             "Aber versuchen können wir es."
@@ -7962,7 +7962,7 @@ def dialog_elian():
                     [
                         "[Elian] Wieder da?",
                         "[Elian] Was willst du wissen?",
-                        "[Elian] Ich höre.",
+                        "[Elian] Was gibt's?",
                         (
                             "[Elian] Wenn du etwas über Marek wissen willst, "
                             "frag einfach."
@@ -8475,7 +8475,7 @@ def marek_elian_begegnung():
     print()
 
     text_ausgeben(
-        "Elian sieht ihn einen Moment lang an."
+        "Elian sieht ihn an."
     )
 
     print()
@@ -10612,7 +10612,7 @@ def dialog_edda():
                             "[Edda] Das Lied ist noch da. "
                             "Das ist mehr, als ich eine Zeit lang glaubte."
                         ),
-                        "[Edda] Setz dich, wenn du möchtest.",
+                        "[Edda] Setz dich doch.",
                         "[Edda] Was möchtest du wissen?"
                     ]
                 )
@@ -17331,7 +17331,7 @@ def selene_magier_ausbildung():
         if antwort == 2:
             text_ausgeben("Selene unterbricht die Übung.")
             print()
-            text_ausgeben("[Selene] Erst Kontrolle, dann Stärke.")
+            text_ausgeben("[Selene] Langsamer. Halte den Ring ruhig, bevor du ihn schwingen lässt.")
             warte_auf_taste("Zurück")
         return
     text_ausgeben(
@@ -17654,8 +17654,7 @@ def rika_spaeher_ausbildung():
     )
     print()
     text_ausgeben(
-        "[Rika] Ich halte die Wege für die Köhler im Blick. Wer vorausgeht, "
-        "muss mehr sehen als nur den nächsten Schritt."
+        "[Rika] Ich halte die Wege für die Köhler im Blick."
     )
     print()
     print("Du kannst Grundklassen in der Übersicht vergleichen.")
@@ -20737,7 +20736,6 @@ def buecherregal():
         )
         print("Du erkennst Eichenruh, den Wald und einige seltsame Gestalten.")
         print("Eine Zeichnung zeigt einen dunklen Riss, der sich quer über den Himmel zieht.")
-        print("Vermutlich nur die Fantasie eines Kindes...")
         print()
 
     elif (
@@ -21333,7 +21331,7 @@ def prolog_haus():
             print()
 
             text_ausgeben(
-                "Du richtest dich auf und lässt den Blick durch das kleine Zimmer wandern."
+                "Du richtest dich auf und siehst dich um."
             )
 
             text_ausgeben(
@@ -21417,8 +21415,7 @@ def prolog_haus():
             )
 
             text_ausgeben(
-                "Die Bretter haben sich unter dem Gewicht der Jahre "
-                "leicht durchgebogen."
+                "Die alten Bretter sind in der Mitte durchgebogen."
             )
 
             text_ausgeben(
@@ -21541,9 +21538,8 @@ def prolog_haus():
             ort_nachricht_setzen(
                 "Du ziehst dich an, öffnest die Haustür "
                 "und trittst hinaus.",
-                "Kühle Morgenluft streicht über dein Gesicht.",
-                "Der Geruch von Holzrauch und frischem Brot "
-                "liegt in der Luft.",
+                "Die Morgenluft ist kühl.",
+                "Es riecht nach Holzrauch und frischem Brot.",
                 "Auf der Straße grüßt dich jemand im Vorbeigehen, "
                 "ohne seinen Schritt zu verlangsamen.",
                 "Vor dir liegt Eichenruh."
@@ -21696,10 +21692,6 @@ def spielerhaus():
 
         ort_nachricht_setzen(
             "Du trittst hinaus.",
-            *(
-                ["Eichenruh... ein ruhiges kleines Dorf."]
-                if ortstext_erster_besuch("haus_raus") else []
-            )
     )
 
 def waffenwahl_bestaetigen(waffe, aktuelle_waffe=None, starter=False):
@@ -25156,7 +25148,7 @@ def dialog_joris():
                 print()
 
                 text_ausgeben(
-                    "Er sieht einen Moment auf den Tisch."
+                    "Er sieht auf den Tisch."
                 )
 
                 text_ausgeben(
@@ -25174,7 +25166,7 @@ def dialog_joris():
                     [
                         "[Joris] Na? Wieder da?",
                         "[Joris] Noch eine Frage?",
-                        "[Joris] Ich höre.",
+                        "[Joris] Schon wieder eine Frage?",
                         (
                             "[Joris] Wenn du wieder wegen des Kellers fragst: "
                             "Ich habe leider immer noch keine bessere Erklärung."
@@ -25508,7 +25500,7 @@ def mara_glutkrieger():
         print("Beende zuerst deine andere anstehende Hybridprüfung.")
         warte_auf_taste("Zurück")
         return
-    text_ausgeben("[Mara] Am Feuer lernst du, deine Kräfte einzuteilen. Im Kampf ist es nicht anders: Vorrat, Ausdauer und der richtige Moment.")
+    text_ausgeben("[Mara] Teil dir deine Vorräte ein. Das gilt am Feuer genauso wie im Kampf.")
     print("Kampfportion [G]: 20 Leben heilen und für die drei Folgerunden +3 Waffenschaden; eine normale Kampfrunde.")
     print("Kraftschub [B]: Angriff 1 mit +60 % Waffenschaden während der Stärkung. Beendet danach den übrigen Schadensbonus, auch bei Verfehlen.")
     print("Nachwärme: in den drei Folgerunden jeweils 3 Leben regenerieren, auch nach Kraftschub.")
@@ -25616,7 +25608,7 @@ def mara_koch_ausbildung():
             print("Dein vorhandener Kochpraxisstand konnte nicht gelesen werden.")
         elif fortschritt >= 2:
             print(f"Eigene Gerichte: {fortschritt} – erstes Praxisziel abgeschlossen.")
-            text_ausgeben("[Mara] Zwei verschiedene Gerichte. Gut. Du hast nicht nur dieselbe Handbewegung wiederholt, sondern unterschiedliche Zutaten und Hitze kennengelernt.")
+            text_ausgeben("[Mara] Zwei verschiedene Gerichte. Gut. Du hast andere Zutaten verwendet und die Hitze angepasst.")
             mara_vorratskueche()
             return
         else:
