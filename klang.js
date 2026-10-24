@@ -8,7 +8,7 @@ const Klang = (() => {
 
   const ART = {
     // Ort (normalisierter Name) -> Stimmung
-    spielerzimmer: "zimmer", gasthaus: "taverne", schmiede: "feuer", huette: "feuer", lagerkeller: "hoehle",
+    intro: "intro", spielerzimmer: "zimmer", gasthaus: "taverne", schmiede: "feuer", huette: "feuer", lagerkeller: "hoehle",
     oros_halle: "drinnen", oros_archiv: "drinnen", oros_lehrhallen: "drinnen", oros_tor: "wind",
     eichenruh: "wind", marktplatz: "wind", verlassenes_dorf: "wind", wald: "wald", waldlichtung: "wald",
     bachlauf: "wald", koehlerei: "feuer", pfad_des_vergessens: "wald", wrackstrand: "kueste",
