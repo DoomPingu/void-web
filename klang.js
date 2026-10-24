@@ -8,7 +8,7 @@ const Klang = (() => {
 
   const ART = {
     // Ort (normalisierter Name) -> Stimmung
-    spielerzimmer: "drinnen", gasthaus: "taverne", schmiede: "feuer", huette: "feuer", lagerkeller: "hoehle",
+    spielerzimmer: "zimmer", gasthaus: "taverne", schmiede: "feuer", huette: "feuer", lagerkeller: "hoehle",
     oros_halle: "drinnen", oros_archiv: "drinnen", oros_lehrhallen: "drinnen", oros_tor: "wind",
     eichenruh: "wind", marktplatz: "wind", verlassenes_dorf: "wind", wald: "wald", waldlichtung: "wald",
     bachlauf: "wald", koehlerei: "feuer", pfad_des_vergessens: "wald", wrackstrand: "kueste",
@@ -148,6 +148,7 @@ const Klang = (() => {
 
   let szenenZaehler = 0;
   STIMMUNG.taverne = STIMMUNG.feuer; // ohne Aufnahme klingt die Taverne wie Feuer
+  STIMMUNG.zimmer = STIMMUNG.drinnen; // ohne Aufnahme klingt das Zimmer wie ein Innenraum
   function setzen(name) {
     szeneName = name;
     if (!ctx) return;
