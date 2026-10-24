@@ -211,7 +211,7 @@ function hudZeigen(d) {
     lagerkeller: "Alter Lagerkeller", tiefen_messgang: "TIEFEN – Messgang", oros_zentrale_halle: "Oros – Zentrale Halle" };
   const ort = ORT_ANZEIGE[d.ort] || String(d.ort).replace(/_/g, " ").replace(/(^|\s)\S/g, (c) => c.toUpperCase());
   hudEl.querySelector(".ort").textContent = d.name + " · " + ort;
-  hudEl.querySelector(".gold").textContent = d.gold + " Gold" + (d.diamanten ? " · " + d.diamanten + " Diamanten" : "");
+  hudEl.querySelector(".gold").textContent = d.gold + " Gold" + (d.diamanten ? " · " + d.diamanten + " Diamanten" : "") + (d.spielzeit ? " · ⏱ " + d.spielzeit : "");
   balken("hp", "HP " + d.hp + " / " + d.hp_max, d.hp, d.hp_max);
   balken("xp", "Level " + d.level + " · EP " + (d.exp_ziel ? d.exp + " / " + d.exp_ziel : "Max"), d.exp, d.exp_ziel);
   hudEl.style.display = "block";

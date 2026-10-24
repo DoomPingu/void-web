@@ -110,6 +110,7 @@ def _hud():
             "name": s.get("name", ""), "ort": s.get("ort", ""),
             "hp": s.get("lebenspunkte", 0), "hp_max": m.spieler_max_lebenspunkte(),
             "gold": s.get("gold", 0), "diamanten": s.get("diamanten", 0),
+            "spielzeit": m.spielzeit_text() if hasattr(m, "spielzeit_text") else "",
             "level": f["level"], "exp": f["exp_im_level"], "exp_ziel": f["aufstiegskosten"],
         }))
     except Exception:

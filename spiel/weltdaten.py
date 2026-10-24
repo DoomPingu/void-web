@@ -214,6 +214,12 @@ WEGE = {
     "faden_der_erinnerung": {
         "name": "Faden der Erinnerung",
         "gebiet": "Nordweg"
+    },
+
+    # Nur für die Routenkenntnis (Schnellreise); nie als "entdeckter Weg".
+    "waldweg_koehlerei": {
+        "name": "Waldweg zur Köhlerei",
+        "gebiet": "Wald"
     }
 }
 
@@ -594,6 +600,9 @@ WALD_SEITENPFAD_ABKUERZUNGEN = {
 REISE_STRECKEN = {
     frozenset(("Eichenruh", "Köhlerei")): {
         "name": "Waldweg zur Köhlerei",
+        "routenkenntnis_id": "waldweg_koehlerei",
+        "routenkenntnis_automatisch": True,
+        "schnellreise": True,
         "gebiet": "Wald",
         "schritte": 12,
         "zufallsereignisse": False,
@@ -693,6 +702,12 @@ REISE_STRECKEN = {
                     "status": "aktiv"
                 },
 
+                "schnellreise_sperre": {
+                    "typ": "quest_status",
+                    "id": "quest_hilda",
+                    "status": "aktiv"
+                },
+
                 "titel": "[Auf der Suche]",
                 "design": "wissen",
                 "text": [
@@ -719,6 +734,12 @@ REISE_STRECKEN = {
                 "einmalig": True,
 
                 "bedingung": {
+                    "typ": "quest_status",
+                    "id": "quest_hilda",
+                    "status": "aktiv"
+                },
+
+                "schnellreise_sperre": {
                     "typ": "quest_status",
                     "id": "quest_hilda",
                     "status": "aktiv"
@@ -1284,6 +1305,8 @@ REISE_STRECKEN = {
     frozenset(("Eichenruh", "universitaet_oros")): {
         "name": "Faden der Erinnerung",
         "weg_id": "faden_der_erinnerung",
+        "routenkenntnis_automatisch": True,
+        "schnellreise": True,
         "variable_schritt_texte": {
             "Eichenruh>universitaet_oros": {
 
@@ -1396,6 +1419,11 @@ REISE_STRECKEN = {
                     "id": "quest_zurueckgelassene",
                     "status": "weg_suchen"
                 },
+                "schnellreise_sperre": {
+                    "typ": "quest_status",
+                    "id": "quest_zurueckgelassene",
+                    "status": "weg_suchen"
+                },
                 "aktion": "versorgungskehre",
                 "option": "Die alte Zufahrt zur Versorgungskehre suchen [!]",
                 "text": [
@@ -1415,6 +1443,11 @@ REISE_STRECKEN = {
                     "typ": "quest_status_in",
                     "id": "quest_zurueckgelassene",
                     "werte": ["felsweg", "kehre", "rueckkehr", "abgeschlossen"]
+                },
+                "schnellreise_sperre": {
+                    "typ": "quest_status_in",
+                    "id": "quest_zurueckgelassene",
+                    "werte": ["felsweg", "kehre"]
                 },
                 "aktion": "versorgungskehre",
                 "option": "Zur alten Versorgungskehre hinabsteigen",
@@ -1818,6 +1851,12 @@ REISE_STRECKEN = {
 
             {
                 "id": "wege_lichtung_waechter",
+
+                "schnellreise_sperre": {
+                    "typ": "quest_status",
+                    "id": "quest_wege_verbinden",
+                    "status": "lichtung_untersuchen"
+                },
                 "schritt": 5,
                 "ziel": "Bossraum",
 
@@ -1895,6 +1934,12 @@ REISE_STRECKEN = {
 
             {
                 "id": "wege_lichtung_ruhig",
+
+                "schnellreise_sperre": {
+                    "typ": "quest_status",
+                    "id": "quest_wege_verbinden",
+                    "status": "lichtung_untersuchen"
+                },
                 "schritt": 5,
                 "ziel": "Bossraum",
 
@@ -2022,6 +2067,8 @@ REISE_STRECKEN = {
     ): {
         "name": "Pfad des Vergessens",
         "weg_id": "pfad_des_vergessens",
+        "routenkenntnis_automatisch": True,
+        "schnellreise": True,
         "variable_schritt_texte": {
             "Eichenruh>verlassenes_dorf": {
 
@@ -2240,6 +2287,12 @@ REISE_STRECKEN = {
             {
                 "id": "wege_seitenpfad",
 
+                "schnellreise_sperre": {
+                    "typ": "quest_status_in",
+                    "id": "quest_wege_verbinden",
+                    "werte": ["tomas_fragen", "pfad_folgen"]
+                },
+
                 "schritte": {
                     "Eichenruh>verlassenes_dorf": 7,
                     "verlassenes_dorf>Eichenruh": 6
@@ -2280,6 +2333,12 @@ REISE_STRECKEN = {
 
             {
                 "id": "wege_randsteine",
+
+                "schnellreise_sperre": {
+                    "typ": "quest_status",
+                    "id": "quest_wege_verbinden",
+                    "status": "randsteine_finden"
+                },
 
                 "schritte": {
                     "Eichenruh>verlassenes_dorf": 9,

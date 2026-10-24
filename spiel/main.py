@@ -1107,6 +1107,51 @@ def rueckkehr_hinweis_meldung_anzeigen():
 
         return
 
+# --------------------------------------------------
+# SPIELZEIT
+# --------------------------------------------------
+
+_SPIELZEIT_STAND = [None, 0.0]  # [Kennung des Spielers, letzte Messung]
+SPIELZEIT_MAX_PAUSE = 600  # Sekunden; längere Pausen am Stück zählen nicht
+
+
+def spielzeit_aktualisieren():
+    # Zählt die Zeit seit der letzten Messung zum Spielstand dazu. Wird an
+    # Eingaben, beim Speichern und in der Anzeige aufgerufen; lange Pausen
+    # (AFK, Handy weggelegt) werden gekappt.
+    jetzt = time.monotonic()
+
+    if not isinstance(spieler, dict):
+        return 0
+
+    if _SPIELZEIT_STAND[0] != id(spieler):
+        _SPIELZEIT_STAND[0] = id(spieler)
+        _SPIELZEIT_STAND[1] = jetzt
+
+    verstrichen = jetzt - _SPIELZEIT_STAND[1]
+    _SPIELZEIT_STAND[1] = jetzt
+
+    if spieler.get("name") and verstrichen > 0:
+        spieler["spielzeit"] = (
+            spieler.get("spielzeit", 0)
+            + min(verstrichen, SPIELZEIT_MAX_PAUSE)
+        )
+
+    return spieler.get("spielzeit", 0)
+
+
+def spielzeit_text(sekunden=None):
+    if sekunden is None:
+        sekunden = spielzeit_aktualisieren()
+
+    minuten = int(sekunden // 60)
+
+    if minuten < 60:
+        return f"{minuten} Min"
+
+    return f"{minuten // 60} Std {minuten % 60} Min"
+
+
 def ort_titel(name):
     global TEXT_SKIP_AKTIV
     TEXT_SKIP_AKTIV = False
@@ -1356,6 +1401,72 @@ def ortstext_wechsel(ort_id, *varianten):
     return varianten[nummer % len(varianten)]
 
 
+def reise_schnellreise_gesperrt(
+    strecken_daten,
+    start,
+    ziel
+):
+    # Zentrale Prüfung: Ein Eintrag (Abzweigung oder Ereignis) einer Strecke
+    # trägt "schnellreise_sperre": <Bedingung>, solange er für eine offene
+    # Aufgabe auf der Normalreise gebraucht wird. Gilt die Bedingung, wird
+    # die Schnellreise nicht angeboten. Neue Reise-Quests brauchen nur diesen
+    # einen Eintrag in den Streckendaten.
+    richtung = f"{start}>{ziel}"
+
+    eintraege = (
+        list(strecken_daten.get("abzweigungen", []))
+        + list(strecken_daten.get("ereignisse", []))
+    )
+
+    dauerhaft_erlebt = spieler.get(
+        "reise_ereignisse",
+        []
+    )
+
+    for eintrag in eintraege:
+        sperre = eintrag.get(
+            "schnellreise_sperre"
+        )
+
+        if not sperre:
+            continue
+
+        eintrag_richtung = eintrag.get(
+            "richtung"
+        )
+
+        if (
+            eintrag_richtung
+            and eintrag_richtung != richtung
+        ):
+            continue
+
+        schritte = eintrag.get(
+            "schritte"
+        )
+
+        if (
+            isinstance(schritte, dict)
+            and richtung not in schritte
+        ):
+            continue
+
+        # Ein einmaliges Ereignis, das schon erlebt wurde, kommt
+        # nicht wieder und muss die Schnellreise nicht mehr sperren.
+        if (
+            eintrag.get("einmalig", False)
+            and eintrag.get("id") in dauerhaft_erlebt
+        ):
+            continue
+
+        if reise_bedingung_erfuellt(
+            sperre
+        ):
+            return True
+
+    return False
+
+
 def reise(
     ziel,
     *ankunft_zeilen,
@@ -1383,24 +1494,38 @@ def reise(
         "weg_id"
     )
 
+    # Strecken ohne eigene weg_id (Waldweg zur Köhlerei) nutzen
+    # "routenkenntnis_id", ohne dass sich Reiseanzeige oder
+    # Texte der Strecke ändern.
+    kenntnis_id = reise_daten.get(
+        "routenkenntnis_id",
+        weg_id
+    )
+
     # -------------------------
     # VERTRAUTE ROUTE
     # -------------------------
 
     if (
-        weg_id
+        kenntnis_id
         and reise_daten.get(
             "schnellreise",
             False
         )
         and routenkenntnis_bekannt(
-            weg_id
+            kenntnis_id
         )
         and not (
             akt1_riss_geschehen()
             and weg_id == "koenigsring"
         )
     ):
+        schnellreise_gesperrt = reise_schnellreise_gesperrt(
+            reise_daten,
+            start,
+            ziel
+        )
+
         reise_name = reise_daten.get(
             "name",
             reise_daten["gebiet"]
@@ -1424,34 +1549,61 @@ def reise(
 
         print()
 
-        print(
-            "Du kennst diese Strecke inzwischen gut genug, "
-            "um sie ohne längere Erkundung zurückzulegen."
-        )
+        if schnellreise_gesperrt:
+            print(
+                "Auf dieser Strecke wartet noch eine offene Aufgabe. "
+                "Reise auf dem normalen Weg, um sie nicht zu überspringen."
+            )
 
-        menue_trenner()
-        print()
+            menue_trenner()
+            print()
 
-        print(
-            "1. Normal reisen"
-        )
+            print(
+                "1. Normal reisen"
+            )
 
-        print(
-            "2. Strecke zügig zurücklegen"
-        )
+            print(
+                "2. Zurück"
+            )
 
-        print(
-            "3. Zurück"
-        )
+            if eingabe_menu(
+                1,
+                2,
+                sonder_tasten=()
+            ) == 2:
+                return
 
-        reise_auswahl = eingabe_menu(
-            1,
-            3,
-            sonder_tasten=()
-        )
+            reise_auswahl = 1
 
-        if reise_auswahl == 3:
-            return
+        else:
+            print(
+                "Du kennst diese Strecke inzwischen gut genug, "
+                "um sie ohne längere Erkundung zurückzulegen."
+            )
+
+            menue_trenner()
+            print()
+
+            print(
+                "1. Normal reisen"
+            )
+
+            print(
+                "2. Strecke zügig zurücklegen"
+            )
+
+            print(
+                "3. Zurück"
+            )
+
+            reise_auswahl = eingabe_menu(
+                1,
+                3,
+                sonder_tasten=()
+            )
+
+            if reise_auswahl == 3:
+                return
 
         # -------------------------
         # ZÜGIG REISEN
@@ -5069,6 +5221,27 @@ def reise_fortsetzen():
         ziel
     ):
         warte_auf_taste("Weitergehen")
+
+    # Eine vollständig abgeschlossene Normalreise macht die Strecke
+    # vertraut (nur Strecken mit "routenkenntnis_automatisch").
+    abgeschlossene_strecke = reise_strecken_daten(
+        reise_daten
+    )
+
+    if abgeschlossene_strecke.get(
+        "routenkenntnis_automatisch",
+        False
+    ):
+        kenntnis_id = abgeschlossene_strecke.get(
+            "routenkenntnis_id",
+            abgeschlossene_strecke.get("weg_id")
+        )
+
+        if (
+            kenntnis_id
+            and routenkenntnis_lernen(kenntnis_id)
+        ):
+            warte_auf_taste("Weitergehen")
 
     ort_nachricht_setzen(
         *ankunft_zeilen
@@ -14016,6 +14189,8 @@ def spielstand_migrieren(
     return speicher_daten
 
 def spiel_speichern(spieler):
+    spielzeit_aktualisieren()
+
     if not isinstance(
         spieler,
         dict
@@ -14845,6 +15020,8 @@ def spiel_laden(slot=None):
     return geladener_spieler
 
 def warte_auf_taste(text="Zurück"):
+    spielzeit_aktualisieren()
+
     global TEXT_SKIP_AKTIV
 
     if os.name == "nt":
@@ -14876,6 +15053,8 @@ def warte_auf_taste(text="Zurück"):
 
 
 def eingabe_zahl(minimum, maximum, trenner=True):
+    spielzeit_aktualisieren()
+
     fehler = False
 
     while True:
@@ -14933,6 +15112,8 @@ def eingabe_menu(
     sonder_tasten=("s", "i"),
     trenner=True
 ):
+    spielzeit_aktualisieren()
+
     sonder_tasten = tuple(
         taste.lower()
         for taste in sonder_tasten
@@ -18039,6 +18220,7 @@ def status():
     print(f"Gold: {spieler['gold']}")
     print(f"Diamanten: {spieler['diamanten']}")
     print(f"Besiegte Gegner: {spieler['besiegte_gegner']}")
+    print(f"Spielzeit: {spielzeit_text()}")
 
     print()
 
