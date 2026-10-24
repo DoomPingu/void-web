@@ -2295,16 +2295,13 @@ REISE_STRECKEN = {
                 "aktion": "pfad_randsteine",
 
                 "option": (
-                    "Die alten Randsteine am Wegrand mit deinen Linien vergleichen [!]"
+                    "Der Linie deiner Skizze zu den Randsteinen folgen [!]"
                 ),
 
                 "text": [
                     (
-                        "Am Rand des Weges liegen alte Randsteine im Gras, "
-                        "wie an vielen Stellen dieses Pfades."
-                    ),
-                    (
-                        "Die Linie von den versunkenen Steinen führt ungefähr hierher."
+                        "Am Wegrand liegen alte Randsteine im Gras. "
+                        "Ihre Anordnung erinnert dich an die Linie deiner Skizze."
                     )
                 ]
             }

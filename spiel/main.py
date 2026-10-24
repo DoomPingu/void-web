@@ -19515,8 +19515,9 @@ def quests():
 
         elif quest_wege == "randsteine_finden":
             print(
-                "Ziel: Folge der Linie, die von den versunkenen Steinen "
-                "zurück zum Pfad des Vergessens führt."
+                "Ziel: Reise auf dem Pfad des Vergessens zwischen Eichenruh "
+                "und dem Verlassenen Dorf. Achte unterwegs auf eine "
+                "Abzweigung bei den alten Randsteinen."
             )
 
         elif quest_wege == "oros_berichten":
@@ -55905,8 +55906,9 @@ def wald_knoten_aktion_ausfuehren(
             "update",
             "Was die Wege verbindet",
             (
-                "Folge der Linie, die von den versunkenen Steinen zurück "
-                "zum Pfad des Vergessens führt."
+                "Die Linie von den versunkenen Steinen führt zurück zum "
+                "Pfad des Vergessens. Suche auf dem Weg zwischen Eichenruh "
+                "und dem Verlassenen Dorf nach alten Randsteinen."
             )
         )
 
