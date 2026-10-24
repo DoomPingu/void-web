@@ -200,8 +200,19 @@ const Klang = (() => {
   }
   function kampfEnde() { if (kampfNode) { kampfNode.stop(); kampfNode = null; } }
 
+  // Läuft die Seite im Hintergrund (App gewechselt, Bildschirm aus), wird der Ton angehalten.
+  document.addEventListener("visibilitychange", () => {
+    if (!ctx) return;
+    if (document.hidden) ctx.suspend(); else if (an) ctx.resume();
+  });
+  addEventListener("pagehide", () => { if (ctx) ctx.suspend(); });
+
   return {
-    entsperren() { sicher(starten); if (ctx && ctx.state === "suspended") ctx.resume(); },
+    entsperren() {
+      sicher(starten);
+      if (!ctx) return;
+      if (an && ctx.state === "suspended") ctx.resume(); else if (!an && ctx.state === "running") ctx.suspend();
+    },
     ort(name) { setzen(name); },
     kampf(ein) {
       kampfWunsch = !!ein;
@@ -210,7 +221,10 @@ const Klang = (() => {
     umschalten() {
       an = !an;
       try { localStorage.setItem("void:ton", an ? "an" : "aus"); } catch (e) {}
-      if (ctx) master.gain.linearRampToValueAtTime(an ? 0.5 : 0, ctx.currentTime + 0.3);
+      if (ctx) {
+        master.gain.linearRampToValueAtTime(an ? 0.5 : 0, ctx.currentTime + 0.3);
+        if (an) ctx.resume(); else setTimeout(() => { if (!an) ctx.suspend(); }, 500); // stumm = kein Strom für den Ton
+      }
       return an;
     },
     istAn: () => an,
