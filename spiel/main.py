@@ -8732,7 +8732,7 @@ def letzthafen_gezeitensteg():
             text_ausgeben(
                 ortstext_wechsel(
                     "gezeitensteg",
-                    "Am Gezeitensteg herrscht geschäftige Ruhe. "
+                    "Am Gezeitensteg wird gearbeitet. "
                     "Tauwerk knarrt, Möwen kreischen und Wasser "
                     "schlägt gegen die Pfähle.",
                     "Auf dem Steg werden Netze ausgebreitet. Das Wasser "
@@ -25742,8 +25742,7 @@ def gasthaus():
         )
 
         text_ausgeben(
-            "Hinter dem Tresen bewegt sich Mara mit der Ruhe von jemandem, "
-            "der diesen Morgen schon unzählige Male erlebt hat.",
+            "Hinter dem Tresen arbeitet Mara und behält die Gäste im Blick.",
             art="atmosphaere"
         )
 
@@ -25870,10 +25869,6 @@ def gasthaus():
         )
 
         text_ausgeben(
-            "Du lässt deinen Blick durch die Gaststube schweifen."
-        )
-
-        text_ausgeben(
             "Einige Dorfbewohner sitzen an schweren Holztischen "
             "und unterhalten sich."
         )
@@ -25900,8 +25895,7 @@ def gasthaus():
 
         ort_nachricht_setzen(
             "Du verlässt das Gasthaus.",
-            "Die vertrauten Straßen von Eichenruh "
-            "liegen wieder vor dir."
+            "Vor dir liegen wieder die Straßen von Eichenruh."
         )
 
 def bjorn_rezeptgruppe(titel, rezepte):
@@ -26087,8 +26081,8 @@ def schmiede():
         )
 
         text_ausgeben(
-            "Der Zwerg steht breit vor dem Amboss. Seine kräftigen Hände "
-            "führen den Hammer mit einer Ruhe, die dir seit Jahren vertraut ist.",
+            "Der Zwerg steht breit vor dem Amboss. Seine Hammerschläge fallen "
+            "gleichmäßig, in einem Rhythmus, den du seit Jahren kennst.",
             art="atmosphaere"
         )
 
@@ -26878,8 +26872,7 @@ def koehlerei():
         reise(
             "Eichenruh",
             (
-                "Vor dir erscheinen wieder die "
-                "vertrauten Dächer Eichenruhs."
+                "Vor dir tauchen die Dächer von Eichenruh auf."
             ),
             gebiet_modus=True
         )
@@ -27215,7 +27208,8 @@ def alte_schmiede_symbolraetsel():
         )
 
         text_ausgeben(
-            "Amboss, Wellenlinie und Flamme lassen sich jeweils einige Millimeter eindrücken.",
+            "Auf den drei Metallplatten sind ein Amboss, eine Wellenlinie für Wasser "
+            "und eine Flamme zu erkennen. Jede Platte lässt sich ein Stück eindrücken.",
             art="menue"
         )
 
@@ -27976,7 +27970,7 @@ def verlassenes_dorf():
     ):
         text_ausgeben(
             "Der alte Weg führt weiter ins Dorf, doch Gras und "
-            "Moos haben große Teile davon zurückerobert."
+            "Moos wachsen inzwischen bis auf die Mitte des Weges."
         )
 
         text_ausgeben(
@@ -29823,7 +29817,7 @@ def dialog_finch():
         print()
 
         text_ausgeben(
-            "Finch betrachtet dich einen Moment."
+            "Finch betrachtet dich."
         )
 
         print()
@@ -30233,7 +30227,7 @@ def dialog_finch():
 
         if punkt_auswahl == 1:
             text_ausgeben(
-                "Finch sieht dich einen Moment an."
+                "Finch sieht dich an."
             )
 
             print()
@@ -31999,9 +31993,8 @@ def oros_messbuch_randnotiz():
         print()
 
         text_ausgeben(
-            "Aber auch hier halten die Zeichen Abstände ein, die beabsichtigt "
-            "wirken, und eine Linie bricht dort ab, wo man eine Fortsetzung "
-            "erwarten würde."
+            "Aber auch hier halten die Zeichen Abstände ein, und eine Linie "
+            "bricht ab."
         )
 
         print()
@@ -32305,8 +32298,8 @@ def oros_lehrhallen():
 
     else:
         text_ausgeben(
-            "Stimmen und das Kratzen von Kreide "
-            "dringen aus den offenen Lehrhallen.",
+            "Aus den offenen Lehrhallen sind Stimmen und das "
+            "Kratzen von Kreide zu hören.",
             art="menue"
         )
 
