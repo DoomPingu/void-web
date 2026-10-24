@@ -125,26 +125,66 @@ const Klang = (() => {
     },
   };
 
+  // Echte Aufnahmen: liegt klang/<stimmung>.ogg oder .mp3 vor, wird sie als Schleife gespielt, sonst der erzeugte Klang.
+  const dateien = {};
+  function datei(name) {
+    if (!(name in dateien)) {
+      dateien[name] = (async () => {
+        for (const ende of ["ogg", "mp3"]) {
+          try {
+            const r = await fetch("klang/" + name + "." + ende);
+            if (r.ok) return await ctx.decodeAudioData(await r.arrayBuffer());
+          } catch (e) { /* nächste Endung */ }
+        }
+        return null;
+      })();
+    }
+    return dateien[name];
+  }
+  function schleife(buf, ziel) {
+    const s = ctx.createBufferSource(); s.buffer = buf; s.loop = true; s.connect(ziel); s.start();
+    return { raeumen: () => s.stop() };
+  }
+
+  let szenenZaehler = 0;
   function setzen(name) {
     szeneName = name;
     if (!ctx) return;
     const art = ART[name] || "drinnen";
     if (szene && szene.art === art) return;
-    const alt = szene;
-    if (alt) {
-      const t = ctx.currentTime;
-      alt.gain.gain.cancelScheduledValues(t);
-      alt.gain.gain.setValueAtTime(alt.gain.gain.value, t);
-      alt.gain.gain.linearRampToValueAtTime(0, t + 2.5);
-      setTimeout(() => sicher(() => alt.teile.raeumen()), 2800);
-    }
-    const g = ctx.createGain(); g.gain.value = 0; g.connect(master);
-    g.gain.linearRampToValueAtTime(1, ctx.currentTime + 2.5);
-    szene = { art, gain: g, teile: sicher(() => STIMMUNG[art](g)) || { raeumen() {} } };
+    const nr = ++szenenZaehler;
+    datei(art).then((buf) => {
+      if (nr !== szenenZaehler) return;
+      const alt = szene;
+      if (alt) {
+        const t = ctx.currentTime;
+        alt.gain.gain.cancelScheduledValues(t);
+        alt.gain.gain.setValueAtTime(alt.gain.gain.value, t);
+        alt.gain.gain.linearRampToValueAtTime(0, t + 2.5);
+        setTimeout(() => sicher(() => alt.teile.raeumen()), 2800);
+      }
+      const g = ctx.createGain(); g.gain.value = 0; g.connect(master);
+      g.gain.linearRampToValueAtTime(1, ctx.currentTime + 2.5);
+      const teile = buf ? sicher(() => schleife(buf, g)) : sicher(() => STIMMUNG[art](g));
+      szene = { art, gain: g, teile: teile || { raeumen() {} } };
+    });
   }
 
   function kampfStart() {
     if (!ctx || kampfNode) return;
+    kampfNode = { stop() {} };
+    datei("kampf").then((buf) => {
+      if (!kampfNode) return; // Kampf ist schon vorbei
+      kampfNode = buf ? kampfDatei(buf) : kampfHerzschlag();
+    });
+  }
+  function kampfDatei(buf) {
+    const g = ctx.createGain(); g.gain.value = 0; g.connect(master);
+    g.gain.linearRampToValueAtTime(1, ctx.currentTime + 1);
+    const s = ctx.createBufferSource(); s.buffer = buf; s.loop = true; s.connect(g); s.start();
+    return { stop: () => { g.gain.linearRampToValueAtTime(0, ctx.currentTime + 1); setTimeout(() => s.stop(), 1200); } };
+  }
+  function kampfHerzschlag() {
     const o = ctx.createOscillator(); o.type = "sine"; o.frequency.value = 52;
     const g = ctx.createGain(); g.gain.value = 0;
     o.connect(g); g.connect(master); o.start();
@@ -155,7 +195,7 @@ const Klang = (() => {
     };
     schlag();
     const iv = setInterval(() => { schlag(); setTimeout(schlag, 230); }, 1100);
-    kampfNode = { stop: () => { clearInterval(iv); o.stop(); } };
+    return { stop: () => { clearInterval(iv); o.stop(); } };
   }
   function kampfEnde() { if (kampfNode) { kampfNode.stop(); kampfNode = null; } }
 

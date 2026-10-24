@@ -1,0 +1,3 @@
+Hier können echte Aufnahmen als Schleifen liegen. Gefundene Dateien ersetzen den erzeugten Klang automatisch.
+Namen: drinnen, feuer, wald, wind, kueste, hoehle, kampf  (Endung .ogg oder .mp3)
+Dateien müssen nahtlos wiederholbar sein (Loop) und ca. 30-90 Sekunden lang, möglichst unter 1,5 MB.

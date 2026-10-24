@@ -27,7 +27,7 @@
   #gegner img { max-height: 14vh; max-width: 70%; object-fit: contain; filter: drop-shadow(0 0 12px #000); }
   .xterm-viewport, #knoepfe { overscroll-behavior: contain; }
   #kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-right: 8px; }
-  #status { padding: 4px 10px; font-size: 13px; color: #8b949e; min-height: 1.2em; }
+  #status { flex: 1; padding: 4px 10px; font-size: 13px; color: #8b949e; min-height: 1.2em; }
   #ton { font-size: 16px; padding: 2px 8px; background: transparent; color: #8b949e; border: 1px solid #2d333b; border-radius: 6px; }
   #install { font-size: 12px; padding: 4px 10px; background: #2b5d9b; color: #fff; border: 0; border-radius: 6px; }
   #hud { display: none; padding: 6px 10px; background: rgba(18,22,27,.85); border-bottom: 1px solid #22272e; font-size: 13px; }
@@ -52,7 +52,7 @@
 </style>
 </head>
 <body>
-<div id="kopf"><div id="status">Starte …</div><button id="install" type="button" hidden>App installieren</button><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
+<div id="kopf"><div id="status">Starte …</div><button id="install" type="button">⬇ App</button><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
 <div id="hintergrund" class="leer"></div>
 <div id="hud"></div>
 <div id="gegner"><img alt=""><div class="balken"><i></i><span></span></div></div>
@@ -391,19 +391,22 @@ document.addEventListener("pointerdown", () => Klang.entsperren(), { once: true 
 tonKnopf.addEventListener("click", () => { Klang.entsperren(); Klang.umschalten(); tonAnzeige(); });
 
 // App-Installation: Service Worker für Offline-Start, Button zum Installieren.
+// Der Knopf ist immer da, außer in der installierten App. Chrome bietet die Installation nicht immer sofort an;
+// bis dahin erklärt der Knopf den Weg über das Browser-Menü.
 let installAngebot = null;
-addEventListener("beforeinstallprompt", (e) => {
-  e.preventDefault();
-  installAngebot = e;
-  document.getElementById("install").hidden = false;
-});
-addEventListener("appinstalled", () => { document.getElementById("install").hidden = true; });
-document.getElementById("install").addEventListener("click", async () => {
-  if (!installAngebot) return;
+const installKnopf = document.getElementById("install");
+const alsApp = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+installKnopf.hidden = !!alsApp;
+addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installAngebot = e; });
+addEventListener("appinstalled", () => { installKnopf.hidden = true; });
+installKnopf.addEventListener("click", async () => {
+  if (!installAngebot) {
+    alert("Installieren: Tippe in Chrome oben rechts auf das Menü (drei Punkte) und wähle \"App installieren\" oder \"Zum Startbildschirm hinzufügen\".");
+    return;
+  }
   installAngebot.prompt();
   await installAngebot.userChoice.catch(() => {});
   installAngebot = null;
-  document.getElementById("install").hidden = true;
 });
 if ("serviceWorker" in navigator) {
   addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
