@@ -11782,7 +11782,7 @@ def letzthafen_altes_leuchtfeuer():
 
             text_ausgeben(
                 "Die Melodie wird vom Klippenweg herübergetragen. "
-                "Keine Worte - nur dieselben wenigen Töne, die sich "
+                "Keine Worte – nur dieselben wenigen Töne, die sich "
                 "langsam wiederholen."
             )
 
@@ -40049,7 +40049,7 @@ def dialog_ignaz():
             print()
 
             text_ausgeben(
-                "[Ignaz] Das habe ich nicht gesagt."
+                "[Ignaz] So weit würde ich nicht gehen."
             )
 
             print()
@@ -51218,12 +51218,6 @@ def marktplatz():
 
         else:
             text_ausgeben(
-                "Du lässt deinen Blick über den Marktplatz schweifen."
-            )
-
-            print()
-
-            text_ausgeben(
                 "Ein Bäcker verkauft noch warmes Brot."
             )
 
@@ -51264,7 +51258,7 @@ def marktplatz():
 
         ort_nachricht_setzen(
             "Du verlässt den Marktplatz.",
-            "Wenig später stehst du wieder im Zentrum von Eichenruh."
+            "Du gehst zurück ins Zentrum von Eichenruh."
         )
 
     elif (
@@ -52079,7 +52073,7 @@ def dialog_bjorn():
                             "Bjorn deutet mit dem Hammer auf einen freien "
                             "Platz neben der Werkbank.\n\n"
                             "[Bjorn] Stell dich einfach da hin. "
-                            "Dann sparst du dir den Weg zur Tür."
+                            "Da stehst du mir wenigstens nicht im Weg."
                         )
                     ]
                 )
@@ -52543,7 +52537,7 @@ def dialog_bjorn():
             else:
                 text_ausgeben(
                     "[Bjorn] Dann gönn dir eine Pause. "
-                    "Die Welt läuft dir schon nicht davon."
+                    "Hier gibt es morgen auch noch genug zu tun."
                 )
 
             dialog_thema_markieren(
@@ -52662,8 +52656,7 @@ def dialog_bjorn():
                 print()
 
                 text_ausgeben(
-                    "[Bjorn] Für Eichenruh ist das fast "
-                    "schon ein guter Tag."
+                    "[Bjorn] Mir soll es recht sein."
                 )
 
             dialog_thema_markieren(
@@ -54806,8 +54799,8 @@ def wald_knoten_aktion_ausfuehren(
         print()
 
         text_ausgeben(
-            "Unter einer halb zerfallenen Stoffbahn "
-            "entdeckst du außerdem ein Stück Papier."
+            "Eine zerfallene Stoffbahn bedeckt "
+            "ein Stück Papier."
         )
 
         print()
@@ -54838,8 +54831,7 @@ def wald_knoten_aktion_ausfuehren(
 
         print()
         text_ausgeben(
-            "Zwischen dem Gras erkennst du außerdem "
-            "mehrere alte Holzpfosten."
+            "Im Gras stehen mehrere alte Holzpfosten."
         )
 
         text_ausgeben(
@@ -55329,7 +55321,7 @@ def wald_knoten_aktion_ausfuehren(
         print()
 
         text_ausgeben(
-            "Wenig später stehst du oberhalb "
+            "Du erreichst den Hang oberhalb "
             "des bekannten Bachlaufs."
         )
 
@@ -55693,7 +55685,7 @@ def wald_knoten_aktion_ausfuehren(
         )
 
         text_ausgeben(
-            "Sie scheint über den Wegstein hinauszuweisen - quer durch den Wald, "
+            "Sie scheint über den Wegstein hinauszuweisen – quer durch den Wald, "
             "dorthin, wo du keinen Pfad erkennen kannst."
         )
 
@@ -57801,8 +57793,8 @@ def zufallsereignis(gold, heiltränke, diamanten, lebenspunkte, spiel_laeuft, be
         elif ereignis == 2:
             print()
             text_ausgeben(
-                "Zwischen Farnen hörst du leise Wasser über "
-                "Steine laufen."
+                "Aus dem Farn hörst du Wasser über "
+                "Steine plätschern."
             )
 
             text_ausgeben(
@@ -58214,16 +58206,6 @@ def zufallsereignis(gold, heiltränke, diamanten, lebenspunkte, spiel_laeuft, be
 
             print()
             text_ausgeben(
-                "Nicht völlig still."
-            )
-
-            text_ausgeben(
-                "Aber deutlich stiller als noch einen "
-                "Moment zuvor."
-            )
-
-            print()
-            text_ausgeben(
                 "Du wartest kurz und hörst schließlich "
                 "wieder Wind in den Blättern."
             )
@@ -58309,7 +58291,7 @@ def zufallsereignis(gold, heiltränke, diamanten, lebenspunkte, spiel_laeuft, be
                 elif spuren_fund == 3:
                     print()
                     text_ausgeben(
-                        "Zwischen den Abdrücken entdeckst du "
+                        "Bei den Abdrücken entdeckst du "
                         "schwarze Krümel auf dem Waldboden."
                     )
 
@@ -58326,7 +58308,7 @@ def zufallsereignis(gold, heiltränke, diamanten, lebenspunkte, spiel_laeuft, be
 
                     text_ausgeben(
                         "Nach einigen Metern verlierst du sie "
-                        "zwischen trockenem Laub."
+                        "im trockenen Laub."
                     )
 
             elif spuren_auswahl == 2:
@@ -58403,7 +58385,7 @@ while spieler["spiel_laeuft"] or nach_game_over_zum_hauptmenue():
             )
 
             text_ausgeben(
-                "Aus Bjorns Schmiede steigt wieder Rauch auf.",
+                "Aus Bjorns Schmiede steigt Rauch auf.",
                 art="atmosphaere"
             )
 
@@ -58494,7 +58476,7 @@ while spieler["spiel_laeuft"] or nach_game_over_zum_hauptmenue():
             print()
 
             text_ausgeben(
-                "Zwischen den Büchern dort stehen noch einige alte Bände, "
+                "In deinem Zimmer stehen noch einige alte Bände, "
                 "die du seit Jahren nicht geöffnet hast.",
                 art="atmosphaere"
             )
@@ -58530,7 +58512,7 @@ while spieler["spiel_laeuft"] or nach_game_over_zum_hauptmenue():
 
             text_ausgeben(
                 "Für einen kurzen Augenblick musst du nicht darüber nachdenken, "
-                "wohin sie verlaufen. Ihre Richtung scheint einfach da zu sein - "
+                "wohin sie verlaufen. Ihre Richtung scheint einfach da zu sein – "
                 "auch dort, wo Häuser und Bäume sie verdecken.",
                 art="atmosphaere"
             )
