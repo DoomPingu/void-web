@@ -16,3 +16,5 @@ Klang (Feuer): "Nuotio luolan suulla / Campfire at the mouth of a cave" von **Yl
 Klang (Höhle): "ambience 4" von IanStarGem, https://freesound.org/people/IanStarGem/sounds/478812/, Lizenz CC0 (keine Pflicht zur Nennung). Bearbeitet: Mono, Abtastrate halbiert, zur Schleife überblendet.
 
 Klang (Kampf): "Dark Battle" von **Tyops** (aus dem Spiel "Defense of Lanosia"), https://freesound.org/people/tyops/sounds/331163/, Lizenz CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/): nur für nichtkommerzielle Projekte. Bearbeitet: Mono, Abtastrate halbiert, zur Schleife überblendet.
+
+Klang (Innenräume): "ambience_library_worker" von **IsaacRoman**, https://freesound.org/people/IsaacRoman/sounds/420833/, Lizenz CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Bearbeitet: ruhiger Ausschnitt, Mono, Abtastrate halbiert, zur Schleife überblendet.
