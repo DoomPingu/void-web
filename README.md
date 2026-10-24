@@ -1,6 +1,6 @@
 # VOID – im Browser und als App
 
-Das Text-RPG VOID (Alpha 3.4.0) läuft hier direkt im Browser, auch auf dem Handy, mit Touch-Bedienung:
+Das Text-RPG VOID (Alpha 3.4.1) läuft hier direkt im Browser, auch auf dem Handy, mit Touch-Bedienung:
 Menüs als Buttons, HUD mit HP/Level/Ort, Bilder zu Orten, Gegnern und Gesprächen, Ambient-Klang.
 Python wird über Pyodide im Browser ausgeführt; Spielstände bleiben im Browser gespeichert.
 
