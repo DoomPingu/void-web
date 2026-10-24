@@ -28,6 +28,7 @@
   .xterm-viewport, #knoepfe { overscroll-behavior: contain; }
   #kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-right: 8px; }
   #status { flex: 1; padding: 4px 10px; font-size: 13px; color: #8b949e; min-height: 1.2em; }
+  #credits { font-size: 16px; color: #8b949e; text-decoration: none; padding: 2px 6px; }
   #ton { font-size: 16px; padding: 2px 8px; background: transparent; color: #8b949e; border: 1px solid #2d333b; border-radius: 6px; }
   #install { font-size: 12px; padding: 4px 10px; background: #2b5d9b; color: #fff; border: 0; border-radius: 6px; }
   #hud { display: none; padding: 6px 10px; background: rgba(18,22,27,.85); border-bottom: 1px solid #22272e; font-size: 13px; }
@@ -52,7 +53,7 @@
 </style>
 </head>
 <body>
-<div id="kopf"><div id="status">Starte …</div><button id="install" type="button">⬇ App</button><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
+<div id="kopf"><div id="status">Starte …</div><button id="install" type="button">⬇ App</button><a id="credits" href="https://github.com/DoomPingu/void-web/blob/main/CREDITS.md" target="_blank" rel="noopener" aria-label="Bildnachweise">ⓘ</a><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
 <div id="hintergrund" class="leer"></div>
 <div id="hud"></div>
 <div id="gegner"><img alt=""><div class="balken"><i></i><span></span></div></div>
