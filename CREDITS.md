@@ -11,3 +11,5 @@ Klang (Küste): "Wellen und Wind an der Portugiesischen Küste" von **VMan533**,
 Klang (Wind): "Looping Gentle Wind Ambience on an Open Desert Plain" von dhallcomposer, https://freesound.org/people/dhallcomposer/sounds/697217/, Lizenz CC0 (keine Pflicht zur Nennung). Bearbeitet: Mono, Abtastrate halbiert, Lautstärke angeglichen.
 
 Klang (Feuer): "Nuotio luolan suulla / Campfire at the mouth of a cave" von **YleArkisto** (Yle, Finnish Broadcasting Company), https://freesound.org/people/YleArkisto/sounds/299269/, Lizenz CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Bearbeitet: Ausschnitt, Mono, Abtastrate halbiert, zur Schleife überblendet.
+
+Klang (Kampf): "Säbel Kampf / Saber fight" von MisterJohnson69, https://freesound.org/people/MisterJohnson69/sounds/828970/, Lizenz CC0 (keine Pflicht zur Nennung).
