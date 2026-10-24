@@ -15347,9 +15347,7 @@ def start_build_empfehlungen_anzeigen():
     )
 
     text_ausgeben(
-        "Diese Vorschläge sind keine Klassen. "
-        "Sie zeigen nur Veranlagungen, "
-        "die gut miteinander zusammenspielen.",
+        "Diese Veranlagungen passen gut zusammen.",
         art="menue"
     )
 
@@ -15514,9 +15512,9 @@ def start_build_empfehlungen_anzeigen():
     print()
 
     text_ausgeben(
-        "Keiner dieser Builds ist notwendig. "
-        "Die Hauptgeschichte soll mit jeder "
-        "Veranlagung spielbar bleiben.",
+        "Du musst keinen dieser Builds wählen. "
+        "Die Hauptgeschichte bleibt mit jeder "
+        "Veranlagung spielbar.",
         art="menue"
     )
 
@@ -15576,17 +15574,15 @@ def start_veranlagung_waehlen():
         )
 
         text_ausgeben(
-            "Noch bevor dein Weg beginnt, gibt es Dinge, "
-            "die dir etwas leichter fallen als andere.",
+            "Du wählst, was dir zu Beginn leichter fällt.",
             art="menue"
         )
 
         print()
 
         text_ausgeben(
-            "Das ist keine Klasse und keine endgültige Entscheidung. "
-            "Deine Fähigkeiten entwickeln sich später durch das, "
-            "was du tatsächlich tust und lernst.",
+            "Diese Wahl legt keine Klasse fest. "
+            "Weitere Fähigkeiten kannst du später lernen.",
             art="menue"
         )
 
@@ -16188,37 +16184,15 @@ def spiel_intro():
     print()
 
     text_ausgeben(
-        "Manche Orte werden durch Mauern und Tore "
-        "zusammengehalten."
+        "In Eichenruh weiß man, welches Dach bei Regen tropft "
+        "und wer morgens zuerst den Ofen anheizt."
     )
 
     print()
 
     text_ausgeben(
-        "Andere durch Namen, Gewohnheiten und Geschichten, "
-        "die niemand mehr bewusst erzählen muss."
-    )
-
-    print()
-
-    text_ausgeben(
-        "Eichenruh gehört zu den letzteren."
-    )
-
-    print()
-
-    text_ausgeben(
-        "Hier weiß man, welches Dach bei starkem Regen tropft, "
-        "wer morgens zuerst den Ofen anheizt und welcher Weg "
-        "nach einem Gewitter voller Schlamm steht."
-    )
-
-    print()
-
-    text_ausgeben(
-        "Man grüßt dieselben Gesichter, hört dieselben alten "
-        "Geschichten und streitet über Gerüchte, deren Anfang "
-        "längst niemand mehr kennt."
+        "Auf dem Marktplatz streitet man über Gerüchte, "
+        "deren Anfang längst keiner mehr kennt."
     )
 
     print()
@@ -16229,14 +16203,6 @@ def spiel_intro():
 
     text_ausgeben(
         "Es ist einfach das Leben hier."
-    )
-
-    print()
-
-    text_ausgeben(
-        "Und solange etwas selbstverständlich ist, "
-        "fragt kaum jemand, was davon bleibt, "
-        "wenn es eines Tages fehlt."
     )
 
     warte_auf_taste(
@@ -16763,12 +16729,8 @@ def hauptmenue_starten():
 
         else:
             ort_nachricht_setzen(
-                "Du öffnest die Augen.",
-                "Das Zimmer liegt im blassen Licht des frühen Morgens.",
-                "Durch das kleine Fenster zieht kühle Luft herein.",
-                "Irgendwo draußen schlägt Metall auf Metall.",
-                "Ein Wagen rumpelt über die Straße, dann tragen Stimmen vom Marktplatz herüber.",
-                "Für einen Moment hörst du nur das vertraute Knarren des Hauses.",
+                "Du öffnest die Augen. Das erste Licht fällt auf die Dielen.",
+                "Draußen schlägt Metall auf Metall. Ein Wagen rumpelt über die Straße. Vom Markt her sind Stimmen zu hören.",
                 "Ein Morgen wie viele zuvor."
             )
 
@@ -21394,8 +21356,7 @@ def prolog_haus():
             print()
 
             text_ausgeben(
-                "Vom Fenster her fällt ein schmaler Streifen Morgenlicht auf den Boden. "
-                "Darin tanzt feiner Staub, sobald draußen ein Wagen vorbeifährt."
+                "Am Fensterbrett hat sich feiner Staub gesammelt."
             )
 
             print()
