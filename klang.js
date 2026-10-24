@@ -3,7 +3,7 @@
 const Klang = (() => {
   let ctx = null, master = null, rauschen = null;
   let an = true;
-  let szene = null, szeneName = "", kampfWunsch = false, kampfNode = null;
+  let szene = null, szeneName = "intro", kampfWunsch = false, kampfNode = null;
   try { an = localStorage.getItem("void:ton") !== "aus"; } catch (e) {}
 
   const ART = {
@@ -148,6 +148,7 @@ const Klang = (() => {
 
   let szenenZaehler = 0;
   STIMMUNG.taverne = STIMMUNG.feuer; // ohne Aufnahme klingt die Taverne wie Feuer
+  STIMMUNG.intro = STIMMUNG.drinnen; // Hauptmenü, bis das Spiel einen Ort setzt
   STIMMUNG.zimmer = STIMMUNG.drinnen; // ohne Aufnahme klingt das Zimmer wie ein Innenraum
   function setzen(name) {
     szeneName = name;

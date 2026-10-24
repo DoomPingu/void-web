@@ -20,3 +20,5 @@ Klang (Kampf): "Dark Battle" von **Tyops** (aus dem Spiel "Defense of Lanosia"),
 Klang (Innenräume): "ambience_library_worker" von **IsaacRoman**, https://freesound.org/people/IsaacRoman/sounds/420833/, Lizenz CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Bearbeitet: ruhiger Ausschnitt, Mono, Abtastrate halbiert, zur Schleife überblendet.
 
 Klang (Dein Haus): "night across the stars 2.0" von **X3nus**, https://freesound.org/people/X3nus/sounds/564911/, Lizenz CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Bearbeitet: Mono, Abtastrate halbiert, zur Schleife überblendet.
+
+Klang (Intro/Hauptmenü): "mawkish 1v49" von **Setuniman**, https://freesound.org/people/Setuniman/sounds/723858/, Lizenz CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/): nur für nichtkommerzielle Projekte. Bearbeitet: Mono, Abtastrate halbiert, zur Schleife überblendet.
