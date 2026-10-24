@@ -113,6 +113,16 @@ function bildLaden(name, fertig, endungen = ["webp", "jpg", "svg"]) {
   img.src = "bilder/" + name + "." + endungen[0];
 }
 let aktuellerOrt = "";
+// Hauptmenü und Optionen spielen die Intro-Musik; danach läuft wieder der Klang des aktuellen Ortes.
+let klangOrt = "", imMenue = false;
+function klangOrtSetzen(name) { klangOrt = name; if (!imMenue) Klang.ort(name); }
+const MENUE_TITEL = /^\s*(VOID|OPTIONEN|NEUES SPIEL|SPIEL LADEN|SPIELSTAND L.SCHEN|TEXTGESCHWINDIGKEIT|BILDSCHIRM LEEREN|MEN.-EINGABE|SPIELERNAME-FARBE)\b/;
+function menueKlang(zeilen) {
+  const jetzt = zeilen.some((z) => MENUE_TITEL.test(z));
+  if (jetzt === imMenue) return;
+  imMenue = jetzt;
+  Klang.ort(jetzt ? "intro" : (klangOrt || "intro"));
+}
 function hintergrundSetzen(ort) {
   const n = bildName(ort);
   if (n === aktuellerOrt) return;
@@ -125,8 +135,8 @@ function hintergrundSetzen(ort) {
   const kandidaten = [...new Set(namen.map((x) => ORT_NAMEN[x] || x))];
   const versuchen = (i) => {
     if (n !== aktuellerOrt) return;
-    if (i >= kandidaten.length) { Klang.ort(n); return anzeigen(null); }
-    bildLaden("ort_" + kandidaten[i], (src) => (src ? (Klang.ort(kandidaten[i]), anzeigen(src)) : versuchen(i + 1)));
+    if (i >= kandidaten.length) { klangOrtSetzen(n); return anzeigen(null); }
+    bildLaden("ort_" + kandidaten[i], (src) => (src ? (klangOrtSetzen(kandidaten[i]), anzeigen(src)) : versuchen(i + 1)));
   };
   const anzeigen = (src) => {
     const el = document.getElementById("hintergrund");
@@ -215,6 +225,7 @@ function knoepfeBauen() {
   const zeilen = bildschirmZeilen();
   npcSetzen(zeilen);
   kampfLeisteSetzen(zeilen);
+  menueKlang(zeilen);
   const nichtLeer = zeilen.filter((z) => z.trim());
   const letzte = nichtLeer.length ? nichtLeer[nichtLeer.length - 1] : "";
   let eintraege = [];
