@@ -43352,7 +43352,7 @@ def dialog_tomas():
             )
 
             text_ausgeben(
-                "[Tomas] Und das gefällt mir überhaupt nicht."
+                "[Tomas] Das ist mir nicht geheuer."
             )
 
             if item_besitzt(
@@ -43466,7 +43466,7 @@ def dialog_tomas():
             print()
 
             text_ausgeben(
-                "Tomas hört ungewöhnlich still zu."
+                "Tomas lässt dich ausreden."
             )
 
             print()
@@ -43688,10 +43688,6 @@ def dialog_tomas():
                 )
 
                 print()
-
-                text_ausgeben(
-                    "[Tomas] Wieder da?"
-                )
 
                 text_ausgeben(
                     "[Tomas] Setz dich. Was beschäftigt dich?"
@@ -44181,12 +44177,6 @@ def dialog_tomas():
             if not schon_besprochen:
                 text_ausgeben(
                     "Tomas sieht dich einen Moment prüfend an."
-                )
-
-                print()
-
-                text_ausgeben(
-                    "[Tomas] Du fängst an, die richtigen Fragen zu stellen."
                 )
 
                 print()
@@ -45408,7 +45398,7 @@ def wegstation_keller_untersuchen():
         print()
 
         design_text(
-            "Jemand hat die Wegstation vor nicht allzu langer Zeit benutzt.",
+            "Hier unten hat sich vor Kurzem jemand aufgehalten.",
             design="warnung",
             art="menue"
         )
@@ -47358,7 +47348,7 @@ def abtrennung_messgang():
 
     if daten.get("fehlgriffe", 0) > 0:
         text_ausgeben(
-            "Als letzter kommt ein Arbeiter, der zu lange im Gang gewartet hat. "
+            "Als Letzter kommt ein Arbeiter, der zu lange im Gang gewartet hat. "
             "Er humpelt. Ein Stein hat ihn am Knöchel getroffen."
         )
 
@@ -48801,7 +48791,10 @@ def offene_tore_vermessung():
         "Hinter der letzten Kuppe liegt der vertraute Waldrand vor Eichenruh."
     )
     text_ausgeben("Finch bleibt stehen und schreibt.")
-    text_ausgeben("[Finch] Das genügt. Heute zählt der Weg, nicht das Ziel.")
+    text_ausgeben(
+        "[Finch] Das genügt. Der Hinweg ist vermessen. "
+        "Jetzt prüfen wir den Rückweg."
+    )
 
     seite_wechseln("Faden der Erinnerung")
 
@@ -49896,7 +49889,7 @@ def zurueckgelassene_entscheidung():
         warte_auf_taste("Weiter")
 
         ort_titel("Die alte Versorgungskehre")
-        text_ausgeben("Er sagt es ruhig. Sein Blick bleibt auf dem Wagen liegen.")
+        text_ausgeben("Sein Blick bleibt auf dem Wagen liegen.")
         text_ausgeben("[Gerrit] Das ist alles, was ich habe.")
         print()
 
