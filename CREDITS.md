@@ -9,3 +9,5 @@ Klang (Wald): "walking in a forest" von mirko111, https://freesound.org/people/m
 Klang (Küste): "Wellen und Wind an der Portugiesischen Küste" von **VMan533**, https://freesound.org/people/VMan533/sounds/376056/, Lizenz CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Bearbeitet: Ausschnitt, Mono, Abtastrate halbiert, zur Schleife überblendet.
 
 Klang (Wind): "Looping Gentle Wind Ambience on an Open Desert Plain" von dhallcomposer, https://freesound.org/people/dhallcomposer/sounds/697217/, Lizenz CC0 (keine Pflicht zur Nennung). Bearbeitet: Mono, Abtastrate halbiert, Lautstärke angeglichen.
+
+Klang (Feuer): "Nuotio luolan suulla / Campfire at the mouth of a cave" von **YleArkisto** (Yle, Finnish Broadcasting Company), https://freesound.org/people/YleArkisto/sounds/299269/, Lizenz CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Bearbeitet: Ausschnitt, Mono, Abtastrate halbiert, zur Schleife überblendet.
