@@ -22,3 +22,5 @@ Klang (Innenräume): "ambience_library_worker" von **IsaacRoman**, https://frees
 Klang (Dein Haus): "night across the stars 2.0" von **X3nus**, https://freesound.org/people/X3nus/sounds/564911/, Lizenz CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Bearbeitet: Mono, Abtastrate halbiert, zur Schleife überblendet.
 
 Klang (Intro/Hauptmenü): "mawkish 1v49" von **Setuniman**, https://freesound.org/people/Setuniman/sounds/723858/, Lizenz CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/): nur für nichtkommerzielle Projekte. Bearbeitet: Mono, Abtastrate halbiert, zur Schleife überblendet.
+
+Klang (Marktplatz): "Ren Faire Ambient 1" von **Alex Kingsley (@alexyquest)**, https://freesound.org/people/alexyquest42/sounds/661290/, Lizenz CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Aufnahme vom Renaissance-Fest in Ávila, Spanien. Unverändert.

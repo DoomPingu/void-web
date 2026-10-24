@@ -10,7 +10,7 @@ const Klang = (() => {
     // Ort (normalisierter Name) -> Stimmung
     intro: "intro", spielerzimmer: "zimmer", gasthaus: "taverne", schmiede: "feuer", huette: "feuer", lagerkeller: "hoehle",
     oros_halle: "drinnen", oros_archiv: "drinnen", oros_lehrhallen: "drinnen", oros_tor: "wind",
-    eichenruh: "wind", marktplatz: "wind", verlassenes_dorf: "wind", wald: "wald", waldlichtung: "wald",
+    eichenruh: "wind", marktplatz: "markt", verlassenes_dorf: "wind", wald: "wald", waldlichtung: "wald",
     bachlauf: "wald", koehlerei: "feuer", pfad_des_vergessens: "wald", wrackstrand: "kueste",
     felsterrassen: "wind", versorgungskehre: "wind", tiefen: "hoehle", lagerfeuer: "feuer",
   };
@@ -130,7 +130,7 @@ const Klang = (() => {
   function datei(name) {
     if (!(name in dateien)) {
       dateien[name] = (async () => {
-        for (const ende of ["ogg", "mp3", "wav"]) {
+        for (const ende of ["ogg", "mp3", "m4a", "wav"]) {
           try {
             const r = await fetch("klang/" + name + "." + ende);
             if (r.ok) return await ctx.decodeAudioData(await r.arrayBuffer());
@@ -148,6 +148,7 @@ const Klang = (() => {
 
   let szenenZaehler = 0;
   STIMMUNG.taverne = STIMMUNG.feuer; // ohne Aufnahme klingt die Taverne wie Feuer
+  STIMMUNG.markt = STIMMUNG.wind; // ohne Aufnahme klingt der Markt wie Wind
   STIMMUNG.intro = STIMMUNG.drinnen; // Hauptmenü, bis das Spiel einen Ort setzt
   STIMMUNG.zimmer = STIMMUNG.drinnen; // ohne Aufnahme klingt das Zimmer wie ein Innenraum
   function setzen(name) {
