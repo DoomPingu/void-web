@@ -181,7 +181,7 @@ const Klang = (() => {
   }
   function kampfDatei(buf) {
     const g = ctx.createGain(); g.gain.value = 0; g.connect(master);
-    g.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 1); // Schwertgeklirr leiser, damit der Ort darunter hörbar bleibt
+    g.gain.linearRampToValueAtTime(0.6, ctx.currentTime + 1); // Kampfmusik etwas leiser als die Ortsklänge
     const s = ctx.createBufferSource(); s.buffer = buf; s.loop = true; s.connect(g); s.start();
     return { stop: () => { g.gain.linearRampToValueAtTime(0, ctx.currentTime + 1); setTimeout(() => s.stop(), 1200); } };
   }
