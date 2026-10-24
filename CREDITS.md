@@ -13,3 +13,5 @@ Klang (Wind): "Looping Gentle Wind Ambience on an Open Desert Plain" von dhallco
 Klang (Feuer): "Nuotio luolan suulla / Campfire at the mouth of a cave" von **YleArkisto** (Yle, Finnish Broadcasting Company), https://freesound.org/people/YleArkisto/sounds/299269/, Lizenz CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Bearbeitet: Ausschnitt, Mono, Abtastrate halbiert, zur Schleife überblendet.
 
 Klang (Kampf): "Säbel Kampf / Saber fight" von MisterJohnson69, https://freesound.org/people/MisterJohnson69/sounds/828970/, Lizenz CC0 (keine Pflicht zur Nennung).
+
+Klang (Höhle): "ambience 4" von IanStarGem, https://freesound.org/people/IanStarGem/sounds/478812/, Lizenz CC0 (keine Pflicht zur Nennung). Bearbeitet: Mono, Abtastrate halbiert, zur Schleife überblendet.
