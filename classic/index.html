@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
+<meta name="theme-color" content="#0b0d10">
+<title>VOID</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0d10; color: #d7dbe0; font-family: system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; }
+  #status { padding: 4px 10px; font-size: 13px; color: #8b949e; min-height: 1.2em; }
+  #terminal { flex: 1; min-height: 0; padding: 0 6px; }
+  #leiste { display: flex; gap: 8px; padding: 8px; border-top: 1px solid #22272e; }
+  #eingabe { flex: 1; min-width: 0; font-size: 18px; padding: 10px; background: #12161b; color: #e6e8eb; border: 1px solid #2d333b; border-radius: 8px; }
+  #senden { font-size: 18px; padding: 10px 16px; background: #2b5d9b; color: #fff; border: 0; border-radius: 8px; }
+</style>
+</head>
+<body>
+<div id="status">Starte …</div>
+<script>
+addEventListener("error", (e) => { document.getElementById("status").textContent = "Fehler: " + (e.message || e.target && e.target.src || "unbekannt"); }, true);
+addEventListener("unhandledrejection", (e) => { document.getElementById("status").textContent = "Fehler: " + e.reason; });
+setTimeout(() => { const s = document.getElementById("status"); if (s.textContent === "Starte …") s.textContent = "Startet nicht. Chrome-Version: " + ((navigator.userAgent.match(/Chrome\/(\d+)/) || [])[1] || "?") + ", JSPI: " + (typeof WebAssembly.Suspending); }, 8000);
+</script>
+<div id="terminal"></div>
+<form id="leiste" autocomplete="off">
+  <input id="eingabe" inputmode="text" enterkeyhint="send" placeholder="Eingabe, dann Enter" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <button id="senden" type="submit" aria-label="Senden">↵</button>
+</form>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+<script>
+const statusZeile = document.getElementById("status");
+
+function spielstaende() {
+  const st = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k.startsWith("void:")) st[k.slice(5)] = localStorage.getItem(k);
+    }
+  } catch (e) {}
+  return st;
+}
+
+async function starten() {
+  if (typeof WebAssembly.Suspending !== "function") {
+    statusZeile.textContent = "Dieser Browser ist zu alt für VOID. Bitte Chrome aktualisieren (Version 137 oder neuer).";
+    return;
+  }
+  const term = new Terminal({ convertEol: true, fontSize: 15, scrollback: 5000, disableStdin: true,
+    cursorBlink: false, theme: { background: "#0b0d10" } });
+  const fit = new FitAddon.FitAddon();
+  term.loadAddon(fit);
+  term.open(document.getElementById("terminal"));
+  fit.fit();
+
+  const worker = new Worker("worker.js");
+  let wartet = false;
+
+  function anpassen() {
+    fit.fit();
+    worker.postMessage({ typ: "spalten", spalten: term.cols });
+  }
+  setTimeout(anpassen, 300);
+  addEventListener("resize", anpassen);
+
+  worker.onmessage = (e) => {
+    const m = e.data;
+    if (m.typ === "text") term.write(m.text);
+    else if (m.typ === "status") statusZeile.textContent = m.text;
+    else if (m.typ === "eingabe") wartet = true;
+    else if (m.typ === "speichern") { try { localStorage.setItem("void:" + m.name, m.text); } catch (err) {} }
+    else if (m.typ === "loeschen") { try { localStorage.removeItem("void:" + m.name); } catch (err) {} }
+    else if (m.typ === "ende") statusZeile.textContent = "Spiel beendet. Seite neu laden, um wieder zu starten.";
+  };
+  const dateien = await (await fetch("../dateien.json", { cache: "no-cache" })).json();
+  worker.postMessage({ typ: "start", dateien, spielstaende: spielstaende(), spalten: term.cols });
+
+  const feld = document.getElementById("eingabe");
+  document.getElementById("leiste").addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!wartet) {
+      // Text läuft noch: Enter zeigt den Rest sofort.
+      worker.postMessage({ typ: "ueberspringen" });
+      return;
+    }
+    const zeile = feld.value;
+    feld.value = "";
+    term.write(zeile + "\n");
+    wartet = false;
+    worker.postMessage({ typ: "zeile", text: zeile });
+    feld.focus();
+  });
+  feld.focus();
+}
+starten();
+</script>
+</body>
+</html>

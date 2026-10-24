@@ -44,8 +44,6 @@ self.pause_abwarten = (sekunden) => {
   });
 };
 self.spalten = () => spaltenzahl;
-self.hud_melden = (s) => postMessage({ typ: "hud", daten: JSON.parse(s) });
-self.gegner_melden = (name) => postMessage({ typ: "gegner", name });
 
 async function starten(m) {
   postMessage({ typ: "status", text: "Lade Python … (beim ersten Mal etwas länger)" });
@@ -81,42 +79,7 @@ def _system(befehl):
         sys.stdout.flush()
     return 0
 
-_kampf_gepatcht = []
-
-def _kampf_patchen(m):
-    # Meldet der Seite den Gegner, solange ein Kampf läuft (für das Gegnerbild).
-    if _kampf_gepatcht or not hasattr(m, "kampfsystem_kampf_starten"):
-        return
-    _kampf_gepatcht.append(1)
-    original = m.kampfsystem_kampf_starten
-    def umhuellt(*a, **k):
-        js.gegner_melden(str(k.get("gegner_typ") or ""))
-        try:
-            return original(*a, **k)
-        finally:
-            js.gegner_melden("")
-    m.kampfsystem_kampf_starten = umhuellt
-
-def _hud():
-    try:
-        import json
-        m = sys.modules["__main__"]
-        _kampf_patchen(m)
-        s = m.spieler
-        if not isinstance(s, dict):
-            return
-        f = m.level_fortschritt(s)
-        js.hud_melden(json.dumps({
-            "name": s.get("name", ""), "ort": s.get("ort", ""),
-            "hp": s.get("lebenspunkte", 0), "hp_max": m.spieler_max_lebenspunkte(),
-            "gold": s.get("gold", 0), "diamanten": s.get("diamanten", 0),
-            "level": f["level"], "exp": f["exp_im_level"], "exp_ziel": f["aufstiegskosten"],
-        }))
-    except Exception:
-        pass
-
 def _input(prompt=""):
-    _hud()
     sys.stdout.write(str(prompt))
     sys.stdout.flush()
     zeile = run_sync(js.eingabe_abwarten())
