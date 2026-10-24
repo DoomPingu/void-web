@@ -34183,10 +34183,6 @@ def oros_archiv():
         print()
 
         text_ausgeben(
-            "Die Bezeichnung kommt dir bekannt vor."
-        )
-
-        text_ausgeben(
             "Dasselbe Wort steht auf einem der Wegweiser "
             "in der zentralen Halle."
         )
@@ -34661,12 +34657,8 @@ def dialog_valerie():
         )
 
         text_ausgeben(
-            "[Valerie] Diese Form kennzeichnet nicht den Ort."
-        )
-
-        text_ausgeben(
-            "[Valerie] Sie kennzeichnet die Stelle, "
-            "der der Ort unterstellt war."
+            "[Valerie] Die Einfassung zeigt, welcher Stelle "
+            "der Ort unterstellt war."
         )
 
         print()
@@ -35311,8 +35303,8 @@ def dialog_valerie():
                 )
 
                 text_ausgeben(
-                    "[Valerie] Ich behaupte nicht, dass ich weiß, was das ist. "
-                    "Aber ich würde nicht mehr darauf wetten, dass es nichts ist."
+                    "[Valerie] Ich würde nicht mehr darauf wetten, "
+                    "dass es nichts ist."
                 )
 
             elif len(zeichen) == 2:
@@ -38359,7 +38351,7 @@ def tiefen_zustandsbericht():
             "seinen Bericht."
         )
         text_ausgeben("[Haller] Danke. Das war gründlich.")
-        text_ausgeben("Finch sagt nichts. Er sieht auf seine Hände.")
+        text_ausgeben("Finch sieht auf seine Hände.")
 
     else:
         entscheidungen["zustandsbericht"] = "finch_valerie"
@@ -39537,11 +39529,8 @@ def dialog_ignaz():
             print()
 
             text_ausgeben(
-                "[Ignaz] Alte Straßen wurden nicht nur benutzt."
-            )
-
-            text_ausgeben(
-                "[Ignaz] Sie wurden vermessen, kontrolliert und dokumentiert."
+                "[Ignaz] Alte Straßen wurden vermessen, kontrolliert "
+                "und dokumentiert."
             )
 
             print()
@@ -39787,7 +39776,7 @@ def dialog_ignaz():
                 print()
 
                 text_ausgeben(
-                    "[Ignaz] Genau das ist die interessante Frage."
+                    "[Ignaz] Eben das ist merkwürdig."
                 )
 
                 print()
@@ -39818,7 +39807,7 @@ def dialog_ignaz():
                 print()
 
                 text_ausgeben(
-                    "Ignaz schüttelt langsam den Kopf."
+                    "Ignaz schüttelt den Kopf."
                 )
 
                 print()
@@ -40159,11 +40148,6 @@ def dialog_ignaz():
             )
 
             print()
-
-            text_ausgeben(
-                "Für einen Moment hörst du nur das Rascheln "
-                "einer umgeblätterten Seite am Nachbartisch."
-            )
 
             text_ausgeben(
                 "[Ignaz] Das reicht für heute als Antwort."
@@ -40563,7 +40547,7 @@ def dialog_mara():
                     "letzte_begruessung_verletzt",
                     [
                         (
-                            "Mara hält mitten in der Bewegung inne "
+                            "Mara sieht von ihrer Arbeit auf "
                             "und mustert dich.\n\n"
                             "[Mara] Setz dich erstmal. "
                             "Du siehst nicht besonders gut aus."
@@ -41102,7 +41086,7 @@ def dialog_mara():
 
             else:
                 text_ausgeben(
-                    "Mara hebt leicht eine Augenbraue."
+                    "Mara lächelt schief."
                 )
 
                 print()
@@ -41142,8 +41126,7 @@ def dialog_mara():
 
             if not schon_besprochen:
                 text_ausgeben(
-                    "Mara hält mitten in der Bewegung inne "
-                    "und sieht dich genauer an."
+                    "Mara sieht dich genauer an."
                 )
 
                 print()
@@ -41231,7 +41214,7 @@ def dialog_mara():
 
             else:
                 text_ausgeben(
-                    "Mara nickt langsam."
+                    "Mara nickt."
                 )
 
                 print()
@@ -42247,7 +42230,7 @@ def dialog_hilda():
             print()
             text_ausgeben(
                 "Hildas Blick fällt auf die auffällige Lücke zwischen "
-                "ihren Kisten - dieselbe Stelle, auf die sie dich heute "
+                "ihren Kisten – dieselbe Stelle, auf die sie dich heute "
                 "Morgen noch selbst hingewiesen hat."
             )
 
@@ -42266,11 +42249,6 @@ def dialog_hilda():
                 "haendler_sorge"
             ):
                 print()
-
-                text_ausgeben(
-                    "Dir wird schlagartig bewusst, wie falsch "
-                    "diese Frage klingt."
-                )
 
                 text_ausgeben(
                     "Noch vor kurzem hat Hilda widerwillig zugegeben, "
