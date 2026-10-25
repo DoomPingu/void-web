@@ -1,7 +1,7 @@
 // Service Worker für VOID: macht die App installierbar und lässt sie auch ohne Netz starten.
 // Eigene Dateien: erst Netz (immer aktuell), sonst Zwischenspeicher. Pyodide vom CDN: Zwischenspeicher zuerst.
 const VERSION = "void-app-1";
-const SCHALE = ["./", "index.html", "klang.js", "worker.js", "umbruch.py", "dateien.json", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "klang/LIESMICH.txt"];
+const SCHALE = ["./", "index.html", "app.css", "app.js", "klang.js", "worker.js", "umbruch.py", "dateien.json", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "klang/LIESMICH.txt"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
