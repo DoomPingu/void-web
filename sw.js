@@ -30,7 +30,7 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(a.url);
   if (url.origin === location.origin) {
     e.respondWith(
-      fetch(a).then((r) => ablegen(a, r)).catch(() => caches.match(a, { ignoreSearch: true }).then((r) => r || Response.error()))
+      fetch(a, { cache: "no-cache" }).then((r) => ablegen(a, r)).catch(() => caches.match(a, { ignoreSearch: true }).then((r) => r || Response.error()))
     );
   } else if (url.hostname === "cdn.jsdelivr.net") {
     e.respondWith(

@@ -46,6 +46,7 @@ self.pause_abwarten = (sekunden) => {
 self.spalten = () => spaltenzahl;
 self.hud_melden = (s) => postMessage({ typ: "hud", daten: JSON.parse(s) });
 self.gegner_melden = (name) => postMessage({ typ: "gegner", name });
+self.ziele_melden = (s) => postMessage({ typ: "ziele", daten: JSON.parse(s) });
 
 async function starten(m) {
   postMessage({ typ: "status", text: "Lade Python … (beim ersten Mal etwas länger)" });
@@ -97,6 +98,56 @@ def _kampf_patchen(m):
             js.gegner_melden("")
     m.kampfsystem_kampf_starten = umhuellt
 
+class _FertigGelesen(Exception):
+    pass
+
+_ziele_zuletzt = [None]
+
+def _ziele(m):
+    # Aktuelle Ziele aus quests() lesen, ohne etwas anzuzeigen: die Ausgabefunktionen werden kurz durch Sammler ersetzt.
+    # quests() ist reine Anzeige (keine Eingaben, keine Änderungen am Spielstand).
+    import json
+    if not hasattr(m, "quests"):
+        return
+    ereignisse = []
+    def fang_print(*a, **k):
+        ereignisse.append(("p", " ".join(str(x) for x in a)))
+    def fang_design(text, design="normal", art="menue"):
+        ereignisse.append(("d", str(text), design))
+    def nichts(*a, **k):
+        return None
+    def ende(*a, **k):
+        raise _FertigGelesen()
+    ersatz = {"print": fang_print, "design_text": fang_design, "text_ausgeben": fang_print, "menue_trenner": nichts,
+              "ort_titel": nichts, "eingabe_menu": ende, "warte_auf_taste": ende}
+    alt = {n: m.__dict__[n] for n in ersatz if n in m.__dict__}
+    m.__dict__.update(ersatz)
+    try:
+        m.quests()
+    except _FertigGelesen:
+        pass
+    finally:
+        for n in ersatz:
+            if n in alt:
+                m.__dict__[n] = alt[n]
+            else:
+                m.__dict__.pop(n, None)
+    quests = []
+    aktuell = None
+    for e in ereignisse:
+        if e[0] == "d" and e[2] == "wichtig":
+            aktuell = {"titel": e[1], "ziel": "", "fertig": False}
+            quests.append(aktuell)
+        elif e[0] == "d" and e[2] == "quest_abgeschlossen" and aktuell:
+            aktuell["fertig"] = True
+        elif e[0] == "p" and aktuell and not aktuell["ziel"] and e[1].strip().startswith("Ziel:"):
+            aktuell["ziel"] = e[1].strip()[5:].strip()
+    aktiv = [{"titel": q["titel"], "ziel": q["ziel"]} for q in quests if q["ziel"] and not q["fertig"]]
+    s = json.dumps(aktiv, ensure_ascii=False)
+    if s != _ziele_zuletzt[0]:
+        _ziele_zuletzt[0] = s
+        js.ziele_melden(s)
+
 def _hud():
     try:
         import json
@@ -113,6 +164,10 @@ def _hud():
             "spielzeit": m.spielzeit_text() if hasattr(m, "spielzeit_text") else "",
             "level": f["level"], "exp": f["exp_im_level"], "exp_ziel": f["aufstiegskosten"],
         }))
+    except Exception:
+        pass
+    try:
+        _ziele(sys.modules["__main__"])
     except Exception:
         pass
 

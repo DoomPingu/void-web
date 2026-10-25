@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <meta name="theme-color" content="#0b0d10">
 <title>VOID</title>
 <link rel="manifest" href="manifest.webmanifest">
@@ -12,7 +12,8 @@
 <style>
   html { background: #0b0d10; }
   html, body { margin: 0; height: 100%; overscroll-behavior: none; color: #d7dbe0; font-family: system-ui, sans-serif; }
-  body { display: flex; flex-direction: column; position: relative; }
+  /* Unten Luft lassen, damit nichts in die Navigationsleiste (Home-Geste) des Handys ragt. */
+  body { display: flex; flex-direction: column; position: relative; box-sizing: border-box; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 14px); }
   #hintergrund { position: fixed; inset: 0; z-index: -1; background: #0b0d10 center / cover no-repeat; transition: background-image .4s; }
   #hintergrund::after { content: ""; position: absolute; inset: 0; background: linear-gradient(rgba(11,13,16,.5), rgba(11,13,16,.75)); }
   #hintergrund.leer::after { display: none; }
@@ -43,7 +44,7 @@
   #knoepfe { display: none; grid-template-columns: 1fr 1fr; gap: 6px; padding: 6px 8px 0; max-height: 30vh; overflow-y: auto; }
   #knoepfe button { font-size: 15px; line-height: 1.2; padding: 8px 10px; min-height: 40px; background: #1a2230; color: #e6e8eb; border: 1px solid #2d3b52; border-radius: 8px; text-align: left; overflow: hidden; }
   #knoepfe button .t { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
-  #knoepfe button small { display: block; margin-top: 1px; font-size: 12px; color: #9aa3ae; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #knoepfe button small { display: block; margin-top: 2px; font-size: 13px; color: #c5ccd6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #knoepfe button .neu { color: #e5a13a; }
   #knoepfe .ikonen { grid-column: 1 / -1; display: flex; gap: 6px; }
   #knoepfe .ikonen button { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 46px; padding: 4px 2px; text-align: center; background: #161b22; color: #8fb4e8; }
@@ -123,6 +124,16 @@
   body.laden #start .ladetext, body.laden #start .ladebalken { display: block; }
   body.laden.ladefehler #start .ladebalken { display: none; }
   body.laden #start .weiter { display: none; }
+  #ziel { display: none; width: 100%; padding: 5px 10px; font: inherit; font-size: 13px; text-align: left; color: #e5c07b; background: rgba(18,22,27,.85); border: 0; border-bottom: 1px solid #22272e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body.imspiel.hatziel #ziel { display: block; }
+  #zielblatt { position: fixed; inset: 0; z-index: 20; display: none; align-items: flex-end; background: rgba(0,0,0,.55); }
+  #zielblatt.offen { display: flex; }
+  #zielblatt .blatt { width: 100%; max-height: 80vh; overflow-y: auto; box-sizing: border-box; background: #141a22; border-radius: 16px 16px 0 0; padding: 14px 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
+  #zielblatt h2 { margin: 0 0 10px; font-size: 18px; display: flex; justify-content: space-between; align-items: center; }
+  #zielblatt h2 button { font: inherit; font-size: 14px; color: #e6e8eb; background: #1a2230; border: 1px solid #2d3b52; border-radius: 8px; padding: 6px 12px; }
+  #zielblatt .z { padding: 10px 12px; margin: 8px 0; background: #0e1319; border: 1px solid #232b36; border-radius: 10px; }
+  #zielblatt .z b { display: block; margin-bottom: 3px; color: #8fb4e8; font-size: 14px; }
+  #zielblatt .z span { color: #e6e8eb; font-size: 15px; line-height: 1.4; }
   body.ohnefeld #leiste, body.laden #leiste { display: none; }
   #speicher { display: none; font-size: 16px; padding: 2px 8px; background: transparent; border: 1px solid #2d333b; border-radius: 6px; }
   body.imspiel.qfrei #speicher { display: inline-block; }
@@ -150,7 +161,7 @@
   #raetsel .aktionen .pruefen:disabled { opacity: .35; }
   #einst { position: fixed; inset: 0; z-index: 20; display: none; align-items: flex-end; background: rgba(0,0,0,.55); }
   #einst.offen { display: flex; }
-  #einst .blatt { width: 100%; max-height: 90vh; overflow-y: auto; box-sizing: border-box; background: #141a22; border-radius: 16px 16px 0 0; padding: 14px 16px 24px; box-shadow: 0 -8px 30px rgba(0,0,0,.5); }
+  #einst .blatt { width: 100%; max-height: 90vh; overflow-y: auto; box-sizing: border-box; background: #141a22; border-radius: 16px 16px 0 0; padding: 14px 16px calc(24px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -8px 30px rgba(0,0,0,.5); }
   #einst h2 { margin: 0 0 4px; font-size: 18px; display: flex; justify-content: space-between; align-items: center; }
   #einst h3 { margin: 18px 0 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #8b949e; }
   #einst .zeile { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
@@ -179,6 +190,7 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
 <div id="kopf"><div id="status">Starte …</div><button id="install" type="button">⬇ App</button><a id="credits" href="https://github.com/DoomPingu/void-web/blob/main/CREDITS.md" target="_blank" rel="noopener" aria-label="Bildnachweise">ⓘ</a><button id="speicher" type="button" aria-label="Spielstand speichern">💾</button><button id="tasten" type="button" aria-label="Eingabefeld zeigen">⌨</button><button id="einstKnopf" type="button" aria-label="Anzeige und Sicherung">⚙<i id="punkt"></i></button><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
 <div id="hintergrund" class="leer"></div>
 <div id="hud"></div>
+<button id="ziel" type="button" aria-label="Aktuelle Ziele"></button>
 <div id="gegner"><img alt=""><div class="balken"><i></i><span></span></div></div>
 <div id="npc"><img alt=""><span></span><a id="credit" href="https://linktr.ee/coraxdigitalart" target="_blank" rel="noopener">Bild: Corax Digital Art</a></div>
 <div id="start"><h1>VOID</h1><p class="unter">Text-Rollenspiel</p><p class="ladetext" id="ladetext">Starte …</p><div class="ladebalken"><i></i></div><button id="weiterspielen" class="weiter" type="button" hidden></button></div>
@@ -192,6 +204,12 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
   <input id="eingabe" inputmode="text" enterkeyhint="send" placeholder="Eingabe, dann Enter" autocapitalize="off" autocorrect="off" spellcheck="false">
   <button id="senden" type="submit" aria-label="Senden">↵</button>
 </form>
+<div id="zielblatt" aria-hidden="true">
+  <div class="blatt" role="dialog" aria-label="Aktuelle Ziele">
+    <h2>Aktuelle Ziele <button id="zielZu" type="button">Schließen</button></h2>
+    <div id="zielliste"></div>
+  </div>
+</div>
 <div id="einst" aria-hidden="true">
   <div class="blatt" role="dialog" aria-label="Anzeige und Sicherung">
     <h2>Anzeige &amp; Sicherung <button id="einstZu" class="zu" type="button">Schließen</button></h2>
@@ -392,6 +410,17 @@ function hudZeigen(d) {
 
 // Liest die Auswahl aus dem Text vor dem Prompt: "1. Text" und "[S] Text".
 // Passt nichts, bleibt nur das Textfeld.
+// Name vor Gedankenstrich oder Klammer als Hauptzeile, der Zusatz dahinter als kleine zweite Zeile.
+// Lange Beschreibungen stehen im Text darüber und kommen nicht auf den Knopf.
+function knopfTeile(e) {
+  let text = e.text.replace(/\s+/g, " "), detail = "", neu = false;
+  if (/\s*\[!\]\s*$/.test(text)) { neu = true; text = text.replace(/\s*\[!\]\s*$/, ""); }
+  const dm = text.match(/^(.*?) [-–] (.+)$/);
+  if (dm) { text = dm[1]; detail = dm[2]; }
+  const bm = text.match(/^(.*?)\s*\[([^\]]*)\]\s*$/);
+  if (bm && bm[1]) { text = bm[1]; if (bm[2].trim() === "!") neu = true; else detail = detail || bm[2]; }
+  return { text, detail, neu };
+}
 let kette = [];
 const SCHNELLSPEICHERN = [
   { screen: /^\s*MEN.\s*$/, pick: /Spiel speichern/ },
@@ -473,18 +502,20 @@ function knoepfeBauen() {
   // Am Startbild nach hinten und dezent: "Spielstand löschen" soll man nicht aus Versehen treffen.
   const loeschen = istStart ? normale.findIndex((e) => /Spielstand l.schen/.test(e.text)) : -1;
   if (loeschen >= 0) normale.push(normale.splice(loeschen, 1)[0]);
+  // Zusatzzeilen (Preis, Hinweis) nur, wenn sie bei allen Einträgen kurz genug sind. Sonst gäbe es sie nur bei einigen
+  // (z. B. bei Geschick, Wahrnehmung, Empathie, aber nicht bei den anderen Veranlagungen).
+  const zusatzOk = normale.every((e) => knopfTeile(e).detail.length <= 44);
+  // Die Auswahlliste im Text entfällt, wenn die Knöpfe alles zeigen (Name kurz genug, Zusatz vollständig).
+  listeAus = (normale.length + ikonen.length > 0) && normale.every((e) => {
+    const p = knopfTeile(e);
+    return p.text.length <= 48 && (!p.detail || (zusatzOk && p.detail.length <= 44));
+  });
+  leseNeu();
   for (const e of normale) {
     const b = document.createElement("button");
     b.type = "button";
-    // Name vor dem Gedankenstrich oder der Klammer als Hauptzeile, ein kurzer Zusatz (Preis, Hinweis) als kleine zweite Zeile.
-    // Lange Beschreibungen stehen im Text darüber und kommen nicht auf den Knopf.
-    let text = e.text.replace(/\s+/g, " "), detail = "";
-    const dm = text.match(/^(.*?) [-–] (.+)$/);
-    if (dm) { text = dm[1]; detail = dm[2]; }
-    const bm = text.match(/^(.*?)\s*\[([^\]]*)\]\s*$/);
-    let neu = false;
-    if (bm && bm[1]) { text = bm[1]; if (bm[2].trim() === "!") neu = true; else detail = detail || bm[2]; }
-    if (detail.length > 44) detail = "";
+    const { text, detail: d0, neu } = knopfTeile(e);
+    const detail = zusatzOk ? d0 : "";
     const kopf = e.weiter ? "↵ " : (e.sonder ? "[" + e.wert.toUpperCase() + "] " : e.wert.toUpperCase() + ". ");
     b.innerHTML = '<span class="t">' + esc(kopf + text) + (neu ? ' <b class="neu">!</b>' : "") + "</span>" + (detail ? "<small>" + esc(detail) + "</small>" : "");
     if (e.sonder || (istStart && /Spielstand l.schen/.test(e.text))) b.className = "sonder";
@@ -562,6 +593,7 @@ function zeilenFarbe(z) {
   }
   return "";
 }
+const TASTENHINWEIS = /^\s*Mit \[?[SIJTQ]\]? (öffnest du|sicherst du)\b/;
 function leseRendern() {
   const buf = termRef.buffer.active;
   const lese = document.getElementById("lese");
@@ -572,8 +604,10 @@ function leseRendern() {
     const z = buf.getLine(y);
     if (!z) continue;
     const t = z.translateToString(true);
+    // Tastenhinweise ("Mit T öffnest du Talente ...") sind auf dem Handy überflüssig: dort gibt es Knöpfe.
+    if (!z.isWrapped && TASTENHINWEIS.test(t)) continue;
     if (z.isWrapped && zeilen.length) zeilen[zeilen.length - 1].text += t;
-    else zeilen.push({ text: t, z });
+    else zeilen.push({ text: t, z, y });
   }
   const KV = /^[A-ZÄÖÜ][\wäöüßÄÖÜ \-]{1,28}:\s+\S.{0,56}$/;
   const kvZeile = (s) => KV.test(s) && !/[.!]$/.test(s) && !/\w\?$/.test(s);
@@ -608,9 +642,13 @@ function leseRendern() {
     const t = zeilen[i].text.trim();
     if (a === "erzaehl" && t.split(/\s+/).length <= 3 && !/[.!?:,;]$/.test(t) && ["wahl", "kv", "kvein", "beschr"].includes(art[i + 1])) art[i] = "abschnitt";
   });
-  let html = "", vorherLeer = true;
-  zeilen.forEach(({ text: t, z }, i) => {
+  let html = "", vorherLeer = true, markePos = -1;
+  zeilen.forEach(({ text: t, z, y }, i) => {
     let a = art[i];
+    if (markePos < 0 && y >= leseStart) markePos = html.length;
+    // Auswahllisten ("1. ...", "[S] ...", "Auswahl:", "> 1") entfallen, wenn es dafür Knöpfe gibt.
+    if (a === "wahl" && (y < leseStart || listeAus)
+      && (/^\s*(\d{1,2}[.)]|\[[A-Za-z]\]|[A-Z][.)])\s/.test(t) || /^Auswahl\b/.test(t) || /^\s*\[Beliebige Taste\]/.test(t) || /^\s*>\s*\S{0,3}\s*$/.test(t))) return;
     if (a === "leer") { if (!vorherLeer) html += '<div class="abstand"></div>'; vorherLeer = true; return; }
     vorherLeer = false;
     t = t.replace(/\s+$/, "");
@@ -677,22 +715,33 @@ function leseRendern() {
     const f = zeilenFarbe(z);
     html += '<p class="erzaehl"' + (f ? ' style="color:' + f + '"' : "") + ">" + esc(t.trim()) + "</p>";
   });
+  if (markePos < 0) markePos = html.length;
+  html = html.slice(0, markePos) + '<i id="lesemarke"></i>' + html.slice(markePos) + '<div id="lesespacer"></div>';
   leseProgramm = true;
   lese.innerHTML = html;
-  if (leseFolgen) lese.scrollTop = lese.scrollHeight;
+  const neuerSchirm = bildschirmNr !== gezeigtNr;
+  gezeigtNr = bildschirmNr;
+  if (neuerSchirm) leseFolgen = true;
+  leseAnker(lese);
   requestAnimationFrame(() => { leseProgramm = false; });
 }
-// Folgt dem neuesten Text, solange du nicht selbst nach oben gescrollt hast.
-let leseFolgen = true, leseProgramm = false;
+// Neuer Text beginnt oben im Fenster (nicht unten). Scrollst du selbst, bleibt die Ansicht, wo du sie lässt,
+// bis der nächste Bildschirm kommt.
+let leseFolgen = true, leseProgramm = false, bildschirmNr = 0, gezeigtNr = -1, listeAus = false;
+function leseAnker(l) {
+  const marke = l.querySelector("#lesemarke"), abstand = l.querySelector("#lesespacer");
+  if (!marke || !abstand) return;
+  const y = marke.getBoundingClientRect().top - l.getBoundingClientRect().top + l.scrollTop;
+  // Ist der neue Text kürzer als das Fenster, Platz darunter lassen, damit er trotzdem ganz oben beginnen kann.
+  abstand.style.height = Math.max(0, l.clientHeight - (l.scrollHeight - y) - 6) + "px";
+  if (leseFolgen) l.scrollTop = Math.max(0, y - 4);
+}
 document.getElementById("lese").addEventListener("scroll", () => {
-  if (leseProgramm) return;
-  const l = document.getElementById("lese");
-  leseFolgen = l.scrollHeight - l.scrollTop - l.clientHeight < 90;
+  if (!leseProgramm) leseFolgen = false;
 }, { passive: true });
-// Ändert sich die Höhe (Knopfleiste wächst/schrumpft), bleibt die Ansicht beim Folgen am Ende.
 new ResizeObserver(() => {
   const l = document.getElementById("lese");
-  if (leseFolgen) { leseProgramm = true; l.scrollTop = l.scrollHeight; requestAnimationFrame(() => { leseProgramm = false; }); }
+  if (leseFolgen) { leseProgramm = true; leseAnker(l); requestAnimationFrame(() => { leseProgramm = false; }); }
 }).observe(document.getElementById("lese"));
 function uiAnwenden() {
   document.body.classList.toggle("lesen", UI.lesen);
@@ -736,6 +785,28 @@ document.getElementById("weiterspielen").addEventListener("click", () => {
   antwort("2");
 });
 
+// Aktuelle Ziele: die Seite bekommt sie vom Spiel (worker.js liest quests()). Oben steht das zuletzt geänderte, Tippen zeigt alle.
+let ziele = [], zielAktuell = "";
+function zieleSetzen(liste) {
+  const alt = new Map(ziele.map((z) => [z.titel, z.ziel]));
+  const geaendert = liste.filter((z) => alt.get(z.titel) !== z.ziel);
+  if (ziele.length && geaendert.length) zielAktuell = geaendert[geaendert.length - 1].titel;
+  ziele = liste;
+  if (!ziele.some((z) => z.titel === zielAktuell)) zielAktuell = ziele.length ? ziele[ziele.length - 1].titel : "";
+  const z = ziele.find((x) => x.titel === zielAktuell);
+  const knopf = document.getElementById("ziel");
+  document.body.classList.toggle("hatziel", !!z);
+  if (z) knopf.textContent = "🎯 " + z.ziel + (ziele.length > 1 ? "  (+" + (ziele.length - 1) + ")" : "");
+}
+const zielBlatt = document.getElementById("zielblatt");
+function zielBlattSchliessen() { zielBlatt.classList.remove("offen"); zielBlatt.setAttribute("aria-hidden", "true"); }
+document.getElementById("ziel").addEventListener("click", () => {
+  document.getElementById("zielliste").innerHTML = ziele.map((z) => '<div class="z"><b>' + esc(z.titel) + "</b><span>" + esc(z.ziel) + "</span></div>").join("");
+  zielBlatt.classList.add("offen"); zielBlatt.setAttribute("aria-hidden", "false");
+});
+document.getElementById("zielZu").addEventListener("click", zielBlattSchliessen);
+zielBlatt.addEventListener("click", (e) => { if (e.target === zielBlatt) zielBlattSchliessen(); });
+
 // Eingabefeld nur zeigen, wenn das Spiel Text erwartet (Name, Menge) oder keine Auswahl erkennbar ist.
 // Das Tastatur-Symbol im Kopf holt es bei Bedarf herbei.
 let feldOffen = false;
@@ -765,6 +836,7 @@ function hinweis(t) {
 try { history.replaceState({ void: 0 }, ""); history.pushState({ void: 1 }, ""); } catch (e) {}
 addEventListener("popstate", () => {
   const wieder = () => { try { history.pushState({ void: 1 }, ""); } catch (e) {} };
+  if (zielBlatt.classList.contains("offen")) { zielBlattSchliessen(); wieder(); return; }
   if (einstEl.classList.contains("offen")) { einstSchliessen(); wieder(); return; }
   const rKnopf = ratEl().classList.contains("an") && ratEl().querySelector(".abbrechen");
   if (rKnopf) { rKnopf.click(); wieder(); return; }
@@ -800,6 +872,7 @@ function raetselPruefen(zeilen, eintraege) {
   if (k !== 1 || symbole.length < 2) { raetselAus(); return false; }
   rat = { n, folge: [], senden: false, eintraege: symbole, abbr: abbr.wert };
   knoepfeEl.style.display = "none";
+  listeAus = true; leseNeu();
   ratEl().classList.add("an");
   raetselZeichnen();
   anpassen();
@@ -882,7 +955,7 @@ function punktSetzen() {
   document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
 }
 // Version, Offline-Speicher und Update-Hinweis.
-const APP_STAND = "2026-10-25-3";
+const APP_STAND = "2026-10-25-4";
 const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.wav","klang/feuer.wav","klang/hoehle.wav","klang/intro.wav","klang/kampf.wav","klang/kueste.wav","klang/markt.m4a","klang/taverne.wav","klang/wald.wav","klang/wind.wav","klang/zimmer.wav"];
 async function offlineListe() {
   let spiel = [];
@@ -1064,7 +1137,7 @@ async function starten() {
       // Bildschirm geleert: gelesen wird erst ab dem neuen Bildschirmanfang.
       const klar = m.text.lastIndexOf("\x1b[H");
       if (m.text.includes("\x1b[2J") && klar >= 0) {
-        term.write(m.text.slice(0, klar + 3), () => { leseStart = term.buffer.active.baseY; });
+        term.write(m.text.slice(0, klar + 3), () => { leseStart = term.buffer.active.baseY; bildschirmNr++; });
         term.write(m.text.slice(klar + 3));
       } else {
         term.write(m.text);
@@ -1072,6 +1145,7 @@ async function starten() {
     }
     else if (m.typ === "hud") hudZeigen(m.daten);
     else if (m.typ === "gegner") gegnerSetzen(m.name);
+    else if (m.typ === "ziele") zieleSetzen(m.daten);
     else if (m.typ === "status") statusZeile.textContent = m.text;
     else if (m.typ === "eingabe") { wartet = true; term.write("", knoepfeBauen); }
     else if (m.typ === "speichern") {
@@ -1093,9 +1167,11 @@ async function starten() {
     }
     wartet = false;
     knoepfeEl.style.display = "none";
+    listeAus = true;
     term.write(zeile + "\n", () => {
       const buf = term.buffer.active;
       leseStart = buf.baseY + buf.cursorY;
+      bildschirmNr++;
     });
     worker.postMessage({ typ: "zeile", text: zeile });
     anpassen();
