@@ -178,12 +178,20 @@ def _hud():
         if not isinstance(s, dict):
             return
         f = m.level_fortschritt(s)
+        # Tageszeit und Wetter nur zur Anzeige: Das Spiel setzt beides nie (immer "Tag"/"Klar"), der Kampf bleibt davon unberührt.
+        # Sobald das Spiel selbst andere Werte setzt, gelten diese. Ein Spieltag dauert 40 Minuten Spielzeit, das Wetter wechselt alle 15.
+        tageszeit, wetter = s.get("tageszeit", "Tag"), s.get("wetter", "Klar")
+        if tageszeit == "Tag" and wetter == "Klar":
+            sek = int(s.get("spielzeit", 0) or 0)
+            teil = (sek % 2400) / 2400
+            tageszeit = "Tag" if teil < 0.55 else "Abend" if teil < 0.7 else "Nacht" if teil < 0.9 else "Morgen"
+            wetter = ["Klar", "Klar", "Klar", "Klar", "Bewölkt", "Bewölkt", "Nebel", "Regen", "Klar", "Klar"][((sek // 900) * 7 + 3) % 10]
         js.hud_melden(json.dumps({
             "name": s.get("name", ""), "ort": s.get("ort", ""),
             "hp": s.get("lebenspunkte", 0), "hp_max": m.spieler_max_lebenspunkte(),
             "gold": s.get("gold", 0), "diamanten": s.get("diamanten", 0),
             "spielzeit": m.spielzeit_text() if hasattr(m, "spielzeit_text") else "",
-            "tageszeit": s.get("tageszeit", "Tag"), "wetter": s.get("wetter", "Klar"),
+            "tageszeit": tageszeit, "wetter": wetter,
             "besiegt": s.get("besiegte_gegner", 0), "erfolge": len(s.get("erfolge_freigeschaltet", [])),
             "erfolge_max": len(getattr(m, "ERFOLGE", {})), "jagd": len(s.get("jagdbuch", {})),
             "level": f["level"], "exp": f["exp_im_level"], "exp_ziel": f["aufstiegskosten"],
