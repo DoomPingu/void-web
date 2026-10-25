@@ -261,6 +261,7 @@ const IKONEN = {
   t: { icon: "✨", name: "Talente", test: /Talent/ },
   q: { icon: "☰", name: "Menü", test: /Speichern|Menü/ }
 };
+let letzteRede = false;
 function knoepfeBauen() {
   document.body.classList.remove("laden");
   knoepfeEl.replaceChildren();
@@ -348,17 +349,27 @@ function knoepfeBauen() {
     return !p.detail || (zusatzOk && p.detail.length <= 44);
   });
   leseNeu();
+  // Gespräch: Enthält die Seite Sprecher-Zeilen "[Name] Text" (Name mit mind. 2 Zeichen, kein [S]/[Q]), erscheinen die
+  // Auswahlmöglichkeiten als Sprechblasen-Antworten. Ausgenommen: Weiter, Zurück-/Abbrechen-Einträge und Kämpfe.
+  // Die Antwortseite selbst enthält oft nur die Auswahl; dann gilt die Seite davor (letzteRede).
+  const hatRede = zeilen.some((z) => /^\s*\[[^\]\d]{2,24}\]\s+\S/.test(z));
+  const nurAuswahl = nichtLeer.every((z) => /^\s*(\d{1,2}[.)]|\[[A-Za-z]\])\s/.test(z) || /^Auswahl\b|^\s*>/.test(z) || /^\s{2,}\S/.test(z));
+  const gespraech = !aktuellerGegner && !istStart && (hatRede || (letzteRede && nurAuswahl));
+  letzteRede = gespraech && (hatRede || nurAuswahl);
   for (const e of normale) {
     const b = document.createElement("button");
     b.type = "button";
     const { text, detail: d0, neu } = knopfTeile(e);
     const detail = zusatzOk ? d0 : "";
     // Am Handy ohne Nummern (die braucht man nur zum Tippen im Terminal-Modus).
-    const kopf = e.weiter ? "↵ " : (UI.lesen ? "" : (e.sonder ? "[" + e.wert.toUpperCase() + "] " : e.wert.toUpperCase() + ". "));
+    const antwortBlase = gespraech && !e.weiter && !e.sonder && !/^(Nein,\s*)?(Zurück|zurück|Abbrechen|Schließen|Gespräch beenden|Verabschieden|Gehen)\b/.test(text);
+    const kopf = e.weiter ? "↵ " : antwortBlase ? "💬 " : (UI.lesen ? "" : (e.sonder ? "[" + e.wert.toUpperCase() + "] " : e.wert.toUpperCase() + ". "));
     b.innerHTML = '<span class="t">' + esc(kopf + text) + (neu ? ' <b class="neu">!</b>' : "") + "</span>" + (detail ? "<small>" + esc(detail) + "</small>" : "");
     if (e.sonder || (istStart && /Spielstand l.schen/.test(e.text))) b.className = "sonder";
     // Lange Einträge (Antworten, Beschreibungen) über die ganze Breite, damit nichts abgeschnitten wird.
-    if ((kopf + text).length > 28) b.classList.add("eine");
+    if ((kopf + text).length > 28 || antwortBlase) b.classList.add("eine");
+    if (antwortBlase) b.classList.add("antwort");
+    b.dataset.voll = e.text.replace(/\s*\[!\]\s*$/, "");
     b.onclick = () => antwort(e.wert);
     knoepfeEl.append(b);
   }
@@ -963,6 +974,38 @@ if (window.speechSynthesis && window.SpeechSynthesisUtterance) {
   });
 }
 
+// Speichern-Hinweis: Ein Punkt am 💾, wenn seit über 20 Minuten Spielzeit in dieser Sitzung nicht gespeichert wurde.
+const SITZUNG_START = Date.now();
+function speicherPunktSetzen() {
+  const alt = Date.now() - Math.max(SITZUNG_START, UI.gespeichert || 0);
+  document.getElementById("speicherPunkt").classList.toggle("an", document.body.classList.contains("imspiel") && alt > 20 * 60e3);
+}
+setInterval(speicherPunktSetzen, 30000);
+
+// Langer Druck (0,5 s) auf einen Knopf zeigt den ganzen Eintrag samt Beschreibung, ohne ihn auszulösen.
+{
+  const tipp = document.getElementById("langtipp");
+  let timer = 0, gezeigt = false, sx = 0, sy = 0;
+  const weg = () => { clearTimeout(timer); tipp.classList.remove("an"); };
+  knoepfeEl.addEventListener("pointerdown", (e) => {
+    const b = e.target.closest("button");
+    if (!b || !b.dataset.voll) return;
+    gezeigt = false; sx = e.clientX; sy = e.clientY;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      gezeigt = true;
+      tipp.innerHTML = esc(b.dataset.voll) + "<small>Loslassen zum Schließen. Der Knopf wurde nicht ausgelöst.</small>";
+      tipp.classList.add("an");
+      if (UI.vibration !== false && navigator.vibrate) { try { navigator.vibrate(15); } catch (err) {} }
+    }, 500);
+  });
+  knoepfeEl.addEventListener("pointermove", (e) => { if (!gezeigt && Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) > 12) clearTimeout(timer); });
+  ["pointerup", "pointercancel", "pointerleave"].forEach((n) => knoepfeEl.addEventListener(n, () => { clearTimeout(timer); if (gezeigt) setTimeout(weg, 1200); }));
+  // Der Klick nach einem langen Druck wird verschluckt.
+  knoepfeEl.addEventListener("click", (e) => { if (gezeigt) { e.stopImmediatePropagation(); e.preventDefault(); gezeigt = false; } }, true);
+  knoepfeEl.addEventListener("contextmenu", (e) => e.preventDefault());
+}
+
 // Eingabefeld nur zeigen, wenn das Spiel Text erwartet (Name, Menge) oder keine Auswahl erkennbar ist.
 // Das Tastatur-Symbol im Kopf holt es bei Bedarf herbei.
 let feldOffen = false;
@@ -1254,7 +1297,7 @@ function punktSetzen() {
   document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
 }
 // Version, Offline-Speicher und Update-Hinweis.
-const APP_STAND = "2026-10-25-20";
+const APP_STAND = "2026-10-25-21";
 const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.wav","klang/feuer.wav","klang/hoehle.wav","klang/intro.wav","klang/kampf.wav","klang/kueste.wav","klang/markt.m4a","klang/taverne.wav","klang/wald.wav","klang/wind.wav","klang/zimmer.wav"];
 async function offlineListe() {
   let spiel = [], medien = OFFLINE_DATEIEN;
@@ -1493,7 +1536,7 @@ async function starten() {
     else if (m.typ === "eingabe") { wartet = true; term.write("", knoepfeBauen); }
     else if (m.typ === "speichern") {
       if (!sicherungLaeuft) { try { localStorage.setItem("void:" + m.name, m.text); } catch (err) {} idbSicher.setzen(m.name, m.text); }
-      if (/^void_save_[1-3]\.json$/.test(m.name)) { UI.zuletzt = m.name; uiSichern(); }
+      if (/^void_save_[1-3]\.json$/.test(m.name)) { UI.zuletzt = m.name; UI.gespeichert = Date.now(); uiSichern(); speicherPunktSetzen(); }
     }
     else if (m.typ === "loeschen") { if (!sicherungLaeuft) { try { localStorage.removeItem("void:" + m.name); } catch (err) {} idbSicher.loeschen(m.name); } }
     else if (m.typ === "ende") statusZeile.textContent = "Spiel beendet. Seite neu laden, um wieder zu starten.";

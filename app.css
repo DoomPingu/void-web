@@ -43,6 +43,11 @@
   #knoepfe button .t { display: block; overflow-wrap: anywhere; }
   #knoepfe button small { display: block; margin-top: 2px; font-size: 13px; color: #c5ccd6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #knoepfe button .neu { color: #e5a13a; }
+  #knoepfe button { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  #knoepfe button.antwort { background: #1d2a3d; border-color: #3b5a86; border-radius: 16px 16px 16px 4px; font-style: italic; }
+  #langtipp { display: none; position: fixed; left: 12px; right: 12px; top: 28%; z-index: 35; max-height: 45vh; overflow-y: auto; padding: 12px 14px; font-size: 16px; line-height: 1.45; color: #e6e8eb; background: rgba(20,26,34,.97); border: 1px solid #3b5a86; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.6); }
+  #langtipp.an { display: block; }
+  #langtipp small { display: block; margin-top: 6px; font-size: 12px; color: #8b949e; }
   #knoepfe .ikonen { grid-column: 1 / -1; display: flex; gap: 6px; position: sticky; bottom: 0; z-index: 1; padding: 4px 0 2px; background: rgba(11,13,16,.97); }
   #knoepfe .ikonen button { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 46px; padding: 4px 2px; text-align: center; background: #161b22; color: #8fb4e8; }
   #knoepfe .ikonen span { font-size: 20px; line-height: 1.1; }
@@ -61,6 +66,9 @@
   #einstKnopf { position: relative; font-size: 16px; padding: 2px 8px; background: transparent; color: #8b949e; border: 1px solid #2d333b; border-radius: 6px; }
   #punkt { display: none; position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: #e5a13a; }
   #punkt.an { display: block; }
+  #speicher { position: relative; }
+  #speicherPunkt { display: none; position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: #e5a13a; }
+  #speicherPunkt.an { display: block; }
   .lesestil { font-size: var(--fs, 17px); line-height: 1.55; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #d7dbe0; }
   .lesestil.serif { font-family: Georgia, "Noto Serif", "Times New Roman", serif; }
   .lesestil p { margin: 0 0 .55em; }
@@ -196,6 +204,10 @@
   #einfuehrung li b, #neues li b { color: #8fb4e8; }
   #einfuehrung button, #neues button, #absturz button { width: 100%; min-height: 48px; font: inherit; font-size: 17px; font-weight: 600; color: #fff; background: #2b5d9b; border: 0; border-radius: 10px; }
   /* Querformat: Text links, Knöpfe rechts */
+  /* PC und Tablet: Inhalt in einer mittleren Spalte (etwa 720 px), das Hintergrundbild bleibt randlos. */
+  @media (min-width: 760px) and (min-height: 521px) {
+    body { max-width: 720px; margin-left: auto; margin-right: auto; box-shadow: 0 0 40px rgba(0,0,0,.55); background: rgba(11,13,16,.35); }
+  }
   @media (orientation: landscape) and (max-height: 520px) {
     body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 44%); grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto; }
     #kopf { grid-column: 1 / -1; grid-row: 1; }
