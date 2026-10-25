@@ -184,6 +184,8 @@ def _hud():
             "gold": s.get("gold", 0), "diamanten": s.get("diamanten", 0),
             "spielzeit": m.spielzeit_text() if hasattr(m, "spielzeit_text") else "",
             "tageszeit": s.get("tageszeit", "Tag"), "wetter": s.get("wetter", "Klar"),
+            "besiegt": s.get("besiegte_gegner", 0), "erfolge": len(s.get("erfolge_freigeschaltet", [])),
+            "erfolge_max": len(getattr(m, "ERFOLGE", {})), "jagd": len(s.get("jagdbuch", {})),
             "level": f["level"], "exp": f["exp_im_level"], "exp_ziel": f["aufstiegskosten"],
         }))
     except Exception:

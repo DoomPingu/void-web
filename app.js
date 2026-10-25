@@ -197,7 +197,9 @@ function himmelSymbol(tageszeit, wetter) {
   if (t === "tag" && w === "klar") return "";
   return (TAGESZEIT_ICON[t] || "") + (WETTER_ICON[w] || "");
 }
+let statistik = null;
 function hudZeigen(d) {
+  statistik = d;
   document.body.classList.add("imspiel");
   hudOrt = String(d.ort || "");
   spielerName = String(d.name || "");
@@ -243,6 +245,12 @@ function vibrieren(text) {
     else if (/Du triffst .{0,40}für \d+ Schaden/.test(text)) effekte.push("treffer");
     if (/Du erleidest \d+ Schaden|trifft dich|streift dich/.test(text)) { muster = muster || 45; effekte.push("schaden"); }
     if (!effekte.length && /SPIEL GESPEICHERT|Spielstand gespeichert/.test(text)) { muster = 25; effekte.push("speichern"); }
+    // Ohne Kampf: Truhe, Tür, Münzen (nach dem Wortlaut der Seite; ein Effekt pro Seite).
+    if (!effekte.length && !aktuellerGegner) {
+      if (/Truhe (öffnet|springt|knackt)|öffnest (du )?(die|den) (Truhe|Deckel)|Schloss (springt|klickt|gibt nach)/i.test(text)) effekte.push("truhe");
+      else if (/erhältst \d+ Gold|\+ ?\d+ Gold|\d+ Gold (gefunden|erhalten)|Du verkaufst|Du kaufst|bezahlst \d+ Gold/i.test(text)) effekte.push("muenzen");
+      else if (/drückst die Tür|öffnest die Tür|Tür (öffnet|quietscht|knarrt)|Tür fällt ins Schloss/i.test(text)) effekte.push("tuer");
+    }
   }
   if (muster && UI.vibration !== false && navigator.vibrate) { try { navigator.vibrate(muster); } catch (e) {} }
   // Effekte nacheinander, damit Treffer und Schaden nicht übereinanderliegen.
@@ -665,6 +673,11 @@ function leseRendern() {
     html += '<p class="erzaehl"' + (f ? ' style="color:' + f + '"' : "") + ">" + esc(t.trim()) + "</p>";
   });
   if (!markiert) html += '<i id="lesemarke"></i>';
+  if (statistik && zeilen.some((x) => /^\s*QUESTLOG\/ERFOLGE\s*$/.test(x.text))) {
+    const z = [["⏱ Spielzeit", statistik.spielzeit || "–"], ["⚔️ Besiegte Gegner", statistik.besiegt ?? 0],
+      ["🏆 Erfolge", (statistik.erfolge ?? 0) + (statistik.erfolge_max ? " / " + statistik.erfolge_max : "")], ["📖 Jagdbuch", (statistik.jagd ?? 0) + " Gegner"]];
+    html += '<div class="statistik"><b>📈 Statistik</b>' + z.map(([k, v]) => "<span>" + esc(k) + "</span><em>" + esc(String(v)) + "</em>").join("") + "</div>";
+  }
   // Drei oder mehr Wert-Zeilen hintereinander (Status, Inventar, Verfassungen) kommen auf eine Karte.
   html = html.replace(/(?:<p class="kv[^"]*">.*?<\/p>){2,}/g, (m) => '<div class="karte">' + m + "</div>");
   const neuerSchirm = bildschirmNr !== gezeigtNr;
@@ -873,6 +886,12 @@ document.getElementById("einfuehrungZu").addEventListener("click", introSchliess
 
 // "Was ist neu": einmal nach jedem Update, falls für den Stand ein Text hinterlegt ist.
 const NEUES = {
+  "2026-10-25-22": [
+    "<b>Gespräch:</b> Antworten erscheinen als Sprechblasen 💬. Langes Drücken auf einen Knopf zeigt den ganzen Text.",
+    "<b>Vorlesen:</b> Der Knopf 🗣 oben liest die Seite mit der deutschen Stimme deines Handys vor.",
+    "<b>Hilfe bei Fehlern:</b> Stürzt das Spiel ab, kannst du den Fehlertext kopieren. Spielstand auch als Text sichern.",
+    "<b>Weiteres:</b> Bildschirm anlassen (⚙), Punkt am 💾 bei langer Zeit ohne Speichern, Statistik im Journal, neue Klänge für Truhe, Tür und Münzen."
+  ],
   "2026-10-25-16": [
     "<b>Karte:</b> Kleine Orte wie Gasthaus, Schmiede, Markt und Haus erscheinen als Punkte, sobald du dort warst.",
     "<b>Peiltabelle:</b> Finchs Messwerte stehen als Tabelle, Abweichungen sind rot markiert.",
@@ -1297,7 +1316,7 @@ function punktSetzen() {
   document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
 }
 // Version, Offline-Speicher und Update-Hinweis.
-const APP_STAND = "2026-10-25-21";
+const APP_STAND = "2026-10-25-22";
 const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.wav","klang/feuer.wav","klang/hoehle.wav","klang/intro.wav","klang/kampf.wav","klang/kueste.wav","klang/markt.m4a","klang/taverne.wav","klang/wald.wav","klang/wind.wav","klang/zimmer.wav"];
 async function offlineListe() {
   let spiel = [], medien = OFFLINE_DATEIEN;

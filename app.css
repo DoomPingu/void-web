@@ -45,6 +45,10 @@
   #knoepfe button .neu { color: #e5a13a; }
   #knoepfe button { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   #knoepfe button.antwort { background: #1d2a3d; border-color: #3b5a86; border-radius: 16px 16px 16px 4px; font-style: italic; }
+  .statistik { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 14px 0 6px; padding: 10px 12px; background: #131a24; border: 1px solid #2d3b52; border-radius: 10px; font-size: 14px; }
+  .statistik b { grid-column: 1 / -1; color: #8fb4e8; }
+  .statistik span { color: #aab2bd; }
+  .statistik em { font-style: normal; color: #e6e8eb; text-align: right; }
   #langtipp { display: none; position: fixed; left: 12px; right: 12px; top: 28%; z-index: 35; max-height: 45vh; overflow-y: auto; padding: 12px 14px; font-size: 16px; line-height: 1.45; color: #e6e8eb; background: rgba(20,26,34,.97); border: 1px solid #3b5a86; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.6); }
   #langtipp.an { display: block; }
   #langtipp small { display: block; margin-top: 6px; font-size: 12px; color: #8b949e; }

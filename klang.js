@@ -231,7 +231,10 @@ const Klang = (() => {
     schaden() { ton(120, 0.22, "sawtooth", 0.28, 0, 55); stoss(0.1, 0.4, 500); },
     levelup() { [523, 659, 784, 1047].forEach((f, i) => ton(f, 0.38, "triangle", 0.28, i * 0.12)); },
     sieg() { [392, 523, 659].forEach((f, i) => ton(f, 0.42, "triangle", 0.26, i * 0.14)); },
-    speichern() { ton(880, 0.08, "sine", 0.2); ton(1320, 0.12, "sine", 0.18, 0.07); }
+    speichern() { ton(880, 0.08, "sine", 0.2); ton(1320, 0.12, "sine", 0.18, 0.07); },
+    muenzen() { [1568, 2093, 1760, 2349].forEach((f, i) => ton(f, 0.16, "triangle", 0.16, i * 0.07)); stoss(0.05, 0.12, 6000, 0.02); },
+    truhe() { ton(90, 0.45, "sawtooth", 0.14, 0, 180); stoss(0.3, 0.1, 1200, 0.02); [659, 988, 1319].forEach((f, i) => ton(f, 0.3, "sine", 0.16, 0.5 + i * 0.1)); },
+    tuer() { stoss(0.09, 0.45, 400); ton(70, 0.16, "sine", 0.5, 0, 45); ton(210, 0.38, "sawtooth", 0.09, 0.1, 150); }
   };
 
   // Läuft die Seite im Hintergrund (App gewechselt, Bildschirm aus), wird der Ton angehalten.
