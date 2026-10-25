@@ -205,6 +205,32 @@ const Klang = (() => {
   }
   function kampfEnde() { if (kampfNode) { kampfNode.stop(); kampfNode = null; } }
 
+  // Kurze Effekte (live erzeugt, keine Dateien): Treffer, Schaden, Level-up usw.
+  function ton(freq, dauer, typ, pegel, start = 0, bis = 0) {
+    const t = ctx.currentTime + start;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = typ; o.frequency.setValueAtTime(freq, t);
+    if (bis) o.frequency.exponentialRampToValueAtTime(bis, t + dauer);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(pegel, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + dauer);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + dauer + 0.05);
+  }
+  function stoss(dauer, pegel, freq, start = 0) {
+    const t = ctx.currentTime + start;
+    const s = ctx.createBufferSource(); s.buffer = rauschen;
+    const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = freq;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(pegel, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dauer);
+    s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + dauer + 0.05);
+  }
+  const EFFEKTE = {
+    treffer() { stoss(0.12, 0.5, 900); ton(150, 0.12, "sine", 0.5, 0, 60); },
+    kritisch() { stoss(0.2, 0.7, 2600); ton(230, 0.2, "square", 0.22, 0, 80); ton(95, 0.28, "sine", 0.6, 0, 40); },
+    schaden() { ton(120, 0.22, "sawtooth", 0.28, 0, 55); stoss(0.1, 0.4, 500); },
+    levelup() { [523, 659, 784, 1047].forEach((f, i) => ton(f, 0.38, "triangle", 0.28, i * 0.12)); },
+    sieg() { [392, 523, 659].forEach((f, i) => ton(f, 0.42, "triangle", 0.26, i * 0.14)); },
+    speichern() { ton(880, 0.08, "sine", 0.2); ton(1320, 0.12, "sine", 0.18, 0.07); }
+  };
+
   // Läuft die Seite im Hintergrund (App gewechselt, Bildschirm aus), wird der Ton angehalten.
   document.addEventListener("visibilitychange", () => {
     if (!ctx) return;
@@ -219,6 +245,10 @@ const Klang = (() => {
       if (an && ctx.state === "suspended") ctx.resume(); else if (!an && ctx.state === "running") ctx.suspend();
     },
     ort(name) { setzen(name); },
+    effekt(name) {
+      if (!ctx || !an || ctx.state !== "running" || !EFFEKTE[name]) return;
+      sicher(() => EFFEKTE[name]());
+    },
     kampf(ein) {
       kampfWunsch = !!ein;
       if (ein) kampfStart(); else kampfEnde();

@@ -51,18 +51,36 @@ self.hud_melden = (s) => postMessage({ typ: "hud", daten: JSON.parse(s) });
 self.gegner_melden = (name) => postMessage({ typ: "gegner", name });
 self.ziele_melden = (s) => postMessage({ typ: "ziele", daten: JSON.parse(s) });
 
+// Mit dem Laden sofort beginnen, noch bevor die Seite fertig ist: Python und die Spieldateien werden gleichzeitig geholt.
+const vorabPyodide = loadPyodide();
+vorabPyodide.catch(() => {});
+const vorabDateien = (async () => {
+  const liste = await (await fetch("dateien.json", { cache: "no-cache" })).json();
+  const teile = await Promise.all(liste.map(async (n) => [n, new Uint8Array(await (await fetch("spiel/" + n, { cache: "no-cache" })).arrayBuffer())]));
+  const umbruchDaten = new Uint8Array(await (await fetch("umbruch.py", { cache: "no-cache" })).arrayBuffer());
+  return { teile, umbruchDaten };
+})();
+vorabDateien.catch(() => {});
+
 async function starten(m) {
   postMessage({ typ: "status", text: "Lade Python … (beim ersten Mal etwas länger)" });
-  pyodide = await loadPyodide();
+  pyodide = await vorabPyodide;
   pyodide.FS.mkdirTree("/void");
   pyodide.FS.mkdirTree("/web");
   postMessage({ typ: "status", text: "Lade VOID …" });
-  for (const name of m.dateien) {
-    const antwort = await fetch("spiel/" + name, { cache: "no-cache" });
-    pyodide.FS.writeFile("/void/" + name, new Uint8Array(await antwort.arrayBuffer()));
+  let vorab = null;
+  try { vorab = await vorabDateien; } catch (e) {}
+  if (vorab) {
+    for (const [name, daten] of vorab.teile) pyodide.FS.writeFile("/void/" + name, daten);
+    pyodide.FS.writeFile("/web/umbruch.py", vorab.umbruchDaten);
+  } else {
+    for (const name of m.dateien) {
+      const antwort = await fetch("spiel/" + name, { cache: "no-cache" });
+      pyodide.FS.writeFile("/void/" + name, new Uint8Array(await antwort.arrayBuffer()));
+    }
+    const umbruch = await fetch("umbruch.py", { cache: "no-cache" });
+    pyodide.FS.writeFile("/web/umbruch.py", new Uint8Array(await umbruch.arrayBuffer()));
   }
-  const umbruch = await fetch("umbruch.py", { cache: "no-cache" });
-  pyodide.FS.writeFile("/web/umbruch.py", new Uint8Array(await umbruch.arrayBuffer()));
   for (const [name, text] of Object.entries(m.spielstaende || {})) {
     pyodide.FS.writeFile("/void/" + name, text, { encoding: "utf8" });
     stand[name] = text;

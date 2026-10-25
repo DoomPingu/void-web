@@ -154,6 +154,19 @@
   #zielblatt .z b { display: block; margin-bottom: 3px; color: #8fb4e8; font-size: 14px; }
   #zielblatt .z span { color: #e6e8eb; font-size: 15px; line-height: 1.4; }
   body.ohnefeld #leiste, body.laden #leiste { display: none; }
+  #dial { display: none; flex-direction: column; align-items: center; gap: 8px; padding: 8px 8px 6px; background: rgba(11,13,16,.92); border-top: 1px solid #22272e; }
+  #dial.an { display: flex; }
+  #dial svg { width: min(58vw, 230px); height: auto; touch-action: none; user-select: none; }
+  #dial .scheibe { fill: #131a24; stroke: #3a4a63; stroke-width: 3; }
+  #dial .strich { stroke: #2c3a50; stroke-width: 2; }
+  #dial .marke { fill: #1a2230; stroke: #8fb4e8; stroke-width: 2; }
+  #dial .marke.aktiv { fill: #e5c07b; stroke: #e5c07b; }
+  #dial .markname { fill: #aab2bd; font-size: 11px; text-anchor: middle; }
+  #dial .zeiger { stroke: #e5c07b; stroke-width: 4; stroke-linecap: round; }
+  #dial .griff { fill: #e5c07b; stroke: #fff; stroke-width: 2; cursor: grab; }
+  #dial .dialtext { min-height: 1.4em; color: #d7dbe0; font-size: 14px; text-align: center; }
+  #dial .einstellen { width: min(100%, 320px); min-height: 48px; font: inherit; font-size: 17px; font-weight: 600; color: #fff; background: #2b5d9b; border: 0; border-radius: 10px; }
+  #dial .einstellen:disabled { opacity: .35; }
   #ansage { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   #einfuehrung { position: fixed; inset: 0; z-index: 30; display: none; align-items: flex-end; background: rgba(0,0,0,.6); }
   #einfuehrung.offen { display: flex; }
@@ -170,7 +183,8 @@
     #hud, #ziel, #gegner, #npc { grid-column: 1; }
     #hud { grid-row: 2; } #ziel { grid-row: 3; } #gegner { grid-row: 4; } #npc { grid-row: 5; }
     #lese, #start { grid-column: 1; grid-row: 6; min-height: 0; }
-    #knoepfe, #raetsel { grid-column: 2; grid-row: 2 / 7; max-height: none; overflow-y: auto; min-height: 0; }
+    #knoepfe, #raetsel, #dial { grid-column: 2; grid-row: 2 / 7; max-height: none; overflow-y: auto; min-height: 0; }
+    #dial svg { width: min(44vh, 220px); }
     #knoepfe { grid-template-columns: 1fr; align-content: start; }
     #knoepfe.kampf { max-height: none; }
     #leiste { grid-column: 1 / -1; grid-row: 7; }
@@ -283,6 +297,7 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
 <div id="hinweiszeile" role="status"></div>
 <div id="neuVersion" role="status">Neue Version verfügbar. <button type="button" id="neuLaden">Neu laden</button></div>
 <div id="raetsel"></div>
+<div id="dial"></div>
 <div id="knoepfe"></div>
 <form id="leiste" autocomplete="off">
   <input id="eingabe" inputmode="text" enterkeyhint="send" placeholder="Eingabe, dann Enter" autocapitalize="off" autocorrect="off" spellcheck="false">
@@ -343,6 +358,7 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
     <h3>Ton</h3>
     <div class="zeile"><span>Lautstärke</span><input id="lautRegler" type="range" min="0" max="100" step="5" aria-label="Lautstärke"><span class="wert" id="lautWert"></span></div>
 
+    <div class="zeile"><span>Effekte</span><div class="gruppe" id="gEffekte"><button type="button" data-v="an">An</button><button type="button" data-v="aus">Aus</button></div></div>
     <div class="zeile"><span>Vibration</span><div class="gruppe" id="gVibr"><button type="button" data-v="an">An</button><button type="button" data-v="aus">Aus</button></div></div>
 
     <button id="introNochmal" class="gross" type="button">ℹ️ Einführung noch einmal zeigen</button>
@@ -364,6 +380,10 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
     <p class="hinweis"><a id="credits" href="https://github.com/DoomPingu/void-web/blob/main/CREDITS.md" target="_blank" rel="noopener">Bildnachweise und Lizenzen</a></p>
   </div>
 </div>
+<script>
+// Der Worker startet sofort und lädt Python und die Spieldateien, während die Seite noch ihre Bibliotheken holt.
+window.__worker = new Worker("worker.js");
+</script>
 <script>
 // Hintergrund schon beim Laden, bevor das Skript bereit ist.
 (function () { var h = document.getElementById("hintergrund"); h.style.backgroundImage = 'url("bilder/ort_eichenruh.jpg")'; h.classList.remove("leer"); })();
@@ -507,6 +527,12 @@ let kampfBlutet = false;
 // Porträts aus dem Pack von Corax Digital Art (Credit-Pflicht laut Lizenz).
 const NPC_AUS_PACK = new Set(["marek", "ahrens", "elian", "edda", "sera", "joris", "raban", "levin", "koehler", "rika", "schreiber", "nela", "ida", "arvid", "selene", "gerrit", "mira", "kiran", "fischer", "tarek", "runa", "enno"]);
 let aktuellerNpc = "";
+function npcPlatzhalter(name) {
+  const farbe = sprecherFarbe(name);
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56"><circle cx="28" cy="28" r="28" fill="#1a2230"/><circle cx="28" cy="28" r="25" fill="none" stroke="' + farbe + '" stroke-width="2"/>' +
+    '<text x="28" y="37" font-size="26" font-family="sans-serif" font-weight="700" text-anchor="middle" fill="' + farbe + '">' + esc(name.trim().charAt(0).toUpperCase()) + "</text></svg>";
+  return "data:image/svg+xml," + encodeURIComponent(svg);
+}
 function npcSetzen(zeilen) {
   let name = "";
   for (const z of zeilen) {
@@ -519,11 +545,12 @@ function npcSetzen(zeilen) {
   if (!name) { box.style.display = "none"; anpassen(); return; }
   bildLaden("npc_" + bildName(name), (src) => {
     if (name !== aktuellerNpc) return;
-    if (src) {
-      box.querySelector("img").src = src; box.querySelector("span").textContent = name;
-      box.querySelector("#credit").style.display = NPC_AUS_PACK.has(bildName(name)) ? "block" : "none";
-    }
-    box.style.display = src ? "flex" : "none";
+    // Ohne Porträt gibt es einen Platzhalter mit Anfangsbuchstabe in der Sprecherfarbe.
+    const echt = !!src;
+    if (!src) src = npcPlatzhalter(name);
+    box.querySelector("img").src = src; box.querySelector("span").textContent = name;
+    box.querySelector("#credit").style.display = echt && NPC_AUS_PACK.has(bildName(name)) ? "block" : "none";
+    box.style.display = "flex";
     anpassen();
   });
 }
@@ -563,14 +590,19 @@ function knopfTeile(e) {
 // Vibration bei Treffern, Level-up usw.: einmal pro Seite, nach dem Text. Funktioniert nur auf Geräten, die es können (Android).
 let vibrNr = -1;
 function vibrieren(text) {
-  if (UI.vibration === false || !navigator.vibrate) return;
   let muster = 0;
-  if (/LEVELAUFSTIEG/.test(text)) muster = [40, 40, 40, 40, 140];
-  else if (/Kritischer Treffer/.test(text)) muster = [70, 50, 70];
-  else if (/KAMPF GEWONNEN/.test(text)) muster = [30, 30, 70];
-  else if (/Du erleidest \d+ Schaden|trifft dich|streift dich/.test(text)) muster = 45;
-  else if (/SPIEL GESPEICHERT|Spielstand gespeichert/.test(text)) muster = 25;
-  if (muster) { try { navigator.vibrate(muster); } catch (e) {} }
+  const effekte = [];
+  if (/LEVELAUFSTIEG/.test(text)) { muster = [40, 40, 40, 40, 140]; effekte.push("levelup"); }
+  else if (/KAMPF GEWONNEN/.test(text)) { muster = [30, 30, 70]; effekte.push("sieg"); }
+  else {
+    if (/Kritischer Treffer/.test(text)) { muster = [70, 50, 70]; effekte.push("kritisch"); }
+    else if (/Du triffst .{0,40}für \d+ Schaden/.test(text)) effekte.push("treffer");
+    if (/Du erleidest \d+ Schaden|trifft dich|streift dich/.test(text)) { muster = muster || 45; effekte.push("schaden"); }
+    if (!effekte.length && /SPIEL GESPEICHERT|Spielstand gespeichert/.test(text)) { muster = 25; effekte.push("speichern"); }
+  }
+  if (muster && UI.vibration !== false && navigator.vibrate) { try { navigator.vibrate(muster); } catch (e) {} }
+  // Effekte nacheinander, damit Treffer und Schaden nicht übereinanderliegen.
+  if (UI.effekte !== false && typeof Klang !== "undefined" && Klang.effekt) effekte.forEach((n, i) => setTimeout(() => Klang.effekt(n), i * 300));
 }
 let kette = [];
 const SCHNELLSPEICHERN = [
@@ -653,6 +685,7 @@ function knoepfeBauen() {
   document.body.classList.toggle("qfrei", eintraege.some((e) => e.sonder && e.wert === "q"));
   feldSetzen(eintraege.length === 0 || (eintraege.length === 1 && !eintraege[0].weiter));
   if (raetselPruefen(zeilen, eintraege)) return;
+  if (dialPruefen(eintraege)) return;
   // Die festen Kurztasten (Status, Inventar, Journal, Talente, Menü) bilden eine Icon-Leiste unter den Knöpfen.
   const ikonen = eintraege.filter((e) => e.sonder && IKONEN[e.wert] && IKONEN[e.wert].test.test(e.text));
   const normale = eintraege.filter((e) => !ikonen.includes(e));
@@ -1204,6 +1237,67 @@ function raetselZeichnen() {
   });
 }
 
+// Finchs Peilscheibe (Messgang in den TIEFEN): Die Kerbe wird an einem Drehkreis auf eine Markierung gestellt.
+// Die Auswahl entspricht den drei Antworten des Spiels, das Spiel selbst bleibt unverändert.
+const DIAL_ZIELE = [
+  { re: /Kerbe auf die Kerben im Boden ausrichten/, winkel: 90, name: "Auf die Kerben im Boden" },
+  { re: /Kerbe in Richtung IV-C drehen/, winkel: 210, name: "Richtung IV-C" },
+  { re: /Führung quer zum Gang stellen/, winkel: 330, name: "Quer zum Gang" }
+];
+let dial = null;
+const dialEl = () => document.getElementById("dial");
+function dialAus() { dial = null; dialEl().classList.remove("an"); dialEl().replaceChildren(); }
+function dialPruefen(eintraege) {
+  const ziele = DIAL_ZIELE.map((z) => ({ ...z, e: eintraege.find((x) => z.re.test(x.text)) }));
+  if (ziele.some((z) => !z.e)) { dialAus(); return false; }
+  dial = { ziele, winkel: 0 };
+  knoepfeEl.style.display = "none";
+  listeAus = true; leseNeu();
+  dialEl().classList.add("an");
+  dialZeichnen();
+  anpassen();
+  return true;
+}
+function dialZeichnen() {
+  const el = dialEl();
+  const P = (w, r) => [120 + r * Math.sin(w * Math.PI / 180), 120 - r * Math.cos(w * Math.PI / 180)];
+  const striche = Array.from({ length: 36 }, (_, i) => { const a = P(i * 10, 70), b = P(i * 10, 80); return '<line class="strich" x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '"/>'; }).join("");
+  const marken = dial.ziele.map((z, i) => { const p = P(z.winkel, 80), t = P(z.winkel, 106); return '<circle class="marke" data-i="' + i + '" cx="' + p[0] + '" cy="' + p[1] + '" r="7"/><text class="markname" x="' + t[0] + '" y="' + (t[1] + 3) + '">' + esc(z.name) + "</text>"; }).join("");
+  el.innerHTML = '<svg viewBox="-20 -6 280 252" role="img" aria-label="Peilscheibe"><circle class="scheibe" cx="120" cy="120" r="82"/>' + striche + marken +
+    '<line class="zeiger" x1="120" y1="120" x2="120" y2="52"/><circle class="griff" cx="120" cy="52" r="11"/></svg>' +
+    '<div class="dialtext">Drehe die Kerbe auf eine Markierung.</div><button type="button" class="einstellen" disabled>Einstellen</button>';
+  const svg = el.querySelector("svg"), zeiger = el.querySelector(".zeiger"), griff = el.querySelector(".griff"), text = el.querySelector(".dialtext"), knopf = el.querySelector(".einstellen");
+  const naechstes = () => {
+    let best = null, abstand = 999;
+    dial.ziele.forEach((z) => { const d = Math.abs(((dial.winkel - z.winkel + 540) % 360) - 180); if (d < abstand) { abstand = d; best = z; } });
+    return abstand <= 22 ? best : null;
+  };
+  const setzen = (w) => {
+    dial.winkel = w;
+    const p = P(w, 68);
+    zeiger.setAttribute("x2", p[0]); zeiger.setAttribute("y2", p[1]);
+    griff.setAttribute("cx", p[0]); griff.setAttribute("cy", p[1]);
+    const z = naechstes();
+    el.querySelectorAll(".marke").forEach((m, i) => m.classList.toggle("aktiv", !!z && dial.ziele[i] === z));
+    text.textContent = z ? "Die Kerbe zeigt: " + z.name : "Drehe die Kerbe auf eine Markierung.";
+    knopf.disabled = !z;
+  };
+  const winkelAus = (e) => {
+    const r = svg.getBoundingClientRect();
+    // Die Mitte der Scheibe liegt bei (120, 120) im viewBox "-20 -6 280 252".
+    const mx = r.left + ((120 + 20) / 280) * r.width, my = r.top + ((120 + 6) / 252) * r.height;
+    let w = Math.atan2(e.clientX - mx, -(e.clientY - my)) * 180 / Math.PI;
+    return w < 0 ? w + 360 : w;
+  };
+  let zieht = false;
+  svg.addEventListener("pointerdown", (e) => { zieht = true; try { svg.setPointerCapture(e.pointerId); } catch (x) {} setzen(winkelAus(e)); e.preventDefault(); });
+  svg.addEventListener("pointermove", (e) => { if (zieht) setzen(winkelAus(e)); });
+  const los = () => { if (!zieht) return; zieht = false; const z = naechstes(); if (z) setzen(z.winkel); };
+  svg.addEventListener("pointerup", los); svg.addEventListener("pointercancel", los);
+  knopf.addEventListener("click", () => { const z = naechstes(); if (!z) return; dialAus(); antwort(z.e.wert); });
+  setzen(0);
+}
+
 // Einstellungen und Sicherung
 const einstEl = document.getElementById("einst");
 const meldungEl = document.getElementById("meldung");
@@ -1235,6 +1329,7 @@ function einstellungenFuellen() {
   markieren("gGross", UI.gross ? "gross" : "normal");
   markieren("gKontrast", UI.kontrast ? "hoch" : "normal");
   markieren("gVibr", UI.vibration === false ? "aus" : "an");
+  markieren("gEffekte", UI.effekte === false ? "aus" : "an");
   const laut = Math.round((Klang.lautstaerke ? Klang.lautstaerke() : 0.5) * 100);
   document.getElementById("lautRegler").value = laut;
   document.getElementById("lautWert").textContent = laut;
@@ -1262,7 +1357,7 @@ function punktSetzen() {
   document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
 }
 // Version, Offline-Speicher und Update-Hinweis.
-const APP_STAND = "2026-10-25-12";
+const APP_STAND = "2026-10-25-13";
 const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.wav","klang/feuer.wav","klang/hoehle.wav","klang/intro.wav","klang/kampf.wav","klang/kueste.wav","klang/markt.m4a","klang/taverne.wav","klang/wald.wav","klang/wind.wav","klang/zimmer.wav"];
 async function offlineListe() {
   let spiel = [];
@@ -1382,6 +1477,7 @@ function einstellungenVerdrahten() {
     if (Klang.lautstaerke) Klang.lautstaerke(e.target.value / 100);
   });
   document.getElementById("offline").addEventListener("click", offlineLaden);
+  gruppe("gEffekte", (v) => { UI.effekte = v === "an"; if (UI.effekte && Klang.effekt) Klang.effekt("treffer"); });
   gruppe("gGross", (v) => { UI.gross = v === "gross"; });
   gruppe("gKontrast", (v) => { UI.kontrast = v === "hoch"; });
   document.getElementById("introNochmal").addEventListener("click", () => { einstSchliessen(); introZeigen(); });
@@ -1414,7 +1510,7 @@ async function starten() {
   term.open(document.getElementById("terminal"));
   fit.fit();
 
-  const worker = new Worker("worker.js");
+  const worker = window.__worker || new Worker("worker.js");
   let wartet = false;
   // Text seit der letzten Antwort, so wie er wirklich auf dem Bildschirm steht (ohne Schreibmaschinen-Zwischenstände).
   bildschirmZeilen = () => {
