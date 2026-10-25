@@ -98,6 +98,18 @@
   .lesestil .schritt b { font-weight: 600; white-space: nowrap; }
   .lesestil .karte { margin: .3em 0 .7em; padding: .5em .8em .35em; background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; }
   .lesestil .karte .kv { margin-bottom: .35em; }
+  .lesestil .erfolg { margin: .1em 0 .45em; padding: .45em .75em; border-radius: 10px; background: rgba(255,255,255,.045); border-left: 3px solid #5d6b80; }
+  .lesestil .erfolg.ok { border-left-color: #7fd08a; }
+  .lesestil .erfolg.zu { padding: .25em .75em; color: #6f7c90; border-left-color: #2f3a4a; }
+  .lesestil .erfolg b { display: block; color: #eef1f5; font-weight: 600; }
+  .lesestil .erfolg.zu b { color: #6f7c90; font-weight: 400; }
+  .lesestil .erfolg span { display: block; margin-top: .15em; color: #a8b0bb; font-size: .9em; }
+  .lesestil .questname { margin: .7em 0 .1em; font-weight: 700; color: #eef1f5; }
+  .lesestil .questziel { margin: 0 0 .15em; padding: .3em .7em; color: #e5c07b; background: rgba(229,192,123,.09); border-radius: 8px; font-size: .95em; }
+  .lesestil .badge { display: inline-block; margin: .1em 0 .5em; padding: .05em .7em; font-size: .85em; color: #aab2bd; background: rgba(255,255,255,.07); border-radius: 999px; }
+  .lesestil .badge.ok { color: #7fd08a; background: rgba(127,208,138,.12); }
+  .lesestil .kv .w.ok { color: #7fd08a; }
+  .lesestil .kv .w.offen { color: #9aa3ae; }
   .lesestil .kv.fort.hp .bar i { background: #c0453f; }
   .lesestil .kv.fort.xp .bar i { background: #6a8fe0; }
   .lesestil .attr { margin: .2em 0 .55em; padding: .4em .7em .5em; background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; }
@@ -168,14 +180,14 @@
   #dial .einstellen { width: min(100%, 320px); min-height: 48px; font: inherit; font-size: 17px; font-weight: 600; color: #fff; background: #2b5d9b; border: 0; border-radius: 10px; }
   #dial .einstellen:disabled { opacity: .35; }
   #ansage { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  #einfuehrung { position: fixed; inset: 0; z-index: 30; display: none; align-items: flex-end; background: rgba(0,0,0,.6); }
-  #einfuehrung.offen { display: flex; }
-  #einfuehrung .blatt { width: 100%; max-height: 90vh; overflow-y: auto; box-sizing: border-box; background: #141a22; border-radius: 16px 16px 0 0; padding: 16px 18px calc(24px + env(safe-area-inset-bottom, 0px)); }
-  #einfuehrung h2 { margin: 0 0 10px; font-size: 20px; }
-  #einfuehrung ul { margin: 0 0 14px; padding-left: 18px; color: #d7dbe0; font-size: 15px; line-height: 1.5; }
-  #einfuehrung li { margin: 0 0 8px; }
-  #einfuehrung li b { color: #8fb4e8; }
-  #einfuehrung button { width: 100%; min-height: 48px; font: inherit; font-size: 17px; font-weight: 600; color: #fff; background: #2b5d9b; border: 0; border-radius: 10px; }
+  #einfuehrung, #neues { position: fixed; inset: 0; z-index: 30; display: none; align-items: flex-end; background: rgba(0,0,0,.6); }
+  #einfuehrung.offen, #neues.offen { display: flex; }
+  #einfuehrung .blatt, #neues .blatt { width: 100%; max-height: 90vh; overflow-y: auto; box-sizing: border-box; background: #141a22; border-radius: 16px 16px 0 0; padding: 16px 18px calc(24px + env(safe-area-inset-bottom, 0px)); }
+  #einfuehrung h2, #neues h2 { margin: 0 0 10px; font-size: 20px; }
+  #einfuehrung ul, #neues ul { margin: 0 0 14px; padding-left: 18px; color: #d7dbe0; font-size: 15px; line-height: 1.5; }
+  #einfuehrung li, #neues li { margin: 0 0 8px; }
+  #einfuehrung li b, #neues li b { color: #8fb4e8; }
+  #einfuehrung button, #neues button { width: 100%; min-height: 48px; font: inherit; font-size: 17px; font-weight: 600; color: #fff; background: #2b5d9b; border: 0; border-radius: 10px; }
   /* Querformat: Text links, Knöpfe rechts */
   @media (orientation: landscape) and (max-height: 520px) {
     body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 44%); grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto; }
@@ -304,6 +316,13 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
   <button id="senden" type="submit" aria-label="Senden">↵</button>
 </form>
 <div id="ansage" aria-live="polite" aria-atomic="true"></div>
+<div id="neues" aria-hidden="true">
+  <div class="blatt" role="dialog" aria-label="Was ist neu">
+    <h2>Was ist neu</h2>
+    <ul id="neuesliste"></ul>
+    <button id="neuesZu" type="button">Verstanden</button>
+  </div>
+</div>
 <div id="einfuehrung" aria-hidden="true">
   <div class="blatt" role="dialog" aria-label="Einführung">
     <h2>So bedienst du VOID</h2>
@@ -629,7 +648,10 @@ function knoepfeBauen() {
     // Für Bildschirmleser: der neue Text wird einmal pro Seite angesagt.
     document.getElementById("ansage").textContent = zeilen.filter((z) => z.trim()).join(" ").slice(0, 900);
   }
-  if (!UI.intro && document.body.classList.contains("imspiel") && !aktuellerGegner && !zeilen.some((z) => /^\s*1\.\s+Neues Spiel/.test(z))) introZeigen();
+  if (document.body.classList.contains("imspiel") && !aktuellerGegner && !zeilen.some((z) => /^\s*1\.\s+Neues Spiel/.test(z))) {
+    if (!UI.intro) introZeigen();
+    else if (UI.stand !== APP_STAND) { if (NEUES[APP_STAND]) neuesZeigen(); else { UI.stand = APP_STAND; uiSichern(); } }
+  }
   const istStart = zeilen.some((z) => /^\s*1\.\s+Neues Spiel/.test(z)) && zeilen.some((z) => /^\s*\d\.\s+Beenden/.test(z));
   startSetzen(istStart);
   if (startAktion && !istStart) {
@@ -698,7 +720,7 @@ function knoepfeBauen() {
   // Die Auswahlliste im Text entfällt, wenn die Knöpfe alles zeigen (Name kurz genug, Zusatz vollständig).
   listeAus = (normale.length + ikonen.length > 0) && normale.every((e) => {
     const p = knopfTeile(e);
-    return p.text.length <= 48 && (!p.detail || (zusatzOk && p.detail.length <= 44));
+    return !p.detail || (zusatzOk && p.detail.length <= 44);
   });
   leseNeu();
   for (const e of normale) {
@@ -814,6 +836,10 @@ function leseRendern() {
     if (/^\s*>\s*\S{0,3}\s*$/.test(t)) return "wahl";
     if (/^\s*Schritt\s+\d+\s*\/\s*\d+\s*$/.test(t)) return "schritt";
     if (/^(Körper|Geist|Übersinnliches)\s*\d*:\s*\S/.test(t)) return "attr";
+    if (/^\s*✓\s+\S/.test(t)) return "erfolg";
+    if (/^\s*\?\s+\?\?\?\s*$/.test(t)) return "gesperrt";
+    if (/^\s*Ziel:\s+\S/.test(t)) return "questziel";
+    if (/^\s*\[(ABGESCHLOSSEN|Abgeschlossen|Offen)\]\s*$/.test(t)) return "badge";
     if (/^\s*[─\-]{3,}\s*Runde\s+\d+\s*[─\-]{3,}\s*$/.test(t)) return "runde";
     const m = t.match(/^\s*\[([A-ZÄÖÜ][\wäöüß' ?-]{1,22})\]\s+\S/);
     if (m && !/^(Beliebige Taste)$/.test(m[1])) return "rede";
@@ -838,6 +864,13 @@ function leseRendern() {
   art.forEach((a, i) => {
     const t = zeilen[i].text.trim();
     if (a === "erzaehl" && t.split(/\s+/).length <= 3 && !/[.!?:,;]$/.test(t) && ["wahl", "kv", "kvein", "beschr"].includes(art[i + 1])) art[i] = "abschnitt";
+  });
+  // Quest-Namen: eine Textzeile direkt über "Ziel: …" oder einem Status-Schild.
+  art.forEach((a, i) => {
+    if (a !== "erzaehl") return;
+    let j = i + 1;
+    while (art[j] === "leer") j++;
+    if ((art[j] === "questziel" || art[j] === "badge") && zeilen[i].text.trim().length < 70) art[i] = "questname";
   });
   // Nummerierte Einträge mit Zwischentext (Überschriften, Beschreibungen, z. B. im Inventar) bleiben stehen:
   // Dort stehen Name und Info im Text, die Knöpfe zeigen nur die Namen.
@@ -903,6 +936,27 @@ function leseRendern() {
       return;
     }
     if (a === "wahl") { html += '<p class="wahl">' + esc(t.trim()) + "</p>"; return; }
+    if (a === "erfolg") {
+      const m = t.trim().replace(/^✓\s+/, "").match(/^(.+?)\s+[–-]\s+(.+)$/);
+      html += '<div class="erfolg ok"><b>' + esc(m ? m[1] : t.trim().replace(/^✓\s+/, "")) + "</b>" + (m ? "<span>" + esc(m[2]) + "</span>" : "") + "</div>";
+      return;
+    }
+    if (a === "gesperrt") {
+      // Mehrere verborgene Einträge hintereinander werden zu einer Zeile zusammengefasst.
+      let p = i - 1; while (p >= 0 && art[p] === "leer") p--;
+      if (p >= 0 && art[p] === "gesperrt") return;
+      let n = 0;
+      for (let q = i; q < art.length && (art[q] === "gesperrt" || art[q] === "leer"); q++) if (art[q] === "gesperrt") n++;
+      html += '<div class="erfolg zu"><b>🔒 ' + (n > 1 ? n + " weitere noch verborgen" : "noch verborgen") + "</b></div>";
+      return;
+    }
+    if (a === "questname") { html += '<p class="questname">' + esc(t.trim()) + "</p>"; return; }
+    if (a === "questziel") { html += '<p class="questziel"><b>🎯</b> ' + esc(t.trim().replace(/^Ziel:\s*/, "")) + "</p>"; return; }
+    if (a === "badge") {
+      const fertig = /ABGESCHLOSSEN|Abgeschlossen/.test(t);
+      html += '<p class="badge' + (fertig ? " ok" : "") + '">' + (fertig ? "✓ Abgeschlossen" : "○ Offen") + "</p>";
+      return;
+    }
     if (a === "attr") {
       const m = t.trim().match(/^([^:]+):\s*(.+)$/);
       const chips = (m[2].includes("?") && !/\d/.test(m[2])) ? '<span class="chip aus">noch verborgen</span>'
@@ -927,7 +981,8 @@ function leseRendern() {
         html += '<p class="kv fort"><span class="l">Fortschritt</span><span class="w"><span class="bar"><i style="width:' + p + '%"></i></span><b>' + fort[1] + " / " + fort[2] + "</b></span></p>";
         return;
       }
-      html += '<p class="kv' + (a === "kvein" ? " ein" : "") + '"><span class="l">' + (KV_ICON[kl] ? KV_ICON[kl] + " " : "") + esc(kl) + '</span><span class="w">' + esc(kw) + "</span></p>";
+      const stat = /^erledigt$|^abgeschlossen$/i.test(kw) ? "ok" : /^offen$/i.test(kw) ? "offen" : "";
+      html += '<p class="kv' + (a === "kvein" ? " ein" : "") + '"><span class="l">' + (KV_ICON[kl] ? KV_ICON[kl] + " " : "") + esc(kl) + '</span><span class="w' + (stat ? " " + stat : "") + '">' + (stat === "ok" ? "✓ " : stat === "offen" ? "○ " : "") + esc(kw) + "</span></p>";
       return;
     }
     if (a === "abschnitt") {
@@ -959,6 +1014,7 @@ function leseRendern() {
     && seitenVerlauf[seitenVerlauf.length - 1] !== seiteHtml) {
     seitenVerlauf.push(seiteHtml);
     if (seitenVerlauf.length > 15) seitenVerlauf.shift();
+    verlaufSichern();
   }
   seiteHtml = html.replace('<i id="lesemarke"></i>', "");
   html += '<div id="lesespacer"></div>';
@@ -974,7 +1030,8 @@ function leseRendern() {
 // bis der nächste Bildschirm kommt.
 let leseFolgen = true, leseProgramm = false, bildschirmNr = 0, gezeigtNr = -1, listeAus = false;
 let seiteHtml = "";            // aktuelle Seite als HTML (ohne Marke)
-const seitenVerlauf = [];      // frühere Seiten, die letzte zuletzt
+const seitenVerlauf = (() => { try { const v = JSON.parse(localStorage.getItem("void-verlauf")); return Array.isArray(v) ? v.filter((x) => typeof x === "string").slice(-15) : []; } catch (e) { return []; } })();   // frühere Seiten, die letzte zuletzt
+const verlaufSichern = () => { try { localStorage.setItem("void-verlauf", JSON.stringify(seitenVerlauf)); } catch (e) {} };
 function leseAnker(l) {
   const marke = l.querySelector("#lesemarke"), abstand = l.querySelector("#lesespacer");
   if (!marke || !abstand || !leseFolgen) return;
@@ -1138,8 +1195,25 @@ zielBlatt.addEventListener("click", (e) => { if (e.target === zielBlatt) zielBla
 // Einführung: beim ersten Spielstart einmal, danach über das ⚙-Blatt.
 const introBlatt = document.getElementById("einfuehrung");
 function introZeigen() { introBlatt.classList.add("offen"); introBlatt.setAttribute("aria-hidden", "false"); }
-function introSchliessen() { introBlatt.classList.remove("offen"); introBlatt.setAttribute("aria-hidden", "true"); UI.intro = true; uiSichern(); }
+function introSchliessen() { introBlatt.classList.remove("offen"); introBlatt.setAttribute("aria-hidden", "true"); UI.intro = true; UI.stand = APP_STAND; uiSichern(); }
 document.getElementById("einfuehrungZu").addEventListener("click", introSchliessen);
+
+// "Was ist neu": einmal nach jedem Update, falls für den Stand ein Text hinterlegt ist.
+const NEUES = {
+  "2026-10-25-14": [
+    "<b>Wisch zurück:</b> Ein Wisch vom linken Rand nach rechts wirkt wie die Zurück-Geste.",
+    "<b>Vorheriger Text (🕘)</b> bleibt jetzt auch nach dem Neustart der App erhalten.",
+    "<b>Journal:</b> Erfolge, Ziele und Quest-Stände sind übersichtlicher.",
+    "<b>Listen:</b> Bei langen Antworten (z. B. Rikas Ausbildung) steht die Auswahl nur noch einmal als Knopf da."
+  ]
+};
+const neuesBlatt = document.getElementById("neues");
+function neuesZeigen() {
+  document.getElementById("neuesliste").innerHTML = (NEUES[APP_STAND] || []).map((t) => "<li>" + t + "</li>").join("");
+  neuesBlatt.classList.add("offen"); neuesBlatt.setAttribute("aria-hidden", "false");
+}
+function neuesSchliessen() { neuesBlatt.classList.remove("offen"); neuesBlatt.setAttribute("aria-hidden", "true"); UI.stand = APP_STAND; uiSichern(); }
+document.getElementById("neuesZu").addEventListener("click", neuesSchliessen);
 
 // Eingabefeld nur zeigen, wenn das Spiel Text erwartet (Name, Menge) oder keine Auswahl erkennbar ist.
 // Das Tastatur-Symbol im Kopf holt es bei Bedarf herbei.
@@ -1168,25 +1242,41 @@ function hinweis(t) {
   clearTimeout(hinweis.t); hinweis.t = setTimeout(() => el.classList.remove("an"), 2000);
 }
 try { history.replaceState({ void: 0 }, ""); history.pushState({ void: 1 }, ""); } catch (e) {}
-addEventListener("popstate", () => {
-  const wieder = () => { try { history.pushState({ void: 1 }, ""); } catch (e) {} };
-  if (introBlatt.classList.contains("offen")) { introSchliessen(); wieder(); return; }
-  if (kartenBlatt.classList.contains("offen")) { kartenSchliessen(); wieder(); return; }
-  if (verlaufBlatt.classList.contains("offen")) { verlaufSchliessen(); wieder(); return; }
-  if (zielBlatt.classList.contains("offen")) { zielBlattSchliessen(); wieder(); return; }
-  if (einstEl.classList.contains("offen")) { einstSchliessen(); wieder(); return; }
+// Eine Ebene zurück: erst offene Fenster schließen, dann im Spiel "Zurück"/"Abbrechen" drücken. Gibt an, ob etwas passiert ist.
+function zurueckGehen() {
+  if (neuesBlatt.classList.contains("offen")) { neuesSchliessen(); return true; }
+  if (introBlatt.classList.contains("offen")) { introSchliessen(); return true; }
+  if (kartenBlatt.classList.contains("offen")) { kartenSchliessen(); return true; }
+  if (verlaufBlatt.classList.contains("offen")) { verlaufSchliessen(); return true; }
+  if (zielBlatt.classList.contains("offen")) { zielBlattSchliessen(); return true; }
+  if (einstEl.classList.contains("offen")) { einstSchliessen(); return true; }
   const rKnopf = ratEl().classList.contains("an") && ratEl().querySelector(".abbrechen");
-  if (rKnopf) { rKnopf.click(); wieder(); return; }
+  if (rKnopf) { rKnopf.click(); return true; }
   const zurueck = knoepfeEl.style.display !== "none" && [...knoepfeEl.querySelectorAll("button")].find((b) => {
     const t = b.querySelector(".t");
     return t && /^(\d+\.\s*)?(Nein,\s*)?(Zurück|zurück|Abbrechen|Schließen)\s*$/.test(t.textContent);
   });
-  if (zurueck) { zurueck.click(); wieder(); return; }
+  if (zurueck) { zurueck.click(); return true; }
+  return false;
+}
+addEventListener("popstate", () => {
+  const wieder = () => { try { history.pushState({ void: 1 }, ""); } catch (e) {} };
+  if (zurueckGehen()) { wieder(); return; }
   if (Date.now() < beendenBis) { history.back(); return; }
   beendenBis = Date.now() + 2000;
   hinweis("Noch einmal Zurück, um die App zu verlassen");
   wieder();
 });
+// Wisch vom linken Rand nach rechts = Zurück (wie die Zurück-Geste).
+{
+  let sx = 0, sy = 0, aktiv = false;
+  document.addEventListener("touchstart", (e) => { const t = e.touches[0]; aktiv = e.touches.length === 1 && t.clientX < 22; sx = t.clientX; sy = t.clientY; }, { passive: true });
+  document.addEventListener("touchend", (e) => {
+    if (!aktiv) return; aktiv = false;
+    const t = e.changedTouches[0], dx = t.clientX - sx, dy = Math.abs(t.clientY - sy);
+    if (dx > 70 && dx > dy * 2 && !zurueckGehen()) hinweis("Hier gibt es kein Zurück");
+  }, { passive: true });
+}
 
 // Symbolrätsel (Eddas Truhe, Werkbank der Alten Schmiede): Das Spiel fragt Position für Position ab
 // ("Position 2 von 4" + Nummernliste + "Abbrechen"). Hier legt man die ganze Folge per Tippen und die App
@@ -1357,7 +1447,7 @@ function punktSetzen() {
   document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
 }
 // Version, Offline-Speicher und Update-Hinweis.
-const APP_STAND = "2026-10-25-13";
+const APP_STAND = "2026-10-25-14";
 const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.wav","klang/feuer.wav","klang/hoehle.wav","klang/intro.wav","klang/kampf.wav","klang/kueste.wav","klang/markt.m4a","klang/taverne.wav","klang/wald.wav","klang/wind.wav","klang/zimmer.wav"];
 async function offlineListe() {
   let spiel = [];
