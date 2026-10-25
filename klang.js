@@ -4,7 +4,9 @@ const Klang = (() => {
   let ctx = null, master = null, rauschen = null;
   let an = true;
   let szene = null, szeneName = "intro", kampfWunsch = false, kampfNode = null;
+  let laut = 0.5; // Lautstärke 0 bis 1 (Schieberegler in den Einstellungen)
   try { an = localStorage.getItem("void:ton") !== "aus"; } catch (e) {}
+  try { const v = parseFloat(localStorage.getItem("void-laut")); if (v >= 0 && v <= 1) laut = v; } catch (e) {}
 
   const ART = {
     // Ort (normalisierter Name) -> Stimmung
@@ -23,7 +25,7 @@ const Klang = (() => {
     if (!AC) return;
     ctx = new AC();
     master = ctx.createGain();
-    master.gain.value = an ? 0.5 : 0;
+    master.gain.value = an ? laut : 0;
     master.connect(ctx.destination);
     const len = ctx.sampleRate * 2;
     rauschen = ctx.createBuffer(1, len, ctx.sampleRate);
@@ -225,11 +227,18 @@ const Klang = (() => {
       an = !an;
       try { localStorage.setItem("void:ton", an ? "an" : "aus"); } catch (e) {}
       if (ctx) {
-        master.gain.linearRampToValueAtTime(an ? 0.5 : 0, ctx.currentTime + 0.3);
+        master.gain.linearRampToValueAtTime(an ? laut : 0, ctx.currentTime + 0.3);
         if (an) ctx.resume(); else setTimeout(() => { if (!an) ctx.suspend(); }, 500); // stumm = kein Strom für den Ton
       }
       return an;
     },
     istAn: () => an,
+    lautstaerke(v) {
+      if (v === undefined) return laut;
+      laut = Math.max(0, Math.min(1, +v || 0));
+      try { localStorage.setItem("void-laut", String(laut)); } catch (e) {}
+      if (ctx && an) master.gain.setTargetAtTime(laut, ctx.currentTime, 0.05);
+      return laut;
+    },
   };
 })();

@@ -45,6 +45,10 @@
   #knoepfe button .t { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
   #knoepfe button small { display: block; margin-top: 1px; font-size: 12px; color: #9aa3ae; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #knoepfe button .neu { color: #e5a13a; }
+  #knoepfe .ikonen { grid-column: 1 / -1; display: flex; gap: 6px; }
+  #knoepfe .ikonen button { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 46px; padding: 4px 2px; text-align: center; background: #161b22; color: #8fb4e8; }
+  #knoepfe .ikonen span { font-size: 20px; line-height: 1.1; }
+  #knoepfe .ikonen small { margin: 0; font-size: 11px; color: #8fb4e8; }
   #knoepfe.kampf button { flex-direction: column; align-items: flex-start; justify-content: center; }
   #knoepfe button:active { background: #2b5d9b; }
   #knoepfe.kampf button { font-size: 17px; min-height: 54px; white-space: normal; line-height: 1.15; display: flex; align-items: center; }
@@ -76,6 +80,14 @@
   .lesestil .kv { display: flex; gap: .7em; margin: 0 0 .15em; color: #eef1f5; }
   .lesestil .kv .l { flex: 0 0 8.2em; color: #8b949e; }
   .lesestil .kv .w { flex: 1; min-width: 0; }
+  .lesestil .kv.fort .w { display: flex; align-items: center; gap: .6em; }
+  .lesestil .schritt { display: flex; align-items: center; gap: .7em; margin: .1em 0 .5em; color: #7fd0dc; font-size: .9em; }
+  .lesestil .schritt .bar { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,.12); overflow: hidden; }
+  .lesestil .schritt .bar i { display: block; height: 100%; background: #4f8fe0; border-radius: 4px; }
+  .lesestil .schritt b { font-weight: 600; white-space: nowrap; }
+  .lesestil .kv.fort .bar { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,.12); overflow: hidden; }
+  .lesestil .kv.fort .bar i { display: block; height: 100%; background: #4f8fe0; border-radius: 4px; }
+  .lesestil .kv.fort b { font-weight: 600; font-size: .9em; white-space: nowrap; }
   .lesestil .kv.ein { margin-left: 1.2em; font-size: .92em; }
   .lesestil .abschnitt { margin: .7em 0 .2em; color: #8fb4e8; font-weight: 700; font-size: .8em; letter-spacing: .1em; text-transform: uppercase; }
   .lesestil .beschr { margin: 0 0 .2em 1.2em; color: #9aa3ae; font-size: .92em; }
@@ -112,10 +124,15 @@
   body.laden.ladefehler #start .ladebalken { display: none; }
   body.laden #start .weiter { display: none; }
   body.ohnefeld #leiste, body.laden #leiste { display: none; }
+  #speicher { display: none; font-size: 16px; padding: 2px 8px; background: transparent; border: 1px solid #2d333b; border-radius: 6px; }
+  body.imspiel.qfrei #speicher { display: inline-block; }
   #tasten { display: none; font-size: 16px; padding: 2px 8px; background: transparent; color: #8b949e; border: 1px solid #2d333b; border-radius: 6px; }
   body.ohnefeld #tasten { display: inline-block; }
   #hinweiszeile { display: none; position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 30; max-width: 86vw; padding: 9px 14px; font-size: 14px; color: #e6e8eb; background: rgba(20,26,34,.96); border: 1px solid #2d3b52; border-radius: 10px; }
   #hinweiszeile.an { display: block; }
+  #neuVersion { display: none; position: fixed; top: 46px; left: 8px; right: 8px; z-index: 25; padding: 8px 12px; font-size: 14px; color: #e6e8eb; background: rgba(20,38,64,.97); border: 1px solid #2b5d9b; border-radius: 10px; }
+  #neuVersion.an { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  #neuVersion button { font: inherit; font-size: 14px; color: #fff; background: #2b5d9b; border: 0; border-radius: 8px; padding: 6px 12px; }
   #raetsel { display: none; flex-direction: column; gap: 10px; padding: 10px 8px 8px; background: rgba(11,13,16,.9); border-top: 1px solid #22272e; }
   #raetsel.an { display: flex; }
   #raetsel .hilfe { margin: 0; text-align: center; color: #8b949e; font-size: 13px; }
@@ -159,7 +176,7 @@
 document.body.classList.add("start", "laden");
 try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) document.body.classList.add("lesen"); } catch (e) { document.body.classList.add("lesen"); }
 </script>
-<div id="kopf"><div id="status">Starte …</div><button id="install" type="button">⬇ App</button><a id="credits" href="https://github.com/DoomPingu/void-web/blob/main/CREDITS.md" target="_blank" rel="noopener" aria-label="Bildnachweise">ⓘ</a><button id="tasten" type="button" aria-label="Eingabefeld zeigen">⌨</button><button id="einstKnopf" type="button" aria-label="Anzeige und Sicherung">⚙<i id="punkt"></i></button><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
+<div id="kopf"><div id="status">Starte …</div><button id="install" type="button">⬇ App</button><a id="credits" href="https://github.com/DoomPingu/void-web/blob/main/CREDITS.md" target="_blank" rel="noopener" aria-label="Bildnachweise">ⓘ</a><button id="speicher" type="button" aria-label="Spielstand speichern">💾</button><button id="tasten" type="button" aria-label="Eingabefeld zeigen">⌨</button><button id="einstKnopf" type="button" aria-label="Anzeige und Sicherung">⚙<i id="punkt"></i></button><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
 <div id="hintergrund" class="leer"></div>
 <div id="hud"></div>
 <div id="gegner"><img alt=""><div class="balken"><i></i><span></span></div></div>
@@ -168,6 +185,7 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
 <div id="lese" class="lesestil"></div>
 <div id="terminal"></div>
 <div id="hinweiszeile" role="status"></div>
+<div id="neuVersion" role="status">Neue Version verfügbar. <button type="button" id="neuLaden">Neu laden</button></div>
 <div id="raetsel"></div>
 <div id="knoepfe"></div>
 <form id="leiste" autocomplete="off">
@@ -190,6 +208,14 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
       <p class="rede"><span class="name" style="--c:#f2b66d">Mara</span>Setz dich. Erst trinken, dann reden.</p>
       <p class="rede"><span class="name" style="--c:#8fb4e8">Finch</span>Das hier ist kein Verfall. Das bewegt sich.</p>
     </div>
+
+    <h3>Ton</h3>
+    <div class="zeile"><span>Lautstärke</span><input id="lautRegler" type="range" min="0" max="100" step="5" aria-label="Lautstärke"><span class="wert" id="lautWert"></span></div>
+
+    <h3>Offline und Version</h3>
+    <p class="hinweis" id="version"></p>
+    <button id="offline" class="gross" type="button">⬇ Alles für Offline laden (ca. 26 MB)</button>
+    <div class="meldung" id="offlineText"></div>
 
     <h3>Spielstand sichern</h3>
     <div id="slots"></div>
@@ -347,6 +373,7 @@ function npcSetzen(zeilen) {
 }
 
 function hudZeigen(d) {
+  document.body.classList.add("imspiel");
   hintergrundSetzen(d.ort);
   if (!hudEl.firstChild) {
     hudEl.innerHTML = '<div class="zeile"><span class="ort"></span><span class="gold"></span></div>' +
@@ -365,6 +392,19 @@ function hudZeigen(d) {
 
 // Liest die Auswahl aus dem Text vor dem Prompt: "1. Text" und "[S] Text".
 // Passt nichts, bleibt nur das Textfeld.
+let kette = [];
+const SCHNELLSPEICHERN = [
+  { screen: /^\s*MEN.\s*$/, pick: /Spiel speichern/ },
+  { screen: /SPIEL GESPEICHERT/, pick: "weiter" },
+  { screen: /^\s*MEN.\s*$/, pick: /Weiterspielen/ }
+];
+const IKONEN = {
+  s: { icon: "📊", name: "Status", test: /Status/ },
+  i: { icon: "🎒", name: "Inventar", test: /Inventar/ },
+  j: { icon: "📜", name: "Journal", test: /Quest|Journal/ },
+  t: { icon: "✨", name: "Talente", test: /Talent/ },
+  q: { icon: "☰", name: "Menü", test: /Speichern|Menü/ }
+};
 function knoepfeBauen() {
   document.body.classList.remove("laden");
   knoepfeEl.replaceChildren();
@@ -411,9 +451,29 @@ function knoepfeBauen() {
     eintraege = /\?\s*$/.test(letzte) ? [] : [{ wert: "", text: "Weiter", weiter: true }];
   }
   if (istStart) eintraege = eintraege.filter((e) => !/^Beenden/.test(e.text));
+  if (kette.length) {
+    // Schnellspeichern: Menü → "Spiel speichern" → Weiter → "Weiterspielen".
+    const schritt = kette[0];
+    const e = zeilen.some((z) => schritt.screen.test(z)) && (schritt.pick === "weiter" ? eintraege.find((x) => x.weiter) : eintraege.find((x) => schritt.pick.test(x.text)));
+    if (e) {
+      kette.shift();
+      if (schritt.screen.test("SPIEL GESPEICHERT")) { UI.gespeichert = Date.now(); uiSichern(); }
+      if (!kette.length) hinweis("Spielstand gespeichert");
+      setTimeout(() => antwort(e.wert), 0);
+      return;
+    }
+    kette = [];
+  }
+  document.body.classList.toggle("qfrei", eintraege.some((e) => e.sonder && e.wert === "q"));
   feldSetzen(eintraege.length === 0 || (eintraege.length === 1 && !eintraege[0].weiter));
   if (raetselPruefen(zeilen, eintraege)) return;
-  for (const e of eintraege) {
+  // Die festen Kurztasten (Status, Inventar, Journal, Talente, Menü) bilden eine Icon-Leiste unter den Knöpfen.
+  const ikonen = eintraege.filter((e) => e.sonder && IKONEN[e.wert] && IKONEN[e.wert].test.test(e.text));
+  const normale = eintraege.filter((e) => !ikonen.includes(e));
+  // Am Startbild nach hinten und dezent: "Spielstand löschen" soll man nicht aus Versehen treffen.
+  const loeschen = istStart ? normale.findIndex((e) => /Spielstand l.schen/.test(e.text)) : -1;
+  if (loeschen >= 0) normale.push(normale.splice(loeschen, 1)[0]);
+  for (const e of normale) {
     const b = document.createElement("button");
     b.type = "button";
     // Name vor dem Gedankenstrich oder der Klammer als Hauptzeile, ein kurzer Zusatz (Preis, Hinweis) als kleine zweite Zeile.
@@ -427,11 +487,24 @@ function knoepfeBauen() {
     if (detail.length > 44) detail = "";
     const kopf = e.weiter ? "↵ " : (e.sonder ? "[" + e.wert.toUpperCase() + "] " : e.wert.toUpperCase() + ". ");
     b.innerHTML = '<span class="t">' + esc(kopf + text) + (neu ? ' <b class="neu">!</b>' : "") + "</span>" + (detail ? "<small>" + esc(detail) + "</small>" : "");
-    if (e.sonder) b.className = "sonder";
+    if (e.sonder || (istStart && /Spielstand l.schen/.test(e.text))) b.className = "sonder";
     b.onclick = () => antwort(e.wert);
     knoepfeEl.append(b);
   }
-  if (eintraege.length === 1) knoepfeEl.firstChild.classList.add("eine");
+  if (normale.length === 1) knoepfeEl.firstChild.classList.add("eine");
+  if (ikonen.length) {
+    const leiste = document.createElement("div");
+    leiste.className = "ikonen";
+    for (const e of ikonen) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("aria-label", IKONEN[e.wert].name);
+      b.innerHTML = "<span>" + IKONEN[e.wert].icon + "</span><small>" + IKONEN[e.wert].name + "</small>";
+      b.onclick = () => antwort(e.wert);
+      leiste.append(b);
+    }
+    knoepfeEl.append(leiste);
+  }
   if (istStart || istOptionen) {
     // Ein Ort für alles: Von Hauptmenü und Spieloptionen aus kommt man zu Anzeige und Sicherung.
     const b = document.createElement("button");
@@ -509,6 +582,7 @@ function leseRendern() {
     if (/^\s*[=\-─]{6,}\s*$/.test(t)) return "hr";
     if (/[█╗╔╝╚║]/.test(t)) return "logo";
     if (/^\s*>\s*\S{0,3}\s*$/.test(t)) return "wahl";
+    if (/^\s*Schritt\s+\d+\s*\/\s*\d+\s*$/.test(t)) return "schritt";
     if (/^\s*[─\-]{3,}\s*Runde\s+\d+\s*[─\-]{3,}\s*$/.test(t)) return "runde";
     const m = t.match(/^\s*\[([A-ZÄÖÜ][\wäöüß' ?-]{1,22})\]\s+\S/);
     if (m && !/^(Beliebige Taste)$/.test(m[1])) return "rede";
@@ -564,10 +638,22 @@ function leseRendern() {
       html += '<p class="rede"><span class="name" style="--c:' + sprecherFarbe(m[1]) + '">' + esc(m[1]) + "</span>" + esc(m[2]) + "</p>";
       return;
     }
+    if (a === "schritt") {
+      const m = t.match(/(\d+)\s*\/\s*(\d+)/);
+      const p = +m[2] ? Math.max(0, Math.min(100, (+m[1] / +m[2]) * 100)) : 0;
+      html += '<p class="schritt"><span class="bar"><i style="width:' + p + '%"></i></span><b>Schritt ' + m[1] + " / " + m[2] + "</b></p>";
+      return;
+    }
     if (a === "wahl") { html += '<p class="wahl">' + esc(t.trim()) + "</p>"; return; }
     if (a === "kv" || a === "kvein") {
       const s = t.trim();
       const k = s.indexOf(":");
+      const fort = /^Fortschritt$/.test(s.slice(0, k).trim()) && s.slice(k + 1).trim().match(/^(\d+)\s*\/\s*(\d+)$/);
+      if (fort && +fort[2] > 0) {
+        const p = Math.max(0, Math.min(100, (+fort[1] / +fort[2]) * 100));
+        html += '<p class="kv fort"><span class="l">Fortschritt</span><span class="w"><span class="bar"><i style="width:' + p + '%"></i></span><b>' + fort[1] + " / " + fort[2] + "</b></span></p>";
+        return;
+      }
       html += '<p class="kv' + (a === "kvein" ? " ein" : "") + '"><span class="l">' + esc(s.slice(0, k).trim()) + '</span><span class="w">' + esc(s.slice(k + 1).trim()) + "</span></p>";
       return;
     }
@@ -633,6 +719,7 @@ function weiterSlot() {
 function startSetzen(an) {
   document.body.classList.toggle("start", an);
   if (!an) return;
+  document.body.classList.remove("imspiel");
   hintergrundSetzen("eichenruh");
   const knopf = document.getElementById("weiterspielen");
   const n = weiterSlot();
@@ -657,6 +744,10 @@ function feldSetzen(noetig) {
   document.body.classList.toggle("ohnefeld", UI.feld === "auto" && !noetig);
   if (UI.feld === "immer" || noetig) document.getElementById("eingabe").focus({ preventScroll: true });
 }
+document.getElementById("speicher").addEventListener("click", () => {
+  kette = SCHNELLSPEICHERN.map((s) => s);
+  antwort("q");
+});
 document.getElementById("tasten").addEventListener("click", () => {
   feldOffen = true;
   document.body.classList.remove("ohnefeld");
@@ -764,6 +855,13 @@ function einstellungenFuellen() {
   markieren("gSchrift", UI.serif ? "serif" : "aus");
   markieren("gFarben", UI.farben ? "an" : "aus");
   markieren("gFeld", UI.feld);
+  const laut = Math.round((Klang.lautstaerke ? Klang.lautstaerke() : 0.5) * 100);
+  document.getElementById("lautRegler").value = laut;
+  document.getElementById("lautWert").textContent = laut;
+  const ver = document.getElementById("version");
+  ver.textContent = "App-Stand " + APP_STAND;
+  fetch("spiel/void_version.json").then((r) => r.json()).then((v) => { ver.textContent = "Spiel: " + (v.name || v.version) + " · App-Stand " + APP_STAND; }).catch(() => {});
+  offlineStandZeigen();
   document.getElementById("schriftRegler").value = UI.schrift;
   document.getElementById("schriftWert").textContent = UI.schrift;
   const schutz = document.getElementById("schutz");
@@ -783,6 +881,54 @@ function punktSetzen() {
   const alt = !UI.sicherung ? Infinity : (Date.now() - UI.sicherung) / 864e5;
   document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
 }
+// Version, Offline-Speicher und Update-Hinweis.
+const APP_STAND = "2026-10-25-3";
+const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.wav","klang/feuer.wav","klang/hoehle.wav","klang/intro.wav","klang/kampf.wav","klang/kueste.wav","klang/markt.m4a","klang/taverne.wav","klang/wald.wav","klang/wind.wav","klang/zimmer.wav"];
+async function offlineListe() {
+  let spiel = [];
+  try { spiel = (await (await fetch("dateien.json")).json()).map((n) => "spiel/" + n); } catch (e) {}
+  return [...new Set([...OFFLINE_DATEIEN, ...spiel, "spiel/void_version.json"])];
+}
+let offlineLaeuft = false;
+async function offlineStandZeigen() {
+  const t = document.getElementById("offlineText");
+  if (!window.caches || offlineLaeuft) return;
+  const liste = await offlineListe();
+  let da = 0;
+  for (const u of liste) { try { if (await caches.match(u, { ignoreSearch: true })) da++; } catch (e) {} }
+  if (!offlineLaeuft) t.textContent = da + " von " + liste.length + " Dateien offline gespeichert.";
+}
+async function offlineLaden() {
+  if (offlineLaeuft) return;
+  offlineLaeuft = true;
+  const t = document.getElementById("offlineText");
+  const liste = await offlineListe();
+  const warteschlange = [...liste];
+  let fertig = 0, fehler = 0;
+  const arbeiter = async () => {
+    while (warteschlange.length) {
+      const u = warteschlange.shift();
+      try { const r = await fetch(u); if (r.ok) await r.arrayBuffer(); else fehler++; } catch (e) { fehler++; }
+      fertig++;
+      t.textContent = "Lade … " + fertig + " / " + liste.length;
+    }
+  };
+  await Promise.all([arbeiter(), arbeiter(), arbeiter(), arbeiter()]);
+  offlineLaeuft = false;
+  t.textContent = fehler ? "Fertig, aber " + fehler + " Dateien fehlen. Später mit Netz noch einmal versuchen."
+    : "Fertig: " + liste.length + " Dateien gespeichert. Die App läuft jetzt auch ohne Netz.";
+}
+async function updatePruefen() {
+  try {
+    const text = await (await fetch("index.html", { cache: "no-store" })).text();
+    const m = text.match(/const APP_STAND = "([^"]+)"/);
+    if (m && m[1] !== APP_STAND) document.getElementById("neuVersion").classList.add("an");
+  } catch (e) {}
+}
+document.getElementById("neuLaden").addEventListener("click", () => location.reload());
+setTimeout(updatePruefen, 5000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) updatePruefen(); });
+
 function einstOeffnen() {
   einstellungenFuellen();
   einstEl.classList.add("offen");
@@ -851,6 +997,11 @@ function einstellungenVerdrahten() {
   gruppe("gAnsicht", (v) => { UI.lesen = v === "lese"; });
   gruppe("gSchrift", (v) => { UI.serif = v === "serif"; });
   gruppe("gFarben", (v) => { UI.farben = v === "an"; });
+  document.getElementById("lautRegler").addEventListener("input", (e) => {
+    document.getElementById("lautWert").textContent = e.target.value;
+    if (Klang.lautstaerke) Klang.lautstaerke(e.target.value / 100);
+  });
+  document.getElementById("offline").addEventListener("click", offlineLaden);
   gruppe("gFeld", (v) => { UI.feld = v; feldOffen = false; document.body.classList.remove("ohnefeld"); });
   document.getElementById("schriftRegler").addEventListener("input", (e) => {
     UI.schrift = +e.target.value; document.getElementById("schriftWert").textContent = UI.schrift; uiSichern(); uiAnwenden();
