@@ -106,6 +106,12 @@
   .lesestil .schritt b { font-weight: 600; white-space: nowrap; }
   .lesestil .karte { margin: .3em 0 .7em; padding: .5em .8em .35em; background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; }
   .lesestil .karte .kv { margin-bottom: .35em; }
+  .lesestil .peil { width: 100%; margin: .3em 0 .7em; border-collapse: collapse; font-size: .92em; }
+  .lesestil .peil th { padding: .3em .4em; text-align: right; color: #8b949e; font-weight: 400; border-bottom: 1px solid rgba(255,255,255,.12); }
+  .lesestil .peil td { padding: .3em .4em; text-align: right; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .lesestil .peil td:first-child, .lesestil .peil th:first-child { text-align: left; }
+  .lesestil .peil tr.abw td { color: #ff9b9b; }
+  .lesestil .peil td:last-child { font-weight: 700; }
   .lesestil .erfolg { margin: .1em 0 .45em; padding: .45em .75em; border-radius: 10px; background: rgba(255,255,255,.045); border-left: 3px solid #5d6b80; }
   .lesestil .erfolg.ok { border-left-color: #7fd08a; }
   .lesestil .erfolg.zu { padding: .25em .75em; color: #6f7c90; border-left-color: #2f3a4a; }
@@ -244,6 +250,9 @@
   #karteninhalt .ort text { fill: #e6e8eb; font-size: 11px; text-anchor: middle; pointer-events: none; }
   #karteninhalt .ort.unbekannt text { fill: #6f7c90; }
   #karteninhalt .ort .sym { font-size: 16px; }
+  #karteninhalt .ort.klein text { font-size: 9px; }
+  #karteninhalt .ort.klein .sym { font-size: 12px; }
+  #karteninhalt .ort.klein circle { stroke-width: 1.5; }
   #verlauf { display: none; font-size: 16px; padding: 2px 8px; background: transparent; border: 1px solid #2d333b; border-radius: 6px; }
   body.imspiel #verlauf { display: inline-block; }
   #verlaufblatt { position: fixed; inset: 0; z-index: 20; display: none; align-items: flex-end; background: rgba(0,0,0,.55); }
@@ -404,6 +413,7 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
     <input id="ladeDatei" type="file" accept=".json,application/json" hidden>
     <div class="meldung" id="meldung"></div>
     <p class="hinweis" id="schutz"></p>
+    <p class="hinweis" id="kopieInfo"></p>
     <p class="hinweis"><a id="credits" href="https://github.com/DoomPingu/void-web/blob/main/CREDITS.md" target="_blank" rel="noopener">Bildnachweise und Lizenzen</a></p>
   </div>
 </div>
@@ -845,6 +855,7 @@ function leseRendern() {
     if (/^\s*>\s*\S{0,3}\s*$/.test(t)) return "wahl";
     if (/^\s*Schritt\s+\d+\s*\/\s*\d+\s*$/.test(t)) return "schritt";
     if (/^(Körper|Geist|Übersinnliches)\s*\d*:\s*\S/.test(t)) return "attr";
+    if (/^\s{8,}Peilskizze\s+gemessen\s*$/.test(t)) return "peilkopf";
     if (/^\s*✓\s+\S/.test(t)) return "erfolg";
     if (/^\s*\?\s+\?\?\?\s*$/.test(t)) return "gesperrt";
     if (/^\s*Ziel:\s+\S/.test(t)) return "questziel";
@@ -874,6 +885,11 @@ function leseRendern() {
     const t = zeilen[i].text.trim();
     if (a === "erzaehl" && t.split(/\s+/).length <= 3 && !/[.!?:,;]$/.test(t) && ["wahl", "kv", "kvein", "beschr"].includes(art[i + 1])) art[i] = "abschnitt";
   });
+  // Peiltabelle (Finchs Messungen): Zeilen unter der Kopfzeile "Peilskizze / gemessen" gehören zur Tabelle.
+  for (let i = 0; i < art.length; i++) {
+    if (art[i] !== "peilkopf") continue;
+    for (let j = i + 1; j < art.length && /^\S.{0,27}?\s{2,}\S+\s+\S+\s*$/.test(zeilen[j].text); j++) art[j] = "peilzeile";
+  }
   // Quest-Namen: eine Textzeile direkt über "Ziel: …" oder einem Status-Schild.
   art.forEach((a, i) => {
     if (a !== "erzaehl") return;
@@ -950,6 +966,18 @@ function leseRendern() {
       return;
     }
     if (a === "wahl") { html += '<p class="wahl">' + esc(t.trim()) + "</p>"; return; }
+    if (a === "peilzeile") return;   // steckt schon in der Tabelle
+    if (a === "peilkopf") {
+      let zeilenHtml = "";
+      for (let j = i + 1; art[j] === "peilzeile"; j++) {
+        const m = zeilen[j].text.trim().match(/^(.+?)\s{2,}(\S+)\s+(\S+)$/);
+        const alt = parseFloat(m[2]), neu = parseFloat(m[3]);
+        const abw = Number.isFinite(alt) && Number.isFinite(neu) ? neu - alt : null;
+        zeilenHtml += '<tr class="' + (abw ? "abw" : "") + '"><td>' + esc(m[1]) + "</td><td>" + esc(m[2]) + "</td><td>" + esc(m[3]) + "</td><td>" + (abw === null ? "" : abw === 0 ? "✓" : (abw > 0 ? "+" : "") + abw) + "</td></tr>";
+      }
+      html += '<table class="peil"><thead><tr><th></th><th>Skizze</th><th>Gemessen</th><th>Abw.</th></tr></thead><tbody>' + zeilenHtml + "</tbody></table>";
+      return;
+    }
     if (a === "erfolg") {
       const m = t.trim().replace(/^✓\s+/, "").match(/^(.+?)\s+[–-]\s+(.+)$/);
       html += '<div class="erfolg ok"><b>' + esc(m ? m[1] : t.trim().replace(/^✓\s+/, "")) + "</b>" + (m ? "<span>" + esc(m[2]) + "</span>" : "") + "</div>";
@@ -1153,6 +1181,19 @@ const KARTE_ORTE = [
   { id: "dorf", name: "Verlassenes Dorf", sym: "🏚️", x: 62, y: 290, hier: /verlassenes_dorf|verlassenes dorf|alte_schmiede|alte schmiede|lagerkeller|huette/i, besucht: /dorf|alte_schmiede|lagerkeller/i, knopf: /Dorf|Pfad des Vergessens/ },
   { id: "hafen", name: "Letzthafen", sym: "⚓", x: 258, y: 290, hier: /letzthafen|wrackstrand|edda|namenstein|leuchtfeuer|klippe/i, besucht: /letzthafen|hafen|wrack|edda/i, knopf: /Letzthafen|K[öo]nigsring/ }
 ];
+// Kleine Orte: erscheinen erst, wenn du dort warst oder sie von hier aus erreichbar sind.
+KARTE_ORTE.push(
+  { id: "gasthaus", klein: true, name: "Gasthaus", sym: "🍺", x: 118, y: 142, hier: /^gasthaus|maras/i, besucht: /gasthaus/i, knopf: /Gasthaus/ },
+  { id: "schmiede", klein: true, name: "Schmiede", sym: "⚒️", x: 202, y: 142, hier: /^schmiede|bjorns/i, besucht: /^schmiede/i, knopf: /Bjorns Schmiede|^Schmiede/ },
+  { id: "markt", klein: true, name: "Markt", sym: "🧺", x: 118, y: 232, hier: /marktplatz/i, besucht: /marktplatz/i, knopf: /Marktplatz/ },
+  { id: "haus", klein: true, name: "Haus", sym: "🏠", x: 202, y: 232, hier: /spieler_zimmer|dein haus/i, besucht: /spieler_zimmer/i, knopf: /Nach Hause/ },
+  { id: "alteschmiede", klein: true, name: "Alte Schmiede", sym: "⚒️", x: 24, y: 252, hier: /alte_schmiede|alte schmiede/i, besucht: /alte_schmiede/i, knopf: /Alte Schmiede/ },
+  { id: "lagerkeller", klein: true, name: "Lagerkeller", sym: "📦", x: 100, y: 252, hier: /lagerkeller/i, besucht: /lagerkeller/i, knopf: /Lagerkeller/ },
+  { id: "wrackstrand", klein: true, name: "Wrackstrand", sym: "🌊", x: 220, y: 252, hier: /wrackstrand/i, besucht: /wrack/i, knopf: /Wrackstrand/ },
+  { id: "edda", klein: true, name: "Eddas Haus", sym: "🏚️", x: 298, y: 252, hier: /edda/i, besucht: /edda/i, knopf: /Edda/ },
+  { id: "archiv", klein: true, name: "Archiv", sym: "📚", x: 220, y: 118, hier: /archiv/i, besucht: /archiv/i, knopf: /Archiv/ },
+  { id: "tiefen", klein: true, name: "Tiefen", sym: "⛏️", x: 298, y: 118, hier: /tiefen/i, besucht: /tiefen/i, knopf: /Tiefen|TIEFEN/ }
+);
 const KARTE_WEGE = [["eichenruh", "koehlerei", "Waldweg"], ["eichenruh", "oros", "Faden der Erinnerung"], ["eichenruh", "dorf", "Pfad des Vergessens"], ["eichenruh", "hafen", "Königsring"]];
 const kartenBlatt = document.getElementById("kartenblatt");
 function kartenSchliessen() { kartenBlatt.classList.remove("offen"); kartenBlatt.setAttribute("aria-hidden", "true"); }
@@ -1160,8 +1201,9 @@ function kartenWerte() {
   let besucht = [];
   try { const n = weiterSlot(); if (n) besucht = [].concat(JSON.parse(spielstaende()[n]).spieler.besuchte_orte || []).map(String); } catch (e) {}
   const knoepfe = knoepfeEl.style.display === "none" ? [] : [...knoepfeEl.querySelectorAll("button")].filter((b) => !b.closest(".ikonen"));
+  const hierKlein = KARTE_ORTE.find((o) => o.klein && o.hier.test(hudOrt));
   return KARTE_ORTE.map((o) => {
-    const hier = o.hier.test(hudOrt);
+    const hier = hierKlein ? o === hierKlein : (!o.klein && o.hier.test(hudOrt));
     const knopf = hier ? null : knoepfe.find((b) => o.knopf.test(b.textContent));
     const bekannt = besucht.some((s) => o.besucht.test(s));
     return { o, hier, knopf, klasse: hier ? "hier" : knopf ? "nah" : bekannt ? "bekannt" : "unbekannt", sichtbar: hier || !!knopf || bekannt };
@@ -1174,9 +1216,9 @@ function kartenZeichnen() {
     const A = von(a), B = von(b);
     return '<line class="weg" x1="' + A.x + '" y1="' + A.y + '" x2="' + B.x + '" y2="' + B.y + '"/><text class="wegname" x="' + ((A.x + B.x) / 2 + (B.x > A.x ? 14 : -14)) + '" y="' + ((A.y + B.y) / 2) + '">' + esc(n) + "</text>";
   }).join("");
-  const orte = w.map(({ o, klasse, sichtbar }) =>
-    '<g class="ort ' + klasse + '" data-id="' + o.id + '"><circle cx="' + o.x + '" cy="' + o.y + '" r="24"/><text class="sym" x="' + o.x + '" y="' + (o.y + 6) + '">' + (sichtbar ? o.sym : "?") +
-    '</text><text x="' + o.x + '" y="' + (o.y + 42) + '">' + (sichtbar ? esc(o.name) : "Unbekannt") + "</text></g>").join("");
+  const orte = w.filter(({ o, sichtbar }) => !o.klein || sichtbar).map(({ o, klasse, sichtbar }) =>
+    '<g class="ort ' + klasse + (o.klein ? " klein" : "") + '" data-id="' + o.id + '"><circle cx="' + o.x + '" cy="' + o.y + '" r="' + (o.klein ? 14 : 24) + '"/><text class="sym" x="' + o.x + '" y="' + (o.y + (o.klein ? 4 : 6)) + '">' + (sichtbar ? o.sym : "?") +
+    '</text><text x="' + o.x + '" y="' + (o.y + (o.klein ? 27 : 42)) + '">' + (sichtbar ? esc(o.name) : "Unbekannt") + "</text></g>").join("");
   document.getElementById("karteninhalt").innerHTML = '<svg viewBox="0 0 320 350" role="img" aria-label="Karte">' + linien + orte + "</svg>";
   document.getElementById("kartenhinweis").textContent = hudOrt && !w.some((x) => x.hier) ? "Du bist unterwegs. Tippe auf einen Ort, wenn ein Weg dorthin offen ist." : "Tippe auf einen gelb umrandeten Ort, um dorthin zu reisen.";
   document.querySelectorAll("#karteninhalt .ort").forEach((g) => g.addEventListener("click", () => {
@@ -1214,11 +1256,11 @@ document.getElementById("einfuehrungZu").addEventListener("click", introSchliess
 
 // "Was ist neu": einmal nach jedem Update, falls für den Stand ein Text hinterlegt ist.
 const NEUES = {
-  "2026-10-25-15": [
-    "<b>Gespräche</b> stehen jetzt als Sprechblasen mit Namenskreis. Deine eigenen Sätze stehen rechts.",
-    "<b>Ton:</b> Musik und Effekte haben je einen eigenen Regler unter ⚙.",
-    "<b>Gegenstände:</b> Werte wie Typ und Anzahl stehen auf einer Karte.",
-    "<b>Seit der letzten Version:</b> Wisch vom linken Rand = Zurück, vorheriger Text bleibt nach dem Neustart, Journal mit Karten."
+  "2026-10-25-16": [
+    "<b>Karte:</b> Kleine Orte wie Gasthaus, Schmiede, Markt und Haus erscheinen als Punkte, sobald du dort warst.",
+    "<b>Peiltabelle:</b> Finchs Messwerte stehen als Tabelle, Abweichungen sind rot markiert.",
+    "<b>Zweite Kopie:</b> Deine Spielstände liegen zusätzlich in einem zweiten Speicher des Geräts. Fehlen sie im Browser, wird die Wiederherstellung angeboten.",
+    "<b>Seit der letzten Version:</b> Sprechblasen im Gespräch, Musik und Effekte getrennt einstellbar."
   ]
 };
 const neuesBlatt = document.getElementById("neues");
@@ -1402,6 +1444,41 @@ function dialZeichnen() {
   setzen(0);
 }
 
+// Zweite Kopie der Spielstände in IndexedDB (neben dem Browser-Speicher). Fehlt im Browser-Speicher alles, wird die Wiederherstellung angeboten.
+const idbSicher = {
+  oeffnen() {
+    return new Promise((ok, nein) => {
+      const r = indexedDB.open("void-kopie", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("saves");
+      r.onsuccess = () => ok(r.result);
+      r.onerror = () => nein(r.error);
+    });
+  },
+  async setzen(name, text) { try { const db = await this.oeffnen(); db.transaction("saves", "readwrite").objectStore("saves").put(text, name); } catch (e) {} },
+  async loeschen(name) { try { const db = await this.oeffnen(); db.transaction("saves", "readwrite").objectStore("saves").delete(name); } catch (e) {} },
+  async alle() {
+    try {
+      const db = await this.oeffnen();
+      return await new Promise((ok) => {
+        const out = {}, rq = db.transaction("saves").objectStore("saves").openCursor();
+        rq.onsuccess = () => { const c = rq.result; if (c) { out[c.key] = c.value; c.continue(); } else ok(out); };
+        rq.onerror = () => ok({});
+      });
+    } catch (e) { return {}; }
+  }
+};
+async function kopieWiederherstellen() {
+  const hat = Object.keys(spielstaende()).some((n) => /^void_save_[1-3]\.json$/.test(n));
+  if (hat) return;
+  const k = await idbSicher.alle();
+  const namen = Object.keys(k).filter((n) => /^void_(save_[1-3]|settings)\.json$/.test(n) && typeof k[n] === "string");
+  const anzahl = namen.filter((n) => n.startsWith("void_save_")).length;
+  if (!anzahl) return;
+  if (confirm("Im Browser-Speicher fehlen deine Spielstände, aber auf diesem Gerät gibt es eine Kopie (" + anzahl + " Spielstand/Spielstände). Wiederherstellen?")) {
+    namen.forEach((n) => { try { localStorage.setItem("void:" + n, k[n]); } catch (e) {} });
+  }
+}
+
 // Einstellungen und Sicherung
 const einstEl = document.getElementById("einst");
 const meldungEl = document.getElementById("meldung");
@@ -1443,6 +1520,10 @@ function einstellungenFuellen() {
   ver.textContent = "App-Stand " + APP_STAND;
   fetch("spiel/void_version.json").then((r) => r.json()).then((v) => { ver.textContent = "Spiel: " + (v.name || v.version) + " · App-Stand " + APP_STAND; }).catch(() => {});
   offlineStandZeigen();
+  idbSicher.alle().then((k) => {
+    const plaetze = Object.keys(k).filter((n) => /^void_save_[1-3]\.json$/.test(n)).map((n) => n.match(/_(\d)\./)[1]).sort();
+    document.getElementById("kopieInfo").textContent = plaetze.length ? "Zweite Kopie auf diesem Gerät: Platz " + plaetze.join(", ") + ". Sie hilft, wenn der Browser-Speicher beschädigt ist, nicht beim Löschen der Browserdaten." : "Noch keine zweite Kopie auf diesem Gerät (entsteht beim nächsten Speichern).";
+  });
   document.getElementById("schriftRegler").value = UI.schrift;
   document.getElementById("schriftWert").textContent = UI.schrift;
   const schutz = document.getElementById("schutz");
@@ -1463,7 +1544,7 @@ function punktSetzen() {
   document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
 }
 // Version, Offline-Speicher und Update-Hinweis.
-const APP_STAND = "2026-10-25-15";
+const APP_STAND = "2026-10-25-16";
 const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.wav","klang/feuer.wav","klang/hoehle.wav","klang/intro.wav","klang/kampf.wav","klang/kueste.wav","klang/markt.m4a","klang/taverne.wav","klang/wald.wav","klang/wind.wav","klang/zimmer.wav"];
 async function offlineListe() {
   let spiel = [];
@@ -1560,7 +1641,7 @@ function einspielen(datei) {
       const anzahl = namen.filter((n) => n.startsWith("void_save_")).length;
       if (!confirm(anzahl + " Spielstand/Spielstände einspielen? Vorhandene Spielstände auf denselben Plätzen werden ersetzt.")) return;
       sicherungLaeuft = true;
-      namen.forEach((n) => localStorage.setItem("void:" + n, o.dateien[n]));
+      namen.forEach((n) => { localStorage.setItem("void:" + n, o.dateien[n]); idbSicher.setzen(n, o.dateien[n]); });
       location.reload();
     } catch (e) {
       meldungEl.textContent = "Diese Datei lässt sich nicht einspielen: Sie ist keine gültige VOID-Sicherung. Es wurde nichts verändert.";
@@ -1667,13 +1748,14 @@ async function starten() {
     else if (m.typ === "status") statusZeile.textContent = m.text;
     else if (m.typ === "eingabe") { wartet = true; term.write("", knoepfeBauen); }
     else if (m.typ === "speichern") {
-      if (!sicherungLaeuft) try { localStorage.setItem("void:" + m.name, m.text); } catch (err) {}
+      if (!sicherungLaeuft) { try { localStorage.setItem("void:" + m.name, m.text); } catch (err) {} idbSicher.setzen(m.name, m.text); }
       if (/^void_save_[1-3]\.json$/.test(m.name)) { UI.zuletzt = m.name; uiSichern(); }
     }
-    else if (m.typ === "loeschen") { if (!sicherungLaeuft) try { localStorage.removeItem("void:" + m.name); } catch (err) {} }
+    else if (m.typ === "loeschen") { if (!sicherungLaeuft) { try { localStorage.removeItem("void:" + m.name); } catch (err) {} idbSicher.loeschen(m.name); } }
     else if (m.typ === "ende") statusZeile.textContent = "Spiel beendet. Seite neu laden, um wieder zu starten.";
   };
   const dateien = await (await fetch("dateien.json", { cache: "no-cache" })).json();
+  await kopieWiederherstellen();
   worker.postMessage({ typ: "start", dateien, spielstaende: spielstaende(), spalten: spaltenWert() });
 
   const feld = document.getElementById("eingabe");
