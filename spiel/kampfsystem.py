@@ -925,6 +925,11 @@ def kampf_starten(
         umgebungs_sicht -= 1
         bewegungsfreiheit -= 1
 
+    # Unter der Erde und in der Wegstation gelten weder Tageszeit noch Wetter.
+    if situation["gebiet"] in ("Tiefen", "Alte Wegstation"):
+        situation["tageszeit"] = "Tag"
+        situation["wetter"] = "Klar"
+
     # =========================
     # TAGESZEIT
     # =========================
@@ -939,6 +944,9 @@ def kampf_starten(
     if situation["wetter"] == "Regen":
         umgebungs_sicht -= 1
         bewegungsfreiheit -= 1
+
+    if situation["wetter"] == "Nebel":
+        umgebungs_sicht -= 1
 
     # =========================
     # SPIELERWERTE
@@ -1421,6 +1429,8 @@ def kampf_starten(
         print(f"{situation['gebiet']} | {situation['umgebung']}")
         if situation["gebiet"] == "Tiefen":
             print("Unter der Erde")
+        elif situation["gebiet"] == "Alte Wegstation":
+            print("Drinnen")
         else:
             print(f"{situation['tageszeit']} | Wetter: {situation['wetter']}")
         print()
@@ -1433,8 +1443,16 @@ def kampf_starten(
         if gegner["typ"] == "Schachtflatterer" and situation["umgebung"] == "Tiefe mit Licht":
             print("+ Das Laternenlicht blendet den Schachtflatterer.")
 
+        if situation["tageszeit"] == "Nacht":
+            print("− Nacht: Du siehst schlechter.")
+            if talent_nachtauge:
+                print("+ Nachtauge: Die Dunkelheit stört dich weniger.")
+
         if situation["wetter"] == "Regen":
             print("− Regen verschlechtert die Sicht und macht den Boden rutschig.")
+
+        if situation["wetter"] == "Nebel":
+            print("− Nebel nimmt dir die Sicht.")
 
         if umgebungs_sicht < 0:
             print("− Schlechte Sicht: Gegner sind schwerer zu entdecken.")

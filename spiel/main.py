@@ -1114,6 +1114,34 @@ def rueckkehr_hinweis_meldung_anzeigen():
 _SPIELZEIT_STAND = [None, 0.0]  # [Kennung des Spielers, letzte Messung]
 SPIELZEIT_MAX_PAUSE = 600  # Sekunden; längere Pausen am Stück zählen nicht
 
+TAG_DAUER = 2400  # Sekunden Spielzeit pro Spieltag
+WETTER_FOLGE = (
+    "Klar", "Klar", "Klar", "Klar",
+    "Bewölkt", "Bewölkt", "Nebel", "Regen",
+    "Klar", "Klar"
+)
+
+
+def himmel_berechnen(sekunden):
+    # Tageszeit und Wetter folgen allein der Spielzeit (kein Zufall): ein
+    # Spieltag dauert 40 Minuten, das Wetter wechselt alle 15 Minuten.
+    # Die Web-Anzeige rechnet mit derselben Formel.
+    sekunden = int(sekunden or 0)
+    teil = (sekunden % TAG_DAUER) / TAG_DAUER
+
+    if teil < 0.55:
+        tageszeit = "Tag"
+    elif teil < 0.70:
+        tageszeit = "Abend"
+    elif teil < 0.90:
+        tageszeit = "Nacht"
+    else:
+        tageszeit = "Morgen"
+
+    wetter = WETTER_FOLGE[((sekunden // 900) * 7 + 3) % 10]
+
+    return tageszeit, wetter
+
 
 def spielzeit_aktualisieren():
     # Zählt die Zeit seit der letzten Messung zum Spielstand dazu. Wird an
@@ -1135,6 +1163,11 @@ def spielzeit_aktualisieren():
         spieler["spielzeit"] = (
             spieler.get("spielzeit", 0)
             + min(verstrichen, SPIELZEIT_MAX_PAUSE)
+        )
+
+    if spieler.get("name"):
+        spieler["tageszeit"], spieler["wetter"] = himmel_berechnen(
+            spieler.get("spielzeit", 0)
         )
 
     return spieler.get("spielzeit", 0)
