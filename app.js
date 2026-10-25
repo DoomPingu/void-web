@@ -188,6 +188,15 @@ function npcSetzen(zeilen) {
   });
 }
 
+// Tageszeit und Wetter als Symbol im Kopf. Das Spiel führt beides bisher nur als "Tag"/"Klar" (nie geändert); damit der Kopf
+// nicht dauernd eine Sonne zeigt, erscheint das Symbol erst, wenn sich ein Wert vom Standard unterscheidet.
+const TAGESZEIT_ICON = { tag: "☀️", nacht: "🌙", morgen: "🌅", morgens: "🌅", abend: "🌇", abends: "🌇", daemmerung: "🌆", "dämmerung": "🌆" };
+const WETTER_ICON = { regen: "🌧️", nebel: "🌫️", sturm: "⛈️", gewitter: "⛈️", schnee: "❄️", wind: "💨", bewoelkt: "☁️", "bewölkt": "☁️" };
+function himmelSymbol(tageszeit, wetter) {
+  const t = String(tageszeit || "Tag").toLowerCase(), w = String(wetter || "Klar").toLowerCase();
+  if (t === "tag" && w === "klar") return "";
+  return (TAGESZEIT_ICON[t] || "") + (WETTER_ICON[w] || "");
+}
 function hudZeigen(d) {
   document.body.classList.add("imspiel");
   hudOrt = String(d.ort || "");
@@ -200,7 +209,8 @@ function hudZeigen(d) {
   const ORT_ANZEIGE = { spieler_zimmer: "Dein Haus", alte_schmiede: "Alte Schmiede", verlassenes_dorf: "Verlassenes Dorf",
     lagerkeller: "Alter Lagerkeller", tiefen_messgang: "TIEFEN – Messgang", oros_zentrale_halle: "Oros – Zentrale Halle" };
   const ort = ORT_ANZEIGE[d.ort] || String(d.ort).replace(/_/g, " ").replace(/(^|\s)\S/g, (c) => c.toUpperCase());
-  hudEl.querySelector(".ort").textContent = d.name + " · " + ort;
+  const himmel = himmelSymbol(d.tageszeit, d.wetter);
+  hudEl.querySelector(".ort").textContent = (himmel ? himmel + " " : "") + d.name + " · " + ort;
   hudEl.querySelector(".gold").textContent = d.gold + " Gold" + (d.diamanten ? " · " + d.diamanten + " Diamanten" : "") + (d.spielzeit ? " · ⏱ " + d.spielzeit : "");
   balken("hp", "HP " + d.hp + " / " + d.hp_max, d.hp, d.hp_max);
   balken("xp", "Level " + d.level + " · EP " + (d.exp_ziel ? d.exp + " / " + d.exp_ziel : "Max"), d.exp, d.exp_ziel);
@@ -906,6 +916,53 @@ document.getElementById("absturzNeu").addEventListener("click", () => location.r
 document.getElementById("absturzZu").addEventListener("click", absturzSchliessen);
 addEventListener("error", (e) => !/ResizeObserver|^Script error/.test(e.message || "") && absturzZeigen("Fehler in der App: " + (e.message || "") + " (" + (e.filename || "") + ":" + (e.lineno || "") + ")"));
 
+// Vorlesen: Die aktuelle Seite wird mit der deutschen Stimme des Geräts vorgelesen (speechSynthesis). Neue Seite oder erneutes Tippen stoppt.
+const vorlesenKnopf = document.getElementById("vorlesen");
+function vorlesenStopp() {
+  if (window.speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel();
+  vorlesenKnopf.classList.remove("an");
+}
+function vorlesenText() {
+  const lese = document.getElementById("lese");
+  const kopie = lese.cloneNode(true);
+  kopie.querySelectorAll("#lesemarke, .logo").forEach((e) => e.remove());
+  return (kopie.innerText || kopie.textContent || "").replace(/[─═━\-_=*]{3,}/g, " ").replace(/[ \t]+/g, " ").trim();
+}
+function vorlesenTeile(text) {
+  // Kurze Stücke an Satzenden: lange Äußerungen bricht Chrome auf Android sonst gern ab.
+  const teile = [];
+  for (const absatz of text.split(/\n+/)) {
+    let rest = absatz.trim();
+    while (rest.length > 180) {
+      let i = Math.max(rest.lastIndexOf(". ", 180), rest.lastIndexOf("! ", 180), rest.lastIndexOf("? ", 180), rest.lastIndexOf(", ", 180));
+      if (i < 40) i = rest.lastIndexOf(" ", 180);
+      if (i < 1) i = 180;
+      teile.push(rest.slice(0, i + 1).trim()); rest = rest.slice(i + 1).trim();
+    }
+    if (rest) teile.push(rest);
+  }
+  return teile;
+}
+if (window.speechSynthesis && window.SpeechSynthesisUtterance) {
+  vorlesenKnopf.hidden = false;
+  vorlesenKnopf.addEventListener("click", () => {
+    if (speechSynthesis.speaking || speechSynthesis.pending) { vorlesenStopp(); return; }
+    const teile = vorlesenTeile(vorlesenText());
+    if (!teile.length) { hinweis("Hier gibt es nichts zum Vorlesen"); return; }
+    const stimmen = speechSynthesis.getVoices();
+    const stimme = stimmen.find((v) => /^de[-_]DE/i.test(v.lang)) || stimmen.find((v) => /^de/i.test(v.lang));
+    if (stimmen.length && !stimme) hinweis("Keine deutsche Stimme gefunden (Android-Einstellungen, Sprachausgabe)");
+    vorlesenKnopf.classList.add("an");
+    teile.forEach((t, i) => {
+      const u = new SpeechSynthesisUtterance(t);
+      u.lang = stimme ? stimme.lang : "de-DE";
+      if (stimme) u.voice = stimme;
+      if (i === teile.length - 1) { u.onend = u.onerror = () => vorlesenKnopf.classList.remove("an"); }
+      speechSynthesis.speak(u);
+    });
+  });
+}
+
 // Eingabefeld nur zeigen, wenn das Spiel Text erwartet (Name, Menge) oder keine Auswahl erkennbar ist.
 // Das Tastatur-Symbol im Kopf holt es bei Bedarf herbei.
 let feldOffen = false;
@@ -1197,7 +1254,7 @@ function punktSetzen() {
   document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
 }
 // Version, Offline-Speicher und Update-Hinweis.
-const APP_STAND = "2026-10-25-19";
+const APP_STAND = "2026-10-25-20";
 const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.wav","klang/feuer.wav","klang/hoehle.wav","klang/intro.wav","klang/kampf.wav","klang/kueste.wav","klang/markt.m4a","klang/taverne.wav","klang/wald.wav","klang/wind.wav","klang/zimmer.wav"];
 async function offlineListe() {
   let spiel = [], medien = OFFLINE_DATEIEN;
@@ -1453,6 +1510,7 @@ async function starten() {
       return;
     }
     wartet = false;
+    vorlesenStopp();
     knoepfeEl.style.display = "none";
     listeAus = true;
     term.write(zeile + "\n", () => {

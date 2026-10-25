@@ -246,6 +246,9 @@
   #karteninhalt .ort.klein text { font-size: 9px; }
   #karteninhalt .ort.klein .sym { font-size: 12px; }
   #karteninhalt .ort.klein circle { stroke-width: 1.5; }
+  #vorlesen { display: none; font-size: 16px; padding: 2px 8px; background: transparent; border: 1px solid #2d333b; border-radius: 6px; }
+  body.imspiel #vorlesen:not([hidden]) { display: inline-block; }
+  #vorlesen.an { background: #2b5d9b; border-color: #2b5d9b; }
   #verlauf { display: none; font-size: 16px; padding: 2px 8px; background: transparent; border: 1px solid #2d333b; border-radius: 6px; }
   body.imspiel #verlauf { display: inline-block; }
   #verlaufblatt { position: fixed; inset: 0; z-index: 20; display: none; align-items: flex-end; background: rgba(0,0,0,.55); }

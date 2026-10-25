@@ -17,7 +17,7 @@
 document.body.classList.add("start", "laden");
 try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) document.body.classList.add("lesen"); } catch (e) { document.body.classList.add("lesen"); }
 </script>
-<div id="kopf"><div id="status">Starte …</div><button id="install" type="button">⬇ App</button><button id="kartenKnopf" type="button" aria-label="Karte">🗺️</button><button id="verlauf" type="button" aria-label="Vorheriger Text">🕘</button><button id="speicher" type="button" aria-label="Spielstand speichern">💾</button><button id="tasten" type="button" aria-label="Eingabefeld zeigen">⌨</button><button id="einstKnopf" type="button" aria-label="Anzeige und Sicherung">⚙<i id="punkt"></i></button><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
+<div id="kopf"><div id="status">Starte …</div><button id="install" type="button">⬇ App</button><button id="kartenKnopf" type="button" aria-label="Karte">🗺️</button><button id="verlauf" type="button" aria-label="Vorheriger Text">🕘</button><button id="speicher" type="button" aria-label="Spielstand speichern">💾</button><button id="tasten" type="button" aria-label="Eingabefeld zeigen">⌨</button><button id="einstKnopf" type="button" aria-label="Anzeige und Sicherung">⚙<i id="punkt"></i></button><button id="vorlesen" type="button" aria-label="Seite vorlesen" hidden>🗣</button><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
 <div id="hintergrund" class="leer"></div>
 <div id="hud"></div>
 <button id="ziel" type="button" aria-label="Aktuelle Ziele"></button>
