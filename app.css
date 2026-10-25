@@ -182,14 +182,19 @@
   #dial .einstellen { width: min(100%, 320px); min-height: 48px; font: inherit; font-size: 17px; font-weight: 600; color: #fff; background: #2b5d9b; border: 0; border-radius: 10px; }
   #dial .einstellen:disabled { opacity: .35; }
   #ansage { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  #einfuehrung, #neues { position: fixed; inset: 0; z-index: 30; display: none; align-items: flex-end; background: rgba(0,0,0,.6); }
-  #einfuehrung.offen, #neues.offen { display: flex; }
-  #einfuehrung .blatt, #neues .blatt { width: 100%; max-height: 90vh; overflow-y: auto; box-sizing: border-box; background: #141a22; border-radius: 16px 16px 0 0; padding: 16px 18px calc(24px + env(safe-area-inset-bottom, 0px)); }
-  #einfuehrung h2, #neues h2 { margin: 0 0 10px; font-size: 20px; }
+  #einfuehrung, #neues, #absturz { position: fixed; inset: 0; z-index: 30; display: none; align-items: flex-end; background: rgba(0,0,0,.6); }
+  #einfuehrung.offen, #neues.offen, #absturz.offen { display: flex; }
+  #absturz { z-index: 40; }
+  #absturz pre { margin: 0 0 12px; padding: 10px; max-height: 32vh; overflow: auto; font-size: 12px; line-height: 1.35; color: #f0b4b4; background: #0b0d10; border: 1px solid #5a2b2b; border-radius: 8px; white-space: pre-wrap; word-break: break-word; }
+  #absturz .hinweis { margin: 0 0 10px; font-size: 14px; color: #aab2bd; }
+  #absturz button { margin-bottom: 8px; }
+  #absturz button.leise { background: #2a313b; }
+  #einfuehrung .blatt, #neues .blatt, #absturz .blatt { width: 100%; max-height: 90vh; overflow-y: auto; box-sizing: border-box; background: #141a22; border-radius: 16px 16px 0 0; padding: 16px 18px calc(24px + env(safe-area-inset-bottom, 0px)); }
+  #einfuehrung h2, #neues h2, #absturz h2 { margin: 0 0 10px; font-size: 20px; }
   #einfuehrung ul, #neues ul { margin: 0 0 14px; padding-left: 18px; color: #d7dbe0; font-size: 15px; line-height: 1.5; }
   #einfuehrung li, #neues li { margin: 0 0 8px; }
   #einfuehrung li b, #neues li b { color: #8fb4e8; }
-  #einfuehrung button, #neues button { width: 100%; min-height: 48px; font: inherit; font-size: 17px; font-weight: 600; color: #fff; background: #2b5d9b; border: 0; border-radius: 10px; }
+  #einfuehrung button, #neues button, #absturz button { width: 100%; min-height: 48px; font: inherit; font-size: 17px; font-weight: 600; color: #fff; background: #2b5d9b; border: 0; border-radius: 10px; }
   /* Querformat: Text links, Knöpfe rechts */
   @media (orientation: landscape) and (max-height: 520px) {
     body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 44%); grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto; }
@@ -287,6 +292,7 @@
   #einst button.gewaehlt { background: #2b5d9b; border-color: #2b5d9b; }
   #einst button.gross { width: 100%; text-align: left; margin: 5px 0; }
   #einst button.zu { min-height: 34px; padding: 4px 12px; }
+  #einst textarea { width: 100%; box-sizing: border-box; margin: 6px 0; padding: 8px 10px; font: 12px/1.35 ui-monospace, monospace; color: #e6e8eb; background: #0b0d10; border: 1px solid #2d3b52; border-radius: 8px; resize: vertical; }
   #einst input[type=range] { flex: 1; min-width: 120px; height: 34px; accent-color: #4f8fe0; }
   #einst .wert { width: 2.6em; text-align: right; color: #e6e8eb; }
   #einst .probe { background: rgba(11,13,16,.9); border: 1px solid #232b36; border-radius: 10px; padding: 10px 12px 4px; margin: 8px 0; }

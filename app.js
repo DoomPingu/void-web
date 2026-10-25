@@ -853,6 +853,45 @@ function neuesZeigen() {
 function neuesSchliessen() { neuesBlatt.classList.remove("offen"); neuesBlatt.setAttribute("aria-hidden", "true"); UI.stand = APP_STAND; uiSichern(); }
 document.getElementById("neuesZu").addEventListener("click", neuesSchliessen);
 
+// Absturz-Hilfe: Das Spiel druckt selbst nie "[Fehler]" oder "Traceback"; kommt das im Text vor, ist Python abgestürzt.
+const absturzBlatt = document.getElementById("absturz");
+let absturzRest = "", absturzGezeigt = false, absturzTimer = 0;
+function absturzZeigen(text) {
+  if (absturzGezeigt) return;
+  absturzGezeigt = true;
+  const bericht = ["VOID Absturzbericht", "App-Stand: " + APP_STAND, "Ort: " + (hudOrt || "?"), "Browser: " + navigator.userAgent, "", String(text).trim()].join("\n");
+  document.getElementById("absturzText").textContent = bericht;
+  absturzBlatt.classList.add("offen"); absturzBlatt.setAttribute("aria-hidden", "false");
+}
+function absturzSchliessen() { absturzBlatt.classList.remove("offen"); absturzBlatt.setAttribute("aria-hidden", "true"); }
+function absturzLauschen(t) {
+  if (absturzGezeigt) return;
+  absturzRest = (absturzRest + t).slice(-3000);
+  if (!/Traceback \(most recent call last\)|\[Fehler\]/.test(absturzRest)) return;
+  clearTimeout(absturzTimer);
+  absturzTimer = setTimeout(() => absturzZeigen(absturzRest.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "").replace(/^[\s\S]*?(?=\[Fehler\]|Traceback)/, "")), 600);
+}
+function textKopieren(text, fertig) {
+  const altweg = () => {
+    try {
+      const t = document.createElement("textarea");
+      t.value = text; t.style.position = "fixed"; t.style.opacity = "0";
+      document.body.append(t); t.select();
+      const ok = document.execCommand("copy");
+      t.remove(); fertig(ok);
+    } catch (e) { fertig(false); }
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => fertig(true), altweg);
+  else altweg();
+}
+document.getElementById("absturzKopieren").addEventListener("click", (e) => {
+  const k = e.currentTarget;
+  textKopieren(document.getElementById("absturzText").textContent, (ok) => { k.textContent = ok ? "✓ Kopiert" : "Kopieren nicht möglich, Text markieren"; setTimeout(() => { k.textContent = "📋 Fehlertext kopieren"; }, 2500); });
+});
+document.getElementById("absturzNeu").addEventListener("click", () => location.reload());
+document.getElementById("absturzZu").addEventListener("click", absturzSchliessen);
+addEventListener("error", (e) => !/ResizeObserver|^Script error/.test(e.message || "") && absturzZeigen("Fehler in der App: " + (e.message || "") + " (" + (e.filename || "") + ":" + (e.lineno || "") + ")"));
+
 // Eingabefeld nur zeigen, wenn das Spiel Text erwartet (Name, Menge) oder keine Auswahl erkennbar ist.
 // Das Tastatur-Symbol im Kopf holt es bei Bedarf herbei.
 let feldOffen = false;
@@ -882,6 +921,7 @@ function hinweis(t) {
 try { history.replaceState({ void: 0 }, ""); history.pushState({ void: 1 }, ""); } catch (e) {}
 // Eine Ebene zurück: erst offene Fenster schließen, dann im Spiel "Zurück"/"Abbrechen" drücken. Gibt an, ob etwas passiert ist.
 function zurueckGehen() {
+  if (absturzBlatt.classList.contains("offen")) { absturzSchliessen(); return true; }
   if (neuesBlatt.classList.contains("offen")) { neuesSchliessen(); return true; }
   if (introBlatt.classList.contains("offen")) { introSchliessen(); return true; }
   if (kartenBlatt.classList.contains("offen")) { kartenSchliessen(); return true; }
@@ -1077,6 +1117,21 @@ function slotInfo(text) {
     return { titel: (s.name || "Unbenannt") + " · " + (ort || "?"), info: (s.gold ?? 0) + " Gold" + (s.spielzeit ? " · ⏱ " + zeitText(s.spielzeit) : "") };
   } catch (e) { return { titel: "Nicht lesbar", info: "" }; }
 }
+// "Bildschirm anlassen": Der Bildschirm bleibt an, solange die App sichtbar ist (Wake Lock). Beim Wechsel der App wird er neu angefordert.
+let wachSperre = null;
+async function wachSetzen() {
+  if (!navigator.wakeLock) return;
+  try {
+    if (UI.wach && !wachSperre && !document.hidden) {
+      wachSperre = await navigator.wakeLock.request("screen");
+      wachSperre.addEventListener("release", () => { wachSperre = null; });
+    } else if (!UI.wach && wachSperre) {
+      const s = wachSperre; wachSperre = null; await s.release();
+    }
+  } catch (e) { wachSperre = null; }
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) wachSetzen(); });
+document.addEventListener("pointerdown", () => { if (UI.wach && !wachSperre) wachSetzen(); });
 function einstellungenFuellen() {
   const st = spielstaende();
   document.getElementById("slots").innerHTML = SLOT_NAMEN.map((n, i) => {
@@ -1092,6 +1147,8 @@ function einstellungenFuellen() {
   markieren("gGross", UI.gross ? "gross" : "normal");
   markieren("gKontrast", UI.kontrast ? "hoch" : "normal");
   markieren("gVibr", UI.vibration === false ? "aus" : "an");
+  markieren("gWach", UI.wach ? "an" : "aus");
+  document.getElementById("wachZeile").style.display = navigator.wakeLock ? "" : "none";
   const eff = Math.round((Klang.effektLautstaerke ? Klang.effektLautstaerke() : 0.8) * 100);
   document.getElementById("effektRegler").value = eff;
   document.getElementById("effektWert").textContent = eff;
@@ -1126,7 +1183,7 @@ function punktSetzen() {
   document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
 }
 // Version, Offline-Speicher und Update-Hinweis.
-const APP_STAND = "2026-10-25-17";
+const APP_STAND = "2026-10-25-18";
 const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.wav","klang/feuer.wav","klang/hoehle.wav","klang/intro.wav","klang/kampf.wav","klang/kueste.wav","klang/markt.m4a","klang/taverne.wav","klang/wald.wav","klang/wind.wav","klang/zimmer.wav"];
 async function offlineListe() {
   let spiel = [], medien = OFFLINE_DATEIEN;
@@ -1167,7 +1224,7 @@ async function offlineLaden() {
 async function updatePruefen() {
   try {
     const text = await (await fetch("app.js", { cache: "no-store" })).text();
-    const m = text.match(/const APP_STAND = "([^"]+)"/);
+    const m = text.match(/const APP_STAND = "2026-10-25-18"]+)"/);
     if (m && m[1] !== APP_STAND) document.getElementById("neuVersion").classList.add("an");
   } catch (e) {}
 }
@@ -1185,13 +1242,26 @@ function einstSchliessen() {
   einstEl.classList.remove("offen");
   einstEl.setAttribute("aria-hidden", "true");
 }
-function sicherungBauen() {
+function sicherungText() {
   const st = spielstaende();
   if (!Object.keys(st).some((n) => n.startsWith("void_save_"))) { meldungEl.textContent = "Es gibt noch keinen gespeicherten Spielstand."; return null; }
-  const inhalt = { void_sicherung: 1, erstellt: new Date().toISOString(), dateien: st };
+  return JSON.stringify({ void_sicherung: 1, erstellt: new Date().toISOString(), dateien: st });
+}
+function sicherungBauen() {
+  const text = sicherungText();
+  if (!text) return null;
   const d = new Date();
   const name = "void-sicherung-" + d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") + ".json";
-  return new File([JSON.stringify(inhalt)], name, { type: "application/json" });
+  return new File([text], name, { type: "application/json" });
+}
+function sicherungKopieren() {
+  const text = sicherungText();
+  if (!text) return;
+  textKopieren(text, (ok) => {
+    if (ok) { UI.sicherung = Date.now(); uiSichern(); punktSetzen(); }
+    meldungEl.textContent = ok ? "Sicherung als Text kopiert (" + Math.ceil(text.length / 1024) + " KB). Füge sie in eine Notiz oder Mail ein, am besten an dich selbst."
+      : "Kopieren ist hier nicht möglich. Nimm „Sicherung als Datei speichern“.";
+  });
 }
 function sichernDatei() {
   const datei = sicherungBauen();
@@ -1215,9 +1285,14 @@ function sicherungTeilen() {
 }
 function einspielen(datei) {
   const leser = new FileReader();
-  leser.onload = () => {
+  leser.onload = () => einspielenText(leser.result);
+  leser.readAsText(datei);
+}
+// Gemeinsame Prüfung für Datei und eingefügten Text; bei jedem Fehler bleibt alles unverändert.
+function einspielenText(inhaltText) {
+  {
     try {
-      const o = JSON.parse(leser.result);
+      const o = JSON.parse(String(inhaltText).trim());
       if (!o || o.void_sicherung !== 1 || typeof o.dateien !== "object") throw new Error("keine VOID-Sicherung");
       const namen = Object.keys(o.dateien);
       if (!namen.length || !namen.every((n) => /^void_(save_[1-3]|settings)\.json$/.test(n) && typeof o.dateien[n] === "string")) throw new Error("unbekannter Inhalt");
@@ -1228,10 +1303,9 @@ function einspielen(datei) {
       namen.forEach((n) => { localStorage.setItem("void:" + n, o.dateien[n]); idbSicher.setzen(n, o.dateien[n]); });
       location.reload();
     } catch (e) {
-      meldungEl.textContent = "Diese Datei lässt sich nicht einspielen: Sie ist keine gültige VOID-Sicherung. Es wurde nichts verändert.";
+      meldungEl.textContent = "Das lässt sich nicht einspielen: Es ist keine gültige VOID-Sicherung (oder der Text ist unvollständig). Es wurde nichts verändert.";
     }
-  };
-  leser.readAsText(datei);
+  }
 }
 function einstellungenVerdrahten() {
   document.getElementById("einstKnopf").addEventListener("click", (e) => { e.stopPropagation(); einstOeffnen(); });
@@ -1257,6 +1331,8 @@ function einstellungenVerdrahten() {
   gruppe("gGross", (v) => { UI.gross = v === "gross"; });
   gruppe("gKontrast", (v) => { UI.kontrast = v === "hoch"; });
   document.getElementById("introNochmal").addEventListener("click", () => { einstSchliessen(); introZeigen(); });
+  gruppe("gWach", (v) => { UI.wach = v === "an"; wachSetzen(); });
+  wachSetzen();
   gruppe("gVibr", (v) => { UI.vibration = v === "an"; if (UI.vibration && navigator.vibrate) navigator.vibrate(30); });
   gruppe("gFeld", (v) => { UI.feld = v; feldOffen = false; document.body.classList.remove("ohnefeld"); });
   document.getElementById("schriftRegler").addEventListener("input", (e) => {
@@ -1268,6 +1344,17 @@ function einstellungenVerdrahten() {
     const probe = new File(["{}"], "p.json", { type: "application/json" });
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [probe] })) { teilenKnopf.hidden = false; teilenKnopf.addEventListener("click", sicherungTeilen); }
   } catch (e) {}
+  document.getElementById("textKopieren").addEventListener("click", sicherungKopieren);
+  document.getElementById("textEinfuegen").addEventListener("click", () => {
+    const box = document.getElementById("textBox");
+    box.hidden = !box.hidden;
+    if (!box.hidden) document.getElementById("textFeld").focus();
+  });
+  document.getElementById("textEinspielen").addEventListener("click", () => {
+    const t = document.getElementById("textFeld").value.trim();
+    if (!t) { meldungEl.textContent = "Das Feld ist leer. Füge zuerst den kopierten Text ein."; return; }
+    einspielenText(t);
+  });
   document.getElementById("laden").addEventListener("click", () => document.getElementById("ladeDatei").click());
   document.getElementById("ladeDatei").addEventListener("change", (e) => { if (e.target.files[0]) einspielen(e.target.files[0]); e.target.value = ""; });
   punktSetzen();
@@ -1314,9 +1401,11 @@ async function starten() {
   setTimeout(anpassen, 300);
   addEventListener("resize", anpassen);
 
+  worker.onerror = (e) => absturzZeigen("Fehler im Hintergrundprozess: " + (e.message || e));
   worker.onmessage = (e) => {
     const m = e.data;
     if (m.typ === "text") {
+      absturzLauschen(m.text);
       // Bildschirm geleert: gelesen wird erst ab dem neuen Bildschirmanfang.
       const klar = m.text.lastIndexOf("\x1b[H");
       if (m.text.includes("\x1b[2J") && klar >= 0) {

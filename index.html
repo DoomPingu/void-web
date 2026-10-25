@@ -43,6 +43,16 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
     <button id="neuesZu" type="button">Verstanden</button>
   </div>
 </div>
+<div id="absturz" aria-hidden="true">
+  <div class="blatt" role="alertdialog" aria-label="Fehler im Spiel">
+    <h2>Das Spiel ist abgestürzt</h2>
+    <p class="hinweis">Dein letzter gespeicherter Stand ist sicher. Kopiere den Fehlertext und schick ihn mir, dann kann ich ihn beheben.</p>
+    <pre id="absturzText"></pre>
+    <button id="absturzKopieren" type="button">📋 Fehlertext kopieren</button>
+    <button id="absturzNeu" type="button">↻ Neu starten</button>
+    <button id="absturzZu" type="button" class="leise">Schließen</button>
+  </div>
+</div>
 <div id="einfuehrung" aria-hidden="true">
   <div class="blatt" role="dialog" aria-label="Einführung">
     <h2>So bedienst du VOID</h2>
@@ -99,6 +109,7 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
 
     <div class="zeile"><span>Effekte</span><input id="effektRegler" type="range" min="0" max="100" step="5" aria-label="Lautstärke der Effekte"><span class="wert" id="effektWert"></span></div>
     <div class="zeile"><span>Vibration</span><div class="gruppe" id="gVibr"><button type="button" data-v="an">An</button><button type="button" data-v="aus">Aus</button></div></div>
+    <div class="zeile" id="wachZeile"><span>Bildschirm</span><div class="gruppe" id="gWach"><button type="button" data-v="aus">Darf ausgehen</button><button type="button" data-v="an">Anlassen</button></div></div>
 
     <button id="introNochmal" class="gross" type="button">ℹ️ Einführung noch einmal zeigen</button>
 
@@ -114,6 +125,12 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
     <button id="teilen" class="gross" type="button" hidden>↗ Sicherung teilen …</button>
     <button id="laden" class="gross" type="button">⬆ Sicherung einspielen …</button>
     <input id="ladeDatei" type="file" accept=".json,application/json" hidden>
+    <button id="textKopieren" class="gross" type="button">📋 Sicherung als Text kopieren</button>
+    <button id="textEinfuegen" class="gross" type="button">📥 Sicherung aus Text einspielen …</button>
+    <div id="textBox" hidden>
+      <textarea id="textFeld" rows="5" placeholder="Kopierten Sicherungstext hier einfügen (lange tippen, Einfügen)" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea>
+      <button id="textEinspielen" class="gross" type="button">Einspielen</button>
+    </div>
     <div class="meldung" id="meldung"></div>
     <p class="hinweis" id="schutz"></p>
     <p class="hinweis" id="kopieInfo"></p>
