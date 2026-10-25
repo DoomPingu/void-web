@@ -846,8 +846,8 @@ REISE_STRECKEN = {
                         "der Geruch von Rauch und verbranntem Holz."
                     ),
                     (
-                        "Zum Geruch von feuchtem Laub und Erde kommt "
-                        "Rauch von Holzkohle."
+                        "In den Geruch von feuchtem Laub und Erde mischen "
+                        "sich Holzkohle und Rauch."
                     )
                 ]
             },
@@ -1326,8 +1326,8 @@ REISE_STRECKEN = {
 
                 6: [
                     (
-                        "Am Weg tritt grauer Fels hervor. An mehreren "
-                        "Stellen ist die Straße direkt in den Stein "
+                        "Zwischen den Bäumen wird der Boden felsiger. An mehreren "
+                        "Stellen ist die Straße direkt in den grauen Stein "
                         "geschlagen worden."
                     ),
                     (
@@ -1541,8 +1541,8 @@ REISE_STRECKEN = {
                     "Der Weg bleibt auf einem schmalen Rücken und folgt ihm nach Norden."
                 ),
                 (
-                    "Am Weg tritt grauer Fels hervor. An mehreren Stellen "
-                    "ist die Straße direkt in den Stein geschlagen worden."
+                    "Zwischen den Bäumen wird der Boden felsiger. An mehreren Stellen "
+                    "ist die Straße direkt in den grauen Stein geschlagen worden."
                 ),
                 (
                     "Der Wald öffnet sich um einen alten Rastplatz. Dahinter zieht der "
@@ -1601,8 +1601,8 @@ REISE_STRECKEN = {
                     "erkennst du bereits die Dächer Eichenruhs."
                 ),
                 (
-                    "Du erreichst wieder den nördlichen Ortsrand. Stimmen "
-                    "ersetzen den Wind der Höhen."
+                    "Du erreichst wieder den nördlichen Ortsrand. Stimmen und "
+                    "vertraute Arbeitsgeräusche ersetzen den Wind der Höhen."
                 )
             ]
         }
@@ -2051,7 +2051,7 @@ REISE_STRECKEN = {
                 ),
                 (
                     "Vor dir liegen die vertrauten Dächer Eichenruhs. "
-                    "Aus den Gassen kommen Stimmen herüber."
+                    "Mit ihnen kehren Stimmen und Arbeitsgeräusche zurück."
                 )
             ]
         }
@@ -2456,8 +2456,8 @@ REISE_STRECKEN = {
                     "dringen wieder einzelne Arbeitsgeräusche herüber."
                 ),
                 (
-                    "Kleine Felder säumen den Weg nach Eichenruh. "
-                    "Über den ersten Dächern steigt Rauch auf."
+                    "Zwischen kleinen Feldern führt der Weg zurück nach Eichenruh. "
+                    "Rauch steigt über den ersten Dächern auf."
                 ),
                 (
                     "Die vertrauten Häuser liegen wieder vor dir. Stimmen, Hämmern und "
