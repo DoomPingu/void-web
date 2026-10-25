@@ -36,8 +36,11 @@ self.eingabe_abwarten = () => {
   return new Promise((ok) => { eingabeAuflosen = ok; });
 };
 
+// Auf dem Handy erscheinen alle Texte sofort (kein Schreibmaschinen-Effekt, keine Pausen). Das war bisher schon
+// so, weil jedes Antippen eines Knopfs auch "Text überspringen" ausgelöst hat; jetzt ist es Absicht.
+const SOFORT = true;
 self.pause_abwarten = (sekunden) => {
-  if (ueberspringen || !(sekunden > 0)) return Promise.resolve();
+  if (SOFORT || ueberspringen || !(sekunden > 0)) return Promise.resolve();
   return new Promise((ok) => {
     const t = setTimeout(() => { pauseAuflosen = null; ok(); }, sekunden * 1000);
     pauseAuflosen = () => { clearTimeout(t); pauseAuflosen = null; ok(); };
