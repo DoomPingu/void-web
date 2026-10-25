@@ -37,7 +37,10 @@
   #status { flex: 1; padding: 4px 10px; font-size: 13px; color: #8b949e; min-height: 1.2em; }
   #credits { font-size: 16px; color: #8b949e; text-decoration: none; padding: 2px 6px; }
   #ton { font-size: 16px; padding: 2px 8px; background: transparent; color: #8b949e; border: 1px solid #2d333b; border-radius: 6px; }
-  #install { font-size: 12px; padding: 4px 10px; background: #2b5d9b; color: #fff; border: 0; border-radius: 6px; }
+  #install { font-size: 12px; padding: 4px 10px; background: #2b5d9b; color: #fff; border: 0; border-radius: 6px; white-space: nowrap; }
+  #kopf { gap: 5px; }
+  #kopf > button { flex: none; padding: 2px 6px; }
+  #status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #hud { display: none; padding: 6px 10px; background: rgba(18,22,27,.85); border-bottom: 1px solid #22272e; font-size: 13px; }
   #hud .zeile { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
   #hud .ort { color: #8fb4e8; font-weight: 600; }
@@ -151,6 +154,26 @@
   #zielblatt .z b { display: block; margin-bottom: 3px; color: #8fb4e8; font-size: 14px; }
   #zielblatt .z span { color: #e6e8eb; font-size: 15px; line-height: 1.4; }
   body.ohnefeld #leiste, body.laden #leiste { display: none; }
+  #kartenKnopf { display: none; font-size: 16px; padding: 2px 8px; background: transparent; border: 1px solid #2d333b; border-radius: 6px; }
+  body.imspiel #kartenKnopf { display: inline-block; }
+  #kartenblatt { position: fixed; inset: 0; z-index: 20; display: none; align-items: flex-end; background: rgba(0,0,0,.55); }
+  #kartenblatt.offen { display: flex; }
+  #kartenblatt .blatt { width: 100%; max-height: 90vh; overflow-y: auto; box-sizing: border-box; background: #141a22; border-radius: 16px 16px 0 0; padding: 14px 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
+  #kartenblatt h2 { margin: 0 0 6px; font-size: 18px; display: flex; justify-content: space-between; align-items: center; }
+  #kartenblatt h2 button { font: inherit; font-size: 14px; color: #e6e8eb; background: #1a2230; border: 1px solid #2d3b52; border-radius: 8px; padding: 6px 12px; }
+  #kartenblatt .hinweis { color: #9aa3ae; font-size: 13px; min-height: 2.6em; margin: 4px 0 0; }
+  #karteninhalt svg { width: 100%; height: auto; display: block; background: radial-gradient(circle at 50% 50%, #1b2431, #10151c); border: 1px solid #232b36; border-radius: 12px; }
+  #karteninhalt .weg { stroke: #3a4a63; stroke-width: 2; stroke-dasharray: 5 5; }
+  #karteninhalt .wegname { fill: #6f7c90; font-size: 9px; text-anchor: middle; }
+  #karteninhalt .ort { cursor: pointer; }
+  #karteninhalt .ort circle { fill: #1a2230; stroke: #4a5a75; stroke-width: 2; }
+  #karteninhalt .ort.unbekannt circle { fill: #12171e; stroke: #2a3340; stroke-dasharray: 3 3; }
+  #karteninhalt .ort.bekannt circle { stroke: #6a8fe0; }
+  #karteninhalt .ort.nah circle { stroke: #e5c07b; stroke-width: 3; }
+  #karteninhalt .ort.hier circle { fill: #2b5d9b; stroke: #8fb4e8; stroke-width: 3; }
+  #karteninhalt .ort text { fill: #e6e8eb; font-size: 11px; text-anchor: middle; pointer-events: none; }
+  #karteninhalt .ort.unbekannt text { fill: #6f7c90; }
+  #karteninhalt .ort .sym { font-size: 16px; }
   #verlauf { display: none; font-size: 16px; padding: 2px 8px; background: transparent; border: 1px solid #2d333b; border-radius: 6px; }
   body.imspiel #verlauf { display: inline-block; }
   #verlaufblatt { position: fixed; inset: 0; z-index: 20; display: none; align-items: flex-end; background: rgba(0,0,0,.55); }
@@ -212,7 +235,7 @@
 document.body.classList.add("start", "laden");
 try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) document.body.classList.add("lesen"); } catch (e) { document.body.classList.add("lesen"); }
 </script>
-<div id="kopf"><div id="status">Starte …</div><button id="install" type="button">⬇ App</button><a id="credits" href="https://github.com/DoomPingu/void-web/blob/main/CREDITS.md" target="_blank" rel="noopener" aria-label="Bildnachweise">ⓘ</a><button id="verlauf" type="button" aria-label="Vorheriger Text">🕘</button><button id="speicher" type="button" aria-label="Spielstand speichern">💾</button><button id="tasten" type="button" aria-label="Eingabefeld zeigen">⌨</button><button id="einstKnopf" type="button" aria-label="Anzeige und Sicherung">⚙<i id="punkt"></i></button><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
+<div id="kopf"><div id="status">Starte …</div><button id="install" type="button">⬇ App</button><button id="kartenKnopf" type="button" aria-label="Karte">🗺️</button><button id="verlauf" type="button" aria-label="Vorheriger Text">🕘</button><button id="speicher" type="button" aria-label="Spielstand speichern">💾</button><button id="tasten" type="button" aria-label="Eingabefeld zeigen">⌨</button><button id="einstKnopf" type="button" aria-label="Anzeige und Sicherung">⚙<i id="punkt"></i></button><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
 <div id="hintergrund" class="leer"></div>
 <div id="hud"></div>
 <button id="ziel" type="button" aria-label="Aktuelle Ziele"></button>
@@ -229,6 +252,13 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
   <input id="eingabe" inputmode="text" enterkeyhint="send" placeholder="Eingabe, dann Enter" autocapitalize="off" autocorrect="off" spellcheck="false">
   <button id="senden" type="submit" aria-label="Senden">↵</button>
 </form>
+<div id="kartenblatt" aria-hidden="true">
+  <div class="blatt" role="dialog" aria-label="Karte">
+    <h2>Karte <button id="kartenZu" type="button">Schließen</button></h2>
+    <div id="karteninhalt"></div>
+    <p class="hinweis" id="kartenhinweis"></p>
+  </div>
+</div>
 <div id="verlaufblatt" aria-hidden="true">
   <div class="blatt" role="dialog" aria-label="Vorheriger Text">
     <h2>Vorheriger Text <button id="verlaufZu" type="button">Schließen</button></h2>
@@ -277,6 +307,7 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
     <input id="ladeDatei" type="file" accept=".json,application/json" hidden>
     <div class="meldung" id="meldung"></div>
     <p class="hinweis" id="schutz"></p>
+    <p class="hinweis"><a id="credits" href="https://github.com/DoomPingu/void-web/blob/main/CREDITS.md" target="_blank" rel="noopener">Bildnachweise und Lizenzen</a></p>
   </div>
 </div>
 <script>
@@ -445,6 +476,7 @@ function npcSetzen(zeilen) {
 
 function hudZeigen(d) {
   document.body.classList.add("imspiel");
+  hudOrt = String(d.ort || "");
   hintergrundSetzen(d.ort);
   if (!hudEl.firstChild) {
     hudEl.innerHTML = '<div class="zeile"><span class="ort"></span><span class="gold"></span></div>' +
@@ -674,6 +706,12 @@ function leseRendern() {
     if (!z.isWrapped && TASTENHINWEIS.test(t)) continue;
     if (z.isWrapped && zeilen.length) zeilen[zeilen.length - 1].text += t;
     else zeilen.push({ text: t, z, y });
+  }
+  // Steht der Tastenhinweis mitten in einer Zeile (z. B. nach "Tipp: ..."), wird nur dieser Satz entfernt (nach dem Zusammenfügen umbrochener Zeilen).
+  for (let i = zeilen.length - 1; i >= 0; i--) {
+    const neu = zeilen[i].text.replace(/\s*Mit \[?[SIJTQ]\]?[^.]*? (?:öffnest|sicherst) du[^.]*\./g, "");
+    if (neu === zeilen[i].text) continue;
+    if (neu.trim()) zeilen[i].text = neu; else zeilen.splice(i, 1);
   }
   const KV = /^[A-ZÄÖÜ][\wäöüßÄÖÜ \-]{1,28}:\s+\S.{0,56}$/;
   const kvZeile = (s) => KV.test(s) && !/[.!]$/.test(s) && !/\w\?$/.test(s);
@@ -941,6 +979,53 @@ document.getElementById("ziel").addEventListener("click", () => {
 });
 document.getElementById("zielZu").addEventListener("click", zielBlattSchliessen);
 
+// Karte: die fünf Hauptorte. Ein Tipp auf einen von hier erreichbaren Ort drückt den passenden Knopf im Spiel.
+let hudOrt = "";
+const KARTE_ORTE = [
+  { id: "eichenruh", name: "Eichenruh", sym: "🏘️", x: 160, y: 185, hier: /eichenruh|spieler_zimmer|gasthaus|marktplatz|^schmiede|bjorns/i, besucht: /eichenruh/i, knopf: /Eichenruh/ },
+  { id: "koehlerei", name: "Köhlerei", sym: "🔥", x: 62, y: 80, hier: /k[oö]e?hlerei|brandschneise/i, besucht: /k[oö]e?hlerei/i, knopf: /K[öo]e?hlerei/ },
+  { id: "oros", name: "Oros", sym: "🏛️", x: 258, y: 80, hier: /oros|tiefen|universit/i, besucht: /oros|tiefen|universit/i, knopf: /Oros|Universit|Faden/ },
+  { id: "dorf", name: "Verlassenes Dorf", sym: "🏚️", x: 62, y: 290, hier: /verlassenes_dorf|verlassenes dorf|alte_schmiede|alte schmiede|lagerkeller|huette/i, besucht: /dorf|alte_schmiede|lagerkeller/i, knopf: /Dorf|Pfad des Vergessens/ },
+  { id: "hafen", name: "Letzthafen", sym: "⚓", x: 258, y: 290, hier: /letzthafen|wrackstrand|edda|namenstein|leuchtfeuer|klippe/i, besucht: /letzthafen|hafen|wrack|edda/i, knopf: /Letzthafen|K[öo]nigsring/ }
+];
+const KARTE_WEGE = [["eichenruh", "koehlerei", "Waldweg"], ["eichenruh", "oros", "Faden der Erinnerung"], ["eichenruh", "dorf", "Pfad des Vergessens"], ["eichenruh", "hafen", "Königsring"]];
+const kartenBlatt = document.getElementById("kartenblatt");
+function kartenSchliessen() { kartenBlatt.classList.remove("offen"); kartenBlatt.setAttribute("aria-hidden", "true"); }
+function kartenWerte() {
+  let besucht = [];
+  try { const n = weiterSlot(); if (n) besucht = [].concat(JSON.parse(spielstaende()[n]).spieler.besuchte_orte || []).map(String); } catch (e) {}
+  const knoepfe = knoepfeEl.style.display === "none" ? [] : [...knoepfeEl.querySelectorAll("button")].filter((b) => !b.closest(".ikonen"));
+  return KARTE_ORTE.map((o) => {
+    const hier = o.hier.test(hudOrt);
+    const knopf = hier ? null : knoepfe.find((b) => o.knopf.test(b.textContent));
+    const bekannt = besucht.some((s) => o.besucht.test(s));
+    return { o, hier, knopf, klasse: hier ? "hier" : knopf ? "nah" : bekannt ? "bekannt" : "unbekannt", sichtbar: hier || !!knopf || bekannt };
+  });
+}
+function kartenZeichnen() {
+  const w = kartenWerte();
+  const von = (id) => KARTE_ORTE.find((o) => o.id === id);
+  const linien = KARTE_WEGE.map(([a, b, n]) => {
+    const A = von(a), B = von(b);
+    return '<line class="weg" x1="' + A.x + '" y1="' + A.y + '" x2="' + B.x + '" y2="' + B.y + '"/><text class="wegname" x="' + ((A.x + B.x) / 2 + (B.x > A.x ? 14 : -14)) + '" y="' + ((A.y + B.y) / 2) + '">' + esc(n) + "</text>";
+  }).join("");
+  const orte = w.map(({ o, klasse, sichtbar }) =>
+    '<g class="ort ' + klasse + '" data-id="' + o.id + '"><circle cx="' + o.x + '" cy="' + o.y + '" r="24"/><text class="sym" x="' + o.x + '" y="' + (o.y + 6) + '">' + (sichtbar ? o.sym : "?") +
+    '</text><text x="' + o.x + '" y="' + (o.y + 42) + '">' + (sichtbar ? esc(o.name) : "Unbekannt") + "</text></g>").join("");
+  document.getElementById("karteninhalt").innerHTML = '<svg viewBox="0 0 320 350" role="img" aria-label="Karte">' + linien + orte + "</svg>";
+  document.getElementById("kartenhinweis").textContent = hudOrt && !w.some((x) => x.hier) ? "Du bist unterwegs. Tippe auf einen Ort, wenn ein Weg dorthin offen ist." : "Tippe auf einen gelb umrandeten Ort, um dorthin zu reisen.";
+  document.querySelectorAll("#karteninhalt .ort").forEach((g) => g.addEventListener("click", () => {
+    const eintrag = kartenWerte().find((x) => x.o.id === g.dataset.id);
+    if (eintrag.hier) { document.getElementById("kartenhinweis").textContent = "Du bist schon hier."; return; }
+    if (eintrag.knopf) { kartenSchliessen(); eintrag.knopf.click(); return; }
+    const hierWo = kartenWerte().some((x) => x.hier && x.o.id === "eichenruh");
+    document.getElementById("kartenhinweis").textContent = hierWo ? "Dieser Weg ist gerade nicht offen." : "Von hier aus geht es nur über Eichenruh oder gar nicht, solange du mitten in etwas steckst.";
+  }));
+}
+document.getElementById("kartenKnopf").addEventListener("click", () => { kartenZeichnen(); kartenBlatt.classList.add("offen"); kartenBlatt.setAttribute("aria-hidden", "false"); });
+document.getElementById("kartenZu").addEventListener("click", kartenSchliessen);
+kartenBlatt.addEventListener("click", (e) => { if (e.target === kartenBlatt) kartenSchliessen(); });
+
 // Vorheriger Text: die letzten Seiten, jüngste zuerst.
 const verlaufBlatt = document.getElementById("verlaufblatt");
 function verlaufSchliessen() { verlaufBlatt.classList.remove("offen"); verlaufBlatt.setAttribute("aria-hidden", "true"); }
@@ -985,6 +1070,7 @@ function hinweis(t) {
 try { history.replaceState({ void: 0 }, ""); history.pushState({ void: 1 }, ""); } catch (e) {}
 addEventListener("popstate", () => {
   const wieder = () => { try { history.pushState({ void: 1 }, ""); } catch (e) {} };
+  if (kartenBlatt.classList.contains("offen")) { kartenSchliessen(); wieder(); return; }
   if (verlaufBlatt.classList.contains("offen")) { verlaufSchliessen(); wieder(); return; }
   if (zielBlatt.classList.contains("offen")) { zielBlattSchliessen(); wieder(); return; }
   if (einstEl.classList.contains("offen")) { einstSchliessen(); wieder(); return; }
@@ -1106,7 +1192,7 @@ function punktSetzen() {
   document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
 }
 // Version, Offline-Speicher und Update-Hinweis.
-const APP_STAND = "2026-10-25-10";
+const APP_STAND = "2026-10-25-11";
 const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.wav","klang/feuer.wav","klang/hoehle.wav","klang/intro.wav","klang/kampf.wav","klang/kueste.wav","klang/markt.m4a","klang/taverne.wav","klang/wald.wav","klang/wind.wav","klang/zimmer.wav"];
 async function offlineListe() {
   let spiel = [];
