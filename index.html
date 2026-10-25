@@ -154,6 +154,42 @@
   #zielblatt .z b { display: block; margin-bottom: 3px; color: #8fb4e8; font-size: 14px; }
   #zielblatt .z span { color: #e6e8eb; font-size: 15px; line-height: 1.4; }
   body.ohnefeld #leiste, body.laden #leiste { display: none; }
+  #ansage { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  #einfuehrung { position: fixed; inset: 0; z-index: 30; display: none; align-items: flex-end; background: rgba(0,0,0,.6); }
+  #einfuehrung.offen { display: flex; }
+  #einfuehrung .blatt { width: 100%; max-height: 90vh; overflow-y: auto; box-sizing: border-box; background: #141a22; border-radius: 16px 16px 0 0; padding: 16px 18px calc(24px + env(safe-area-inset-bottom, 0px)); }
+  #einfuehrung h2 { margin: 0 0 10px; font-size: 20px; }
+  #einfuehrung ul { margin: 0 0 14px; padding-left: 18px; color: #d7dbe0; font-size: 15px; line-height: 1.5; }
+  #einfuehrung li { margin: 0 0 8px; }
+  #einfuehrung li b { color: #8fb4e8; }
+  #einfuehrung button { width: 100%; min-height: 48px; font: inherit; font-size: 17px; font-weight: 600; color: #fff; background: #2b5d9b; border: 0; border-radius: 10px; }
+  /* Querformat: Text links, Knöpfe rechts */
+  @media (orientation: landscape) and (max-height: 520px) {
+    body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 44%); grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto; }
+    #kopf { grid-column: 1 / -1; grid-row: 1; }
+    #hud, #ziel, #gegner, #npc { grid-column: 1; }
+    #hud { grid-row: 2; } #ziel { grid-row: 3; } #gegner { grid-row: 4; } #npc { grid-row: 5; }
+    #lese, #start { grid-column: 1; grid-row: 6; min-height: 0; }
+    #knoepfe, #raetsel { grid-column: 2; grid-row: 2 / 7; max-height: none; overflow-y: auto; min-height: 0; }
+    #knoepfe { grid-template-columns: 1fr; align-content: start; }
+    #knoepfe.kampf { max-height: none; }
+    #leiste { grid-column: 1 / -1; grid-row: 7; }
+    #terminal { grid-column: 1; grid-row: 6; }
+    #gegner img { max-height: 16vh; }
+    #start h1 { font-size: 46px; }
+  }
+  /* Zugänglichkeit */
+  body.gross #knoepfe button { min-height: 58px; font-size: 19px; }
+  body.gross #knoepfe .ikonen button { min-height: 60px; }
+  body.gross #einst button, body.gross #zielblatt button, body.gross #verlaufblatt button, body.gross #kartenblatt button { min-height: 48px; font-size: 16px; }
+  body.kontrast { color: #fff; }
+  body.kontrast .lesestil, body.kontrast .lesestil .erzaehl, body.kontrast .lesestil .beschr, body.kontrast .lesestil .wahl, body.kontrast .lesestil .kv .l { color: #fff; }
+  body.kontrast .lesestil .abstand + .erzaehl { color: #fff; }
+  body.kontrast #knoepfe button { background: #0d1219; border-color: #9cc0f2; color: #fff; }
+  body.kontrast #knoepfe button small, body.kontrast .lesestil .chip { color: #fff; }
+  body.kontrast #hintergrund::after { background: rgba(0,0,0,.82); }
+  body.kontrast #lese { background: rgba(0,0,0,.78); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation-duration: .01s !important; } }
   #kartenKnopf { display: none; font-size: 16px; padding: 2px 8px; background: transparent; border: 1px solid #2d333b; border-radius: 6px; }
   body.imspiel #kartenKnopf { display: inline-block; }
   #kartenblatt { position: fixed; inset: 0; z-index: 20; display: none; align-items: flex-end; background: rgba(0,0,0,.55); }
@@ -252,6 +288,20 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
   <input id="eingabe" inputmode="text" enterkeyhint="send" placeholder="Eingabe, dann Enter" autocapitalize="off" autocorrect="off" spellcheck="false">
   <button id="senden" type="submit" aria-label="Senden">↵</button>
 </form>
+<div id="ansage" aria-live="polite" aria-atomic="true"></div>
+<div id="einfuehrung" aria-hidden="true">
+  <div class="blatt" role="dialog" aria-label="Einführung">
+    <h2>So bedienst du VOID</h2>
+    <ul>
+      <li><b>Antworten:</b> Tippe unten auf einen Knopf. Die Leiste darunter öffnet Status, Inventar, Journal, Talente und Menü.</li>
+      <li><b>Oben:</b> 🗺️ Karte und Reise · 🕘 vorheriger Text · 💾 speichern · ⚙ Anzeige und Sicherung · 🔊 Ton.</li>
+      <li><b>Ziel:</b> Die gelbe Zeile 🎯 zeigt, was du gerade tun sollst. Antippen zeigt alle Ziele.</li>
+      <li><b>Seiten:</b> Jeder Bildschirm ist eine neue Seite. Den Text davor findest du unter 🕘.</li>
+      <li><b>Zurück-Geste:</b> Sie schließt Fenster oder tippt „Zurück“ im Spiel.</li>
+    </ul>
+    <button id="einfuehrungZu" type="button">Verstanden</button>
+  </div>
+</div>
 <div id="kartenblatt" aria-hidden="true">
   <div class="blatt" role="dialog" aria-label="Karte">
     <h2>Karte <button id="kartenZu" type="button">Schließen</button></h2>
@@ -281,6 +331,8 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
     <div class="zeile"><span>Schrift</span><div class="gruppe" id="gSchrift"><button type="button" data-v="aus">Serifenlos</button><button type="button" data-v="serif">Mit Serifen</button></div></div>
     <div class="zeile"><span>Größe</span><input id="schriftRegler" type="range" min="13" max="26" step="1" aria-label="Schriftgröße"><span class="wert" id="schriftWert"></span></div>
     <div class="zeile nurlese"><span>Sprecher</span><div class="gruppe" id="gFarben"><button type="button" data-v="an">Farbig</button><button type="button" data-v="aus">Einfarbig</button></div></div>
+    <div class="zeile"><span>Knöpfe</span><div class="gruppe" id="gGross"><button type="button" data-v="normal">Normal</button><button type="button" data-v="gross">Groß</button></div></div>
+    <div class="zeile"><span>Kontrast</span><div class="gruppe" id="gKontrast"><button type="button" data-v="normal">Normal</button><button type="button" data-v="hoch">Hoch</button></div></div>
     <div class="zeile"><span>Eingabefeld</span><div class="gruppe" id="gFeld"><button type="button" data-v="auto">Nur wenn nötig</button><button type="button" data-v="immer">Immer</button></div></div>
     <div class="probe lesestil" id="probe">
       <p class="erzaehl">Hinter dem Tresen arbeitet Mara und behält die Gäste im Blick.</p>
@@ -292,6 +344,8 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
     <div class="zeile"><span>Lautstärke</span><input id="lautRegler" type="range" min="0" max="100" step="5" aria-label="Lautstärke"><span class="wert" id="lautWert"></span></div>
 
     <div class="zeile"><span>Vibration</span><div class="gruppe" id="gVibr"><button type="button" data-v="an">An</button><button type="button" data-v="aus">Aus</button></div></div>
+
+    <button id="introNochmal" class="gross" type="button">ℹ️ Einführung noch einmal zeigen</button>
 
     <h3>Offline und Version</h3>
     <p class="hinweis" id="version"></p>
@@ -538,7 +592,12 @@ function knoepfeBauen() {
   npcSetzen(zeilen);
   kampfLeisteSetzen(zeilen);
   menueKlang(zeilen);
-  if (vibrNr !== bildschirmNr) { vibrNr = bildschirmNr; vibrieren(zeilen.join("\n")); }
+  if (vibrNr !== bildschirmNr) {
+    vibrNr = bildschirmNr; vibrieren(zeilen.join("\n"));
+    // Für Bildschirmleser: der neue Text wird einmal pro Seite angesagt.
+    document.getElementById("ansage").textContent = zeilen.filter((z) => z.trim()).join(" ").slice(0, 900);
+  }
+  if (!UI.intro && document.body.classList.contains("imspiel") && !aktuellerGegner && !zeilen.some((z) => /^\s*1\.\s+Neues Spiel/.test(z))) introZeigen();
   const istStart = zeilen.some((z) => /^\s*1\.\s+Neues Spiel/.test(z)) && zeilen.some((z) => /^\s*\d\.\s+Beenden/.test(z));
   startSetzen(istStart);
   if (startAktion && !istStart) {
@@ -919,6 +978,8 @@ new ResizeObserver(() => {
 function uiAnwenden() {
   document.body.classList.toggle("lesen", UI.lesen);
   document.body.classList.toggle("farben", UI.farben);
+  document.body.classList.toggle("gross", !!UI.gross);
+  document.body.classList.toggle("kontrast", !!UI.kontrast);
   document.getElementById("lese").classList.toggle("serif", UI.serif);
   document.getElementById("probe").classList.toggle("serif", UI.serif);
   document.documentElement.style.setProperty("--fs", (UI.schrift + 1) + "px");
@@ -1041,6 +1102,12 @@ document.getElementById("verlaufZu").addEventListener("click", verlaufSchliessen
 verlaufBlatt.addEventListener("click", (e) => { if (e.target === verlaufBlatt) verlaufSchliessen(); });
 zielBlatt.addEventListener("click", (e) => { if (e.target === zielBlatt) zielBlattSchliessen(); });
 
+// Einführung: beim ersten Spielstart einmal, danach über das ⚙-Blatt.
+const introBlatt = document.getElementById("einfuehrung");
+function introZeigen() { introBlatt.classList.add("offen"); introBlatt.setAttribute("aria-hidden", "false"); }
+function introSchliessen() { introBlatt.classList.remove("offen"); introBlatt.setAttribute("aria-hidden", "true"); UI.intro = true; uiSichern(); }
+document.getElementById("einfuehrungZu").addEventListener("click", introSchliessen);
+
 // Eingabefeld nur zeigen, wenn das Spiel Text erwartet (Name, Menge) oder keine Auswahl erkennbar ist.
 // Das Tastatur-Symbol im Kopf holt es bei Bedarf herbei.
 let feldOffen = false;
@@ -1070,6 +1137,7 @@ function hinweis(t) {
 try { history.replaceState({ void: 0 }, ""); history.pushState({ void: 1 }, ""); } catch (e) {}
 addEventListener("popstate", () => {
   const wieder = () => { try { history.pushState({ void: 1 }, ""); } catch (e) {} };
+  if (introBlatt.classList.contains("offen")) { introSchliessen(); wieder(); return; }
   if (kartenBlatt.classList.contains("offen")) { kartenSchliessen(); wieder(); return; }
   if (verlaufBlatt.classList.contains("offen")) { verlaufSchliessen(); wieder(); return; }
   if (zielBlatt.classList.contains("offen")) { zielBlattSchliessen(); wieder(); return; }
@@ -1164,6 +1232,8 @@ function einstellungenFuellen() {
   markieren("gSchrift", UI.serif ? "serif" : "aus");
   markieren("gFarben", UI.farben ? "an" : "aus");
   markieren("gFeld", UI.feld);
+  markieren("gGross", UI.gross ? "gross" : "normal");
+  markieren("gKontrast", UI.kontrast ? "hoch" : "normal");
   markieren("gVibr", UI.vibration === false ? "aus" : "an");
   const laut = Math.round((Klang.lautstaerke ? Klang.lautstaerke() : 0.5) * 100);
   document.getElementById("lautRegler").value = laut;
@@ -1192,7 +1262,7 @@ function punktSetzen() {
   document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
 }
 // Version, Offline-Speicher und Update-Hinweis.
-const APP_STAND = "2026-10-25-11";
+const APP_STAND = "2026-10-25-12";
 const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.wav","klang/feuer.wav","klang/hoehle.wav","klang/intro.wav","klang/kampf.wav","klang/kueste.wav","klang/markt.m4a","klang/taverne.wav","klang/wald.wav","klang/wind.wav","klang/zimmer.wav"];
 async function offlineListe() {
   let spiel = [];
@@ -1312,6 +1382,9 @@ function einstellungenVerdrahten() {
     if (Klang.lautstaerke) Klang.lautstaerke(e.target.value / 100);
   });
   document.getElementById("offline").addEventListener("click", offlineLaden);
+  gruppe("gGross", (v) => { UI.gross = v === "gross"; });
+  gruppe("gKontrast", (v) => { UI.kontrast = v === "hoch"; });
+  document.getElementById("introNochmal").addEventListener("click", () => { einstSchliessen(); introZeigen(); });
   gruppe("gVibr", (v) => { UI.vibration = v === "an"; if (UI.vibration && navigator.vibrate) navigator.vibrate(30); });
   gruppe("gFeld", (v) => { UI.feld = v; feldOffen = false; document.body.classList.remove("ohnefeld"); });
   document.getElementById("schriftRegler").addEventListener("input", (e) => {
