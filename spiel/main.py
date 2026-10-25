@@ -10176,7 +10176,8 @@ def letzthafen_haus_14():
                 )
 
                 text_ausgeben(
-                    "[Nela] Ruhig. Verlässlich. Früh auf den Beinen."
+                    "[Nela] Er war ruhig und verlässlich. "
+                    "Morgens war er früh auf den Beinen."
                 )
 
                 print()
@@ -12615,8 +12616,7 @@ def letzthafen():
             )
 
             text_ausgeben(
-                "Niemand scheint dieser Gewohnheit besondere "
-                "Beachtung zu schenken."
+                "Niemand achtet auf die Bücher und Zettel der anderen."
             )
 
             daten[
@@ -28881,7 +28881,7 @@ def oros_zentrale_halle():
         )
 
         text_ausgeben(
-            "Niemand scheint besonders überrascht darüber zu sein, "
+            "Niemand wirkt überrascht, "
             "dass ein Fremder durch das offene Haupttor gekommen ist."
         )
 
@@ -30975,7 +30975,7 @@ def oros_tiefen_hinweise_verknuepfen():
             print()
 
             text_ausgeben(
-                "Wenn die Stilllegung tatsächlich Teil "
+                "Wenn die Stilllegung Teil "
                 "des Ausbaus des inneren Rings war, "
                 "könnten die gesuchten Akten noch existieren."
             )
