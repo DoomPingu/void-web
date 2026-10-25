@@ -197,9 +197,20 @@ function himmelSymbol(tageszeit, wetter) {
   if (t === "tag" && w === "klar") return "";
   return (TAGESZEIT_ICON[t] || "") + (WETTER_ICON[w] || "");
 }
+// Der Hintergrund wird draußen je nach Tageszeit und Wetter getönt. Drinnen (Zimmer, Gasthaus, Schmiede, Keller, Tiefen, Oros-Hallen) bleibt er gleich.
+const DRINNEN = /zimmer|gasthaus|schmiede|huette|keller|tiefen|halle|archiv|lehr|kammer|haus|station|raum/;
+const TON_ZEIT = { nacht: "brightness(.5) saturate(.75) hue-rotate(8deg)", abend: "brightness(.82) sepia(.3) saturate(1.1)", morgen: "brightness(.92) sepia(.12)" };
+const TON_WETTER = { regen: "brightness(.82) saturate(.8) hue-rotate(-6deg)", nebel: "brightness(.92) contrast(.82) saturate(.55)", sturm: "brightness(.7) saturate(.7)" };
+function himmelTonen(d) {
+  const drin = DRINNEN.test(bildName(d.ort || ""));
+  const st = document.body.style;
+  st.setProperty("--ton-zeit", (!drin && TON_ZEIT[String(d.tageszeit || "").toLowerCase()]) || "brightness(1)");
+  st.setProperty("--ton-wetter", (!drin && TON_WETTER[String(d.wetter || "").toLowerCase()]) || "brightness(1)");
+}
 let statistik = null;
 function hudZeigen(d) {
   statistik = d;
+  himmelTonen(d);
   document.body.classList.add("imspiel");
   hudOrt = String(d.ort || "");
   spielerName = String(d.name || "");
@@ -887,6 +898,11 @@ document.getElementById("einfuehrungZu").addEventListener("click", introSchliess
 
 // "Was ist neu": einmal nach jedem Update, falls für den Stand ein Text hinterlegt ist.
 const NEUES = {
+  "2026-10-25-25": [
+    "<b>Tag und Nacht gelten jetzt wirklich:</b> Ein Spieltag dauert 40 Minuten Spielzeit. Nachts, bei Regen und bei Nebel siehst du draußen schlechter, das spürst du im Kampf. Das Talent Nachtauge gleicht die Nacht aus.",
+    "<b>Stimmung:</b> Draußen wird der Hintergrund abends und nachts dunkler, bei Regen und Nebel gedämpft. In Häusern und Höhlen bleibt er gleich.",
+    "<b>Seit der letzten Version:</b> kleinere Töne (Offline-Paket etwa 10 MB), Antworten als Sprechblasen 💬, Vorlesen 🗣, Statistik im Journal."
+  ],
   "2026-10-25-24": [
     "<b>Tageszeit und Wetter:</b> Oben im Kopf zeigt ein Symbol Abend, Nacht, Nebel oder Regen. Es dient nur der Stimmung und ändert nichts im Kampf.",
     "<b>Kleinere Töne:</b> Die Musik ist jetzt etwa zehnmal kleiner. Das Offline-Paket umfasst nur noch rund 10 MB.",
@@ -1322,7 +1338,7 @@ function punktSetzen() {
   document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
 }
 // Version, Offline-Speicher und Update-Hinweis.
-const APP_STAND = "2026-10-25-24";
+const APP_STAND = "2026-10-25-25";
 const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.ogg","klang/feuer.ogg","klang/hoehle.ogg","klang/intro.ogg","klang/kampf.ogg","klang/kueste.ogg","klang/markt.m4a","klang/taverne.ogg","klang/wald.ogg","klang/wind.ogg","klang/zimmer.ogg"];
 async function offlineListe() {
   let spiel = [], medien = OFFLINE_DATEIEN;

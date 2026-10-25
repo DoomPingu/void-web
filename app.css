@@ -2,7 +2,7 @@
   html, body { margin: 0; height: 100%; overscroll-behavior: none; color: #d7dbe0; font-family: system-ui, sans-serif; }
   /* Unten Luft lassen, damit nichts in die Navigationsleiste (Home-Geste) des Handys ragt. */
   body { display: flex; flex-direction: column; position: relative; box-sizing: border-box; padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 14px); }
-  #hintergrund { position: fixed; inset: 0; z-index: -1; background: #0b0d10 center / cover no-repeat; transition: background-image .4s; }
+  #hintergrund { position: fixed; inset: 0; z-index: -1; background: #0b0d10 center / cover no-repeat; transition: background-image .4s, filter 1.2s; filter: var(--ton-zeit, brightness(1)) var(--ton-wetter, brightness(1)); }
   #hintergrund::after { content: ""; position: absolute; inset: 0; background: linear-gradient(rgba(11,13,16,.5), rgba(11,13,16,.75)); }
   #hintergrund.leer::after { display: none; }
   #gegner { display: none; flex-direction: column; align-items: center; padding: 4px 10px 0; background: rgba(18,22,27,.5); }
