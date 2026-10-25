@@ -247,9 +247,10 @@ function vibrieren(text) {
     if (!effekte.length && /SPIEL GESPEICHERT|Spielstand gespeichert/.test(text)) { muster = 25; effekte.push("speichern"); }
     // Ohne Kampf: Truhe, Tür, Münzen (nach dem Wortlaut der Seite; ein Effekt pro Seite).
     if (!effekte.length && !aktuellerGegner) {
-      if (/Truhe (öffnet|springt|knackt)|öffnest (du )?(die|den) (Truhe|Deckel)|Schloss (springt|klickt|gibt nach)/i.test(text)) effekte.push("truhe");
-      else if (/erhältst \d+ Gold|\+ ?\d+ Gold|\d+ Gold (gefunden|erhalten)|Du verkaufst|Du kaufst|bezahlst \d+ Gold/i.test(text)) effekte.push("muenzen");
-      else if (/drückst die Tür|öffnest die Tür|Tür (öffnet|quietscht|knarrt)|Tür fällt ins Schloss/i.test(text)) effekte.push("tuer");
+      // Wortlaute aus dem Spiel: "Du hast eine kleine Truhe gefunden.", "12 Gold gefunden", "Du erhältst 12 Gold.", "Du bezahlst: 40 Gold", "Du öffnest die Tür zu …".
+      if (/Truhe gefunden|geöffneten Truhe|Truhe (öffnet|springt)/.test(text)) effekte.push("truhe");
+      else if (/\d+ Gold gefunden|Gefunden: \d+ Gold|Du (erhältst|bezahlst):? \d+ Gold|und \d+ Gold!/.test(text)) effekte.push("muenzen");
+      else if (/Du (öffnest|drückst) die Tür|Tür öffnet sich|öffnet die Tür/.test(text)) effekte.push("tuer");
     }
   }
   if (muster && UI.vibration !== false && navigator.vibrate) { try { navigator.vibrate(muster); } catch (e) {} }
@@ -1316,7 +1317,7 @@ function punktSetzen() {
   document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
 }
 // Version, Offline-Speicher und Update-Hinweis.
-const APP_STAND = "2026-10-25-22";
+const APP_STAND = "2026-10-25-23";
 const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.wav","klang/feuer.wav","klang/hoehle.wav","klang/intro.wav","klang/kampf.wav","klang/kueste.wav","klang/markt.m4a","klang/taverne.wav","klang/wald.wav","klang/wind.wav","klang/zimmer.wav"];
 async function offlineListe() {
   let spiel = [], medien = OFFLINE_DATEIEN;
