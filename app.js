@@ -69,6 +69,20 @@ function menueKlang(zeilen) {
   imMenue = jetzt;
   Klang.ort(jetzt ? "intro" : (klangOrt || "intro"));
 }
+// Fehlt das Bild eines Ortes, zeigt ein Farbverlauf nach Gebiet statt Schwarz die Stimmung an.
+const GEBIETE = [
+  [/koehler|brand|boss|asche/, ["#2b1a14", "#100908"]],
+  [/wald|bach|furt|unterholz|quell|lichtung|seitenpfad|wildspur|felshang|felsspalte|steinstufen|lagerplatz|wegmarke|wegstein|versunkene|schlamm|pfad|eingang/, ["#16261a", "#0a120c"]],
+  [/oros|archiv|halle|vorhof|wachraum|schreibstube|keller|kammer|station|lehr/, ["#1d2430", "#0b0e14"]],
+  [/tiefen|hoehle|schacht|messgang|stollen/, ["#1c1826", "#08070d"]],
+  [/strand|hafen|wrack|kueste|see/, ["#14242c", "#080f13"]],
+  [/schmiede|gasthaus|zimmer|huette|haus|taverne|laden/, ["#2a2018", "#0e0a07"]],
+];
+function gebietVerlauf(n) {
+  const g = GEBIETE.find(([re]) => re.test(n));
+  const f = g ? g[1] : ["#161c26", "#0b0d10"];
+  return "linear-gradient(" + f[0] + ", " + f[1] + ")";
+}
 function hintergrundSetzen(ort) {
   const n = bildName(ort);
   if (n === aktuellerOrt) return;
@@ -86,7 +100,7 @@ function hintergrundSetzen(ort) {
   };
   const anzeigen = (src) => {
     const el = document.getElementById("hintergrund");
-    el.style.backgroundImage = src ? 'url("' + src + '")' : "none";
+    el.style.backgroundImage = src ? 'url("' + src + '")' : gebietVerlauf(n);
     el.classList.toggle("leer", !src);
   };
   versuchen(0);
@@ -1183,7 +1197,7 @@ function punktSetzen() {
   document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
 }
 // Version, Offline-Speicher und Update-Hinweis.
-const APP_STAND = "2026-10-25-18";
+const APP_STAND = "2026-10-25-19";
 const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.wav","klang/feuer.wav","klang/hoehle.wav","klang/intro.wav","klang/kampf.wav","klang/kueste.wav","klang/markt.m4a","klang/taverne.wav","klang/wald.wav","klang/wind.wav","klang/zimmer.wav"];
 async function offlineListe() {
   let spiel = [], medien = OFFLINE_DATEIEN;
@@ -1224,7 +1238,7 @@ async function offlineLaden() {
 async function updatePruefen() {
   try {
     const text = await (await fetch("app.js", { cache: "no-store" })).text();
-    const m = text.match(/const APP_STAND = "2026-10-25-18"]+)"/);
+    const m = text.match(/const APP_STAND = "([^"]+)"/);
     if (m && m[1] !== APP_STAND) document.getElementById("neuVersion").classList.add("an");
   } catch (e) {}
 }
