@@ -90,6 +90,31 @@
   body.lesen #gegner img { max-height: 10vh; }
   body.lesen #terminal { position: fixed; left: -200vw; top: 0; width: 100vw; height: 60vh; flex: none; min-height: 0; }
   body:not(.lesen) .nurlese { display: none; }
+  .lesestil .logo { font: min(1em, 4.2vw)/1.02 ui-monospace, Menlo, Consolas, "Courier New", monospace; white-space: pre; width: fit-content; margin: .5em auto .8em; color: #8fd0dc; overflow: hidden; }
+  #start { display: none; flex: 1; min-height: 25vh; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 16px; text-align: center; background: rgba(11,13,16,.5); }
+  body.lesen.start #start { display: flex; }
+  body.lesen.start #lese { display: none; }
+  #start h1 { margin: 0; padding-left: .22em; font-size: clamp(54px, 22vw, 96px); font-weight: 800; letter-spacing: .22em; color: #e6edf5; text-shadow: 0 2px 28px rgba(0,0,0,.85); }
+  #start .unter { margin: 0 0 10px; color: #aab2bd; font-size: 15px; letter-spacing: .08em; text-shadow: 0 1px 8px rgba(0,0,0,.8); }
+  #start .weiter { width: min(100%, 340px); font: inherit; font-size: 20px; font-weight: 600; color: #fff; background: #2b5d9b; border: 0; border-radius: 12px; padding: 14px 16px; }
+  #start .weiter small { display: block; margin-top: 3px; font-size: 13px; font-weight: 400; opacity: .85; }
+  #start .weiter:active { background: #214a7d; }
+  #start .weiter[hidden] { display: none; }
+  #raetsel { display: none; flex-direction: column; gap: 10px; padding: 10px 8px 8px; background: rgba(11,13,16,.9); border-top: 1px solid #22272e; }
+  #raetsel.an { display: flex; }
+  #raetsel .hilfe { margin: 0; text-align: center; color: #8b949e; font-size: 13px; }
+  #raetsel .plaetze { display: flex; justify-content: center; gap: 10px; }
+  #raetsel .platz { width: 62px; height: 62px; font-size: 30px; line-height: 1; color: #5d6b80; background: #10151c; border: 2px dashed #3a4a63; border-radius: 14px; padding: 0; }
+  #raetsel .platz.voll { color: #fff; background: #1a2230; border: 2px solid #4f8fe0; }
+  #raetsel .symbole { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  #raetsel .symbol { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; font: inherit; font-size: 18px; color: #e6e8eb; background: #1a2230; border: 1px solid #2d3b52; border-radius: 10px; }
+  #raetsel .symbol span { font-size: 26px; }
+  #raetsel .symbol:disabled { opacity: .3; }
+  #raetsel .symbol:active:not(:disabled) { background: #2b5d9b; }
+  #raetsel .aktionen { display: flex; gap: 8px; }
+  #raetsel .aktionen button { flex: 1; min-height: 48px; font: inherit; font-size: 16px; color: #8fb4e8; background: #161b22; border: 1px solid #2d3b52; border-radius: 10px; }
+  #raetsel .aktionen .pruefen { flex: 2; color: #fff; background: #2b5d9b; border-color: #2b5d9b; font-weight: 600; }
+  #raetsel .aktionen .pruefen:disabled { opacity: .35; }
   #einst { position: fixed; inset: 0; z-index: 20; display: none; align-items: flex-end; background: rgba(0,0,0,.55); }
   #einst.offen { display: flex; }
   #einst .blatt { width: 100%; max-height: 90vh; overflow-y: auto; box-sizing: border-box; background: #141a22; border-radius: 16px 16px 0 0; padding: 14px 16px 24px; box-shadow: 0 -8px 30px rgba(0,0,0,.5); }
@@ -113,21 +138,24 @@
 </style>
 </head>
 <body>
-<div id="kopf"><div id="status">Starte …</div><button id="install" type="button">⬇ App</button><a id="credits" href="https://github.com/DoomPingu/void-web/blob/main/CREDITS.md" target="_blank" rel="noopener" aria-label="Bildnachweise">ⓘ</a><button id="einstKnopf" type="button" aria-label="Einstellungen und Sicherung">⚙<i id="punkt"></i></button><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
+<div id="kopf"><div id="status">Starte …</div><button id="install" type="button">⬇ App</button><a id="credits" href="https://github.com/DoomPingu/void-web/blob/main/CREDITS.md" target="_blank" rel="noopener" aria-label="Bildnachweise">ⓘ</a><button id="einstKnopf" type="button" aria-label="Anzeige und Sicherung">⚙<i id="punkt"></i></button><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
 <div id="hintergrund" class="leer"></div>
 <div id="hud"></div>
 <div id="gegner"><img alt=""><div class="balken"><i></i><span></span></div></div>
 <div id="npc"><img alt=""><span></span><a id="credit" href="https://linktr.ee/coraxdigitalart" target="_blank" rel="noopener">Bild: Corax Digital Art</a></div>
+<div id="start"><h1>VOID</h1><p class="unter">Text-Rollenspiel</p><button id="weiterspielen" class="weiter" type="button" hidden></button></div>
 <div id="lese" class="lesestil"></div>
 <div id="terminal"></div>
+<div id="raetsel"></div>
 <div id="knoepfe"></div>
 <form id="leiste" autocomplete="off">
   <input id="eingabe" inputmode="text" enterkeyhint="send" placeholder="Eingabe, dann Enter" autocapitalize="off" autocorrect="off" spellcheck="false">
   <button id="senden" type="submit" aria-label="Senden">↵</button>
 </form>
 <div id="einst" aria-hidden="true">
-  <div class="blatt" role="dialog" aria-label="Einstellungen">
-    <h2>Einstellungen <button id="einstZu" class="zu" type="button">Schließen</button></h2>
+  <div class="blatt" role="dialog" aria-label="Anzeige und Sicherung">
+    <h2>Anzeige &amp; Sicherung <button id="einstZu" class="zu" type="button">Schließen</button></h2>
+    <p class="hinweis">Hier stellst du ein, wie die App aussieht, und sicherst deine Spielstände. Spieloptionen wie die Textgeschwindigkeit stehen im Spiel unter „Optionen“.</p>
 
     <h3>Lesen</h3>
     <div class="zeile"><span>Ansicht</span><div class="gruppe" id="gAnsicht"><button type="button" data-v="lese">Leseansicht</button><button type="button" data-v="terminal">Terminal</button></div></div>
@@ -313,6 +341,15 @@ function knoepfeBauen() {
   npcSetzen(zeilen);
   kampfLeisteSetzen(zeilen);
   menueKlang(zeilen);
+  const istStart = zeilen.some((z) => /^\s*1\.\s+Neues Spiel/.test(z)) && zeilen.some((z) => /^\s*\d\.\s+Beenden/.test(z));
+  const istOptionen = zeilen.some((z) => /^\s*OPTIONEN\s*$/.test(z));
+  startSetzen(istStart);
+  if (startAktion && !istStart) {
+    // "Weiterspielen": im Ladebildschirm den gewählten Platz antippen.
+    const platz = startAktion;
+    startAktion = 0;
+    if (zeilen.some((z) => /SPIEL LADEN/.test(z))) setTimeout(() => antwort(String(platz)), 0);
+  }
   const nichtLeer = zeilen.filter((z) => z.trim());
   const letzte = nichtLeer.length ? nichtLeer[nichtLeer.length - 1] : "";
   let eintraege = [];
@@ -342,6 +379,8 @@ function knoepfeBauen() {
     // Kein Auswahl-Prompt: bei einer Frage Textfeld, sonst wartet das Spiel nur auf Enter.
     eintraege = /\?\s*$/.test(letzte) ? [] : [{ wert: "", text: "Weiter", weiter: true }];
   }
+  if (istStart) eintraege = eintraege.filter((e) => !/^Beenden/.test(e.text));
+  if (raetselPruefen(zeilen, eintraege)) return;
   for (const e of eintraege) {
     const b = document.createElement("button");
     b.type = "button";
@@ -353,6 +392,14 @@ function knoepfeBauen() {
     knoepfeEl.append(b);
   }
   if (eintraege.length === 1) knoepfeEl.firstChild.classList.add("eine");
+  if (istStart || istOptionen) {
+    // Ein Ort für alles: Von Hauptmenü und Spieloptionen aus kommt man zu Anzeige und Sicherung.
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "sonder eine"; b.textContent = "⚙ Anzeige & Sicherung";
+    b.onclick = einstOeffnen;
+    knoepfeEl.append(b);
+    eintraege.push({});
+  }
   knoepfeEl.classList.toggle("kampf", !!aktuellerGegner);
   knoepfeEl.style.display = eintraege.length ? "grid" : "none";
   anpassen();
@@ -418,6 +465,7 @@ function leseRendern() {
   const art = zeilen.map(({ text: t }) => {
     if (!t.trim()) return "leer";
     if (/^\s*[=\-─]{6,}\s*$/.test(t)) return "hr";
+    if (/[█╗╔╝╚║]/.test(t)) return "logo";
     if (/^\s*>\s*\S{0,3}\s*$/.test(t)) return "wahl";
     if (/^\s*[─\-]{3,}\s*Runde\s+\d+\s*[─\-]{3,}\s*$/.test(t)) return "runde";
     const m = t.match(/^\s*\[([A-ZÄÖÜ][\wäöüß' ?-]{1,22})\]\s+\S/);
@@ -450,6 +498,15 @@ function leseRendern() {
     if (a === "leer") { if (!vorherLeer) html += '<div class="abstand"></div>'; vorherLeer = true; return; }
     vorherLeer = false;
     t = t.replace(/\s+$/, "");
+    if (a === "logo") {
+      // Block-Schrift (Logo) bleibt zusammen und in Festbreite, sonst verschiebt sie sich.
+      if (art[i - 1] === "logo") return;
+      const teile = [];
+      for (let j = i; art[j] === "logo"; j++) teile.push(zeilen[j].text.replace(/\s+$/, ""));
+      const links = Math.min(...teile.map((s) => s.match(/^ */)[0].length));
+      html += '<pre class="logo">' + esc(teile.map((s) => s.slice(links)).join("\n")) + "</pre>";
+      return;
+    }
     if (a === "hr") {
       html = html.replace(/<div class="abstand"><\/div>$/, "") + "<hr>";
       vorherLeer = true;
@@ -519,6 +576,83 @@ function uiAnwenden() {
   anpassen();
   leseNeu();
   if (UI.lesen) leseRendern();
+}
+
+// Startbildschirm: großer Titel und "Weiterspielen" mit dem zuletzt gespeicherten Platz.
+let startAktion = 0;
+function weiterSlot() {
+  const st = spielstaende();
+  const da = SLOT_NAMEN.filter((n) => st[n]);
+  if (!da.length) return "";
+  if (UI.zuletzt && st[UI.zuletzt]) return UI.zuletzt;
+  const zeit = (n) => { try { return +JSON.parse(st[n]).spieler.spielzeit || 0; } catch (e) { return 0; } };
+  return da.reduce((a, b) => (zeit(b) > zeit(a) ? b : a));
+}
+function startSetzen(an) {
+  document.body.classList.toggle("start", an);
+  if (!an) return;
+  hintergrundSetzen("eichenruh");
+  const knopf = document.getElementById("weiterspielen");
+  const n = weiterSlot();
+  knopf.hidden = !n;
+  if (!n) return;
+  const d = slotInfo(spielstaende()[n]);
+  knopf.innerHTML = "▶ Weiterspielen<small>" + esc(d.titel) + (d.info ? " · " + esc(d.info) : "") + "</small>";
+}
+document.getElementById("weiterspielen").addEventListener("click", () => {
+  const n = weiterSlot();
+  if (!n) return;
+  UI.zuletzt = n; uiSichern();
+  startAktion = SLOT_NAMEN.indexOf(n) + 1;
+  antwort("2");
+});
+
+// Symbolrätsel (Eddas Truhe, Werkbank der Alten Schmiede): Das Spiel fragt Position für Position ab
+// ("Position 2 von 4" + Nummernliste + "Abbrechen"). Hier legt man die ganze Folge per Tippen und die App
+// schickt die Nummern nacheinander an das Spiel. Das Spiel selbst bleibt unverändert.
+const RAETSEL_ICON = { "Möwe": "🐦", Sonne: "☀️", Laterne: "🏮", Welle: "🌊", Amboss: "⚒️", Wasser: "💧", Flamme: "🔥" };
+let rat = null;
+const ratEl = () => document.getElementById("raetsel");
+function raetselAus() { rat = null; ratEl().classList.remove("an"); ratEl().replaceChildren(); }
+function raetselPruefen(zeilen, eintraege) {
+  const m = zeilen.map((z) => z.match(/^\s*Position\s+(\d+)\s+von\s+(\d+)\s*$/)).find(Boolean);
+  const abbr = eintraege.find((e) => !e.sonder && /^Abbrechen/.test(e.text));
+  const symbole = eintraege.filter((e) => e !== abbr && !e.sonder && !e.weiter);
+  if (!m || !abbr || !symbole.length) { raetselAus(); return false; }
+  const k = +m[1], n = +m[2];
+  if (rat && rat.senden && rat.n === n && rat.folge[k - 1]) {
+    // Folge wird abgeschickt: nächsten Schritt wählen (die Liste ist um die bereits gewählten Symbole kürzer).
+    const e = symbole.find((x) => x.text === rat.folge[k - 1]);
+    if (e) { setTimeout(() => antwort(e.wert), 0); return true; }
+  }
+  if (k !== 1 || symbole.length < 2) { raetselAus(); return false; }
+  rat = { n, folge: [], senden: false, eintraege: symbole, abbr: abbr.wert };
+  knoepfeEl.style.display = "none";
+  ratEl().classList.add("an");
+  raetselZeichnen();
+  anpassen();
+  return true;
+}
+function raetselZeichnen() {
+  const el = ratEl();
+  const namen = rat.eintraege.map((e) => e.text);
+  const symbolHtml = (s) => '<span>' + (RAETSEL_ICON[s] || "") + "</span>" + esc(s);
+  el.innerHTML = '<p class="hilfe">Tippe die Symbole in der richtigen Reihenfolge. Auf einen Platz tippen nimmt es zurück.</p>' +
+    '<div class="plaetze">' + Array.from({ length: rat.n }, (_, i) => rat.folge[i]
+      ? '<button type="button" class="platz voll" data-i="' + i + '" aria-label="Platz ' + (i + 1) + ': ' + esc(rat.folge[i]) + '">' + (RAETSEL_ICON[rat.folge[i]] || esc(rat.folge[i])) + "</button>"
+      : '<button type="button" class="platz" disabled aria-label="Platz ' + (i + 1) + ' leer">' + (i + 1) + "</button>").join("") + "</div>" +
+    '<div class="symbole">' + namen.map((s) => '<button type="button" class="symbol" data-s="' + esc(s) + '"' + (rat.folge.includes(s) || rat.folge.length >= rat.n ? " disabled" : "") + ">" + symbolHtml(s) + "</button>").join("") + "</div>" +
+    '<div class="aktionen"><button type="button" class="abbrechen">Abbrechen</button><button type="button" class="pruefen"' + (rat.folge.length < rat.n ? " disabled" : "") + ">Prüfen</button></div>";
+  el.querySelectorAll(".platz.voll").forEach((b) => b.addEventListener("click", () => { rat.folge.splice(+b.dataset.i, 1); raetselZeichnen(); }));
+  el.querySelectorAll(".symbol").forEach((b) => b.addEventListener("click", () => { rat.folge.push(b.dataset.s); raetselZeichnen(); }));
+  el.querySelector(".abbrechen").addEventListener("click", () => { const w = rat.abbr; raetselAus(); antwort(w); });
+  el.querySelector(".pruefen").addEventListener("click", () => {
+    const e = rat.eintraege.find((x) => x.text === rat.folge[0]);
+    if (!e || rat.folge.length < rat.n) return;
+    rat.senden = true;
+    el.classList.remove("an");
+    antwort(e.wert);
+  });
 }
 
 // Einstellungen und Sicherung
@@ -705,7 +839,10 @@ async function starten() {
     else if (m.typ === "gegner") gegnerSetzen(m.name);
     else if (m.typ === "status") statusZeile.textContent = m.text;
     else if (m.typ === "eingabe") { wartet = true; term.write("", knoepfeBauen); }
-    else if (m.typ === "speichern") { if (!sicherungLaeuft) try { localStorage.setItem("void:" + m.name, m.text); } catch (err) {} }
+    else if (m.typ === "speichern") {
+      if (!sicherungLaeuft) try { localStorage.setItem("void:" + m.name, m.text); } catch (err) {}
+      if (/^void_save_[1-3]\.json$/.test(m.name)) { UI.zuletzt = m.name; uiSichern(); }
+    }
     else if (m.typ === "loeschen") { if (!sicherungLaeuft) try { localStorage.removeItem("void:" + m.name); } catch (err) {} }
     else if (m.typ === "ende") statusZeile.textContent = "Spiel beendet. Seite neu laden, um wieder zu starten.";
   };
