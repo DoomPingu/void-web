@@ -80,7 +80,7 @@
   .lesestil .mono { color: #cfd4da; font: .8em/1.4 ui-monospace, Menlo, Consolas, "Courier New", monospace; white-space: pre-wrap; margin: 0 0 .12em; }
   .lesestil .abstand { height: .45em; }
   .lesestil .kv { display: flex; gap: .7em; margin: 0 0 .15em; color: #eef1f5; }
-  .lesestil .kv .l { flex: 0 0 8.2em; color: #8b949e; }
+  .lesestil .kv .l { flex: 0 0 auto; min-width: 8.2em; max-width: 62%; color: #8b949e; }
   .lesestil .kv .w { flex: 1; min-width: 0; }
   .lesestil .kv.fort .w { display: flex; align-items: center; gap: .6em; }
   .lesestil .schritt { display: flex; align-items: center; gap: .7em; margin: .1em 0 .5em; color: #7fd0dc; font-size: .9em; }
@@ -136,6 +136,15 @@
   #zielblatt .z b { display: block; margin-bottom: 3px; color: #8fb4e8; font-size: 14px; }
   #zielblatt .z span { color: #e6e8eb; font-size: 15px; line-height: 1.4; }
   body.ohnefeld #leiste, body.laden #leiste { display: none; }
+  #verlauf { display: none; font-size: 16px; padding: 2px 8px; background: transparent; border: 1px solid #2d333b; border-radius: 6px; }
+  body.imspiel #verlauf { display: inline-block; }
+  #verlaufblatt { position: fixed; inset: 0; z-index: 20; display: none; align-items: flex-end; background: rgba(0,0,0,.55); }
+  #verlaufblatt.offen { display: flex; }
+  #verlaufblatt .blatt { width: 100%; max-height: 88vh; overflow-y: auto; box-sizing: border-box; background: #141a22; border-radius: 16px 16px 0 0; padding: 14px 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
+  #verlaufblatt h2 { margin: 0 0 10px; font-size: 18px; display: flex; justify-content: space-between; align-items: center; }
+  #verlaufblatt h2 button { font: inherit; font-size: 14px; color: #e6e8eb; background: #1a2230; border: 1px solid #2d3b52; border-radius: 8px; padding: 6px 12px; }
+  #verlaufliste section { padding: 10px 12px 2px; margin: 0 0 12px; background: #0e1319; border: 1px solid #232b36; border-radius: 10px; }
+  #verlaufliste section small { display: block; margin-bottom: 6px; color: #8b949e; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
   #speicher { display: none; font-size: 16px; padding: 2px 8px; background: transparent; border: 1px solid #2d333b; border-radius: 6px; }
   body.imspiel.qfrei #speicher { display: inline-block; }
   #tasten { display: none; font-size: 16px; padding: 2px 8px; background: transparent; color: #8b949e; border: 1px solid #2d333b; border-radius: 6px; }
@@ -188,7 +197,7 @@
 document.body.classList.add("start", "laden");
 try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) document.body.classList.add("lesen"); } catch (e) { document.body.classList.add("lesen"); }
 </script>
-<div id="kopf"><div id="status">Starte …</div><button id="install" type="button">⬇ App</button><a id="credits" href="https://github.com/DoomPingu/void-web/blob/main/CREDITS.md" target="_blank" rel="noopener" aria-label="Bildnachweise">ⓘ</a><button id="speicher" type="button" aria-label="Spielstand speichern">💾</button><button id="tasten" type="button" aria-label="Eingabefeld zeigen">⌨</button><button id="einstKnopf" type="button" aria-label="Anzeige und Sicherung">⚙<i id="punkt"></i></button><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
+<div id="kopf"><div id="status">Starte …</div><button id="install" type="button">⬇ App</button><a id="credits" href="https://github.com/DoomPingu/void-web/blob/main/CREDITS.md" target="_blank" rel="noopener" aria-label="Bildnachweise">ⓘ</a><button id="verlauf" type="button" aria-label="Vorheriger Text">🕘</button><button id="speicher" type="button" aria-label="Spielstand speichern">💾</button><button id="tasten" type="button" aria-label="Eingabefeld zeigen">⌨</button><button id="einstKnopf" type="button" aria-label="Anzeige und Sicherung">⚙<i id="punkt"></i></button><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
 <div id="hintergrund" class="leer"></div>
 <div id="hud"></div>
 <button id="ziel" type="button" aria-label="Aktuelle Ziele"></button>
@@ -205,6 +214,12 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
   <input id="eingabe" inputmode="text" enterkeyhint="send" placeholder="Eingabe, dann Enter" autocapitalize="off" autocorrect="off" spellcheck="false">
   <button id="senden" type="submit" aria-label="Senden">↵</button>
 </form>
+<div id="verlaufblatt" aria-hidden="true">
+  <div class="blatt" role="dialog" aria-label="Vorheriger Text">
+    <h2>Vorheriger Text <button id="verlaufZu" type="button">Schließen</button></h2>
+    <div id="verlaufliste" class="lesestil"></div>
+  </div>
+</div>
 <div id="zielblatt" aria-hidden="true">
   <div class="blatt" role="dialog" aria-label="Aktuelle Ziele">
     <h2>Aktuelle Ziele <button id="zielZu" type="button">Schließen</button></h2>
@@ -230,6 +245,8 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
 
     <h3>Ton</h3>
     <div class="zeile"><span>Lautstärke</span><input id="lautRegler" type="range" min="0" max="100" step="5" aria-label="Lautstärke"><span class="wert" id="lautWert"></span></div>
+
+    <div class="zeile"><span>Vibration</span><div class="gruppe" id="gVibr"><button type="button" data-v="an">An</button><button type="button" data-v="aus">Aus</button></div></div>
 
     <h3>Offline und Version</h3>
     <p class="hinweis" id="version"></p>
@@ -422,6 +439,18 @@ function knopfTeile(e) {
   if (bm && bm[1]) { text = bm[1]; if (bm[2].trim() === "!") neu = true; else detail = detail || bm[2]; }
   return { text, detail, neu };
 }
+// Vibration bei Treffern, Level-up usw.: einmal pro Seite, nach dem Text. Funktioniert nur auf Geräten, die es können (Android).
+let vibrNr = -1;
+function vibrieren(text) {
+  if (UI.vibration === false || !navigator.vibrate) return;
+  let muster = 0;
+  if (/LEVELAUFSTIEG/.test(text)) muster = [40, 40, 40, 40, 140];
+  else if (/Kritischer Treffer/.test(text)) muster = [70, 50, 70];
+  else if (/KAMPF GEWONNEN/.test(text)) muster = [30, 30, 70];
+  else if (/Du erleidest \d+ Schaden|trifft dich|streift dich/.test(text)) muster = 45;
+  else if (/SPIEL GESPEICHERT|Spielstand gespeichert/.test(text)) muster = 25;
+  if (muster) { try { navigator.vibrate(muster); } catch (e) {} }
+}
 let kette = [];
 const SCHNELLSPEICHERN = [
   { screen: /^\s*MEN.\s*$/, pick: /Spiel speichern/ },
@@ -442,6 +471,7 @@ function knoepfeBauen() {
   npcSetzen(zeilen);
   kampfLeisteSetzen(zeilen);
   menueKlang(zeilen);
+  if (vibrNr !== bildschirmNr) { vibrNr = bildschirmNr; vibrieren(zeilen.join("\n")); }
   const istStart = zeilen.some((z) => /^\s*1\.\s+Neues Spiel/.test(z)) && zeilen.some((z) => /^\s*\d\.\s+Beenden/.test(z));
   startSetzen(istStart);
   if (startAktion && !istStart) {
@@ -517,7 +547,8 @@ function knoepfeBauen() {
     b.type = "button";
     const { text, detail: d0, neu } = knopfTeile(e);
     const detail = zusatzOk ? d0 : "";
-    const kopf = e.weiter ? "↵ " : (e.sonder ? "[" + e.wert.toUpperCase() + "] " : e.wert.toUpperCase() + ". ");
+    // Am Handy ohne Nummern (die braucht man nur zum Tippen im Terminal-Modus).
+    const kopf = e.weiter ? "↵ " : (UI.lesen ? "" : (e.sonder ? "[" + e.wert.toUpperCase() + "] " : e.wert.toUpperCase() + ". "));
     b.innerHTML = '<span class="t">' + esc(kopf + text) + (neu ? ' <b class="neu">!</b>' : "") + "</span>" + (detail ? "<small>" + esc(detail) + "</small>" : "");
     if (e.sonder || (istStart && /Spielstand l.schen/.test(e.text))) b.className = "sonder";
     // Lange Einträge (Antworten, Beschreibungen) über die ganze Breite, damit nichts abgeschnitten wird.
@@ -594,8 +625,9 @@ function leseRendern() {
   const buf = termRef.buffer.active;
   const lese = document.getElementById("lese");
   const ende = buf.baseY + buf.cursorY;
-  // Jeder Bildschirm ist eine neue Seite: nur der Text seit der letzten Antwort wird gezeigt. Älteres steht im Menü unter "Textverlauf".
-  const von = Math.max(leseStart > ende ? buf.baseY : leseStart, ende - 700);
+  const start = leseStart;
+  // Jeder Bildschirm ist eine neue Seite: nur der Text seit der letzten Antwort wird gezeigt. Ältere Seiten stehen unter "Vorheriger Text".
+  const von = Math.max(start > ende ? buf.baseY : start, ende - 700);
   const zeilen = [];
   for (let y = von; y <= ende; y++) {
     const z = buf.getLine(y);
@@ -664,12 +696,12 @@ function leseRendern() {
   zeilen.forEach(({ text: t, z, y }, i) => {
     let a = art[i];
     // Auswahllisten ("1. ...", "[S] ...", "Auswahl:", "> 1") entfallen, wenn es dafür Knöpfe gibt.
-    if (a === "wahl" && (y < leseStart || listeAus) && !mitInfo.has(i)
+    if (a === "wahl" && (y < start || listeAus) && !mitInfo.has(i)
       && (/^\s*(\d{1,2}[.)]|\[[A-Za-z]\]|[A-Z][.)])\s/.test(t) || /^Auswahl\b/.test(t) || /^\s*\[Beliebige Taste\]/.test(t) || /^\s*>\s*\S{0,3}\s*$/.test(t))) return;
     if (a === "leer") { if (!vorherLeer) html += '<div class="abstand"></div>'; vorherLeer = true; return; }
     vorherLeer = false;
     // Marke an der ersten sichtbaren Zeile des neuen Bildschirms: dort beginnt das Fenster (leere und ausgeblendete Zeilen zählen nicht).
-    if (!markiert && y >= leseStart) { html += '<i id="lesemarke"></i>'; markiert = true; }
+    if (!markiert && y >= start) { html += '<i id="lesemarke"></i>'; markiert = true; }
     t = t.replace(/\s+$/, "");
     if (a === "logo") {
       // Block-Schrift (Logo) bleibt zusammen und in Festbreite, sonst verschiebt sie sich.
@@ -735,10 +767,17 @@ function leseRendern() {
     html += '<p class="erzaehl"' + (f ? ' style="color:' + f + '"' : "") + ">" + esc(t.trim()) + "</p>";
   });
   if (!markiert) html += '<i id="lesemarke"></i>';
+  const neuerSchirm = bildschirmNr !== gezeigtNr;
+  // Die fertige vorige Seite wandert in den Verlauf (nur wenn sie wirklich Text enthielt).
+  if (neuerSchirm && seiteHtml && /<p class="(erzaehl|rede|kv|beschr|liste|treff|mod|abschnitt|titel)/.test(seiteHtml)
+    && seitenVerlauf[seitenVerlauf.length - 1] !== seiteHtml) {
+    seitenVerlauf.push(seiteHtml);
+    if (seitenVerlauf.length > 15) seitenVerlauf.shift();
+  }
+  seiteHtml = html.replace('<i id="lesemarke"></i>', "");
   html += '<div id="lesespacer"></div>';
   leseProgramm = true;
   lese.innerHTML = html;
-  const neuerSchirm = bildschirmNr !== gezeigtNr;
   gezeigtNr = bildschirmNr;
   if (neuerSchirm) leseFolgen = true;
   leseAnker(lese);
@@ -748,6 +787,8 @@ function leseRendern() {
 // Neuer Text beginnt oben im Fenster (nicht unten). Scrollst du selbst, bleibt die Ansicht, wo du sie lässt,
 // bis der nächste Bildschirm kommt.
 let leseFolgen = true, leseProgramm = false, bildschirmNr = 0, gezeigtNr = -1, listeAus = false;
+let seiteHtml = "";            // aktuelle Seite als HTML (ohne Marke)
+const seitenVerlauf = [];      // frühere Seiten, die letzte zuletzt
 function leseAnker(l) {
   const marke = l.querySelector("#lesemarke"), abstand = l.querySelector("#lesespacer");
   if (!marke || !abstand || !leseFolgen) return;
@@ -843,6 +884,20 @@ document.getElementById("ziel").addEventListener("click", () => {
   zielBlatt.classList.add("offen"); zielBlatt.setAttribute("aria-hidden", "false");
 });
 document.getElementById("zielZu").addEventListener("click", zielBlattSchliessen);
+
+// Vorheriger Text: die letzten Seiten, jüngste zuerst.
+const verlaufBlatt = document.getElementById("verlaufblatt");
+function verlaufSchliessen() { verlaufBlatt.classList.remove("offen"); verlaufBlatt.setAttribute("aria-hidden", "true"); }
+document.getElementById("verlauf").addEventListener("click", () => {
+  const liste = document.getElementById("verlaufliste");
+  const n = seitenVerlauf.length;
+  liste.innerHTML = n ? seitenVerlauf.map((h, i) => "<section><small>" + (i === n - 1 ? "Letzte Seite" : "Vor " + (n - i) + " Seiten") + "</small>" + h + "</section>").reverse().join("")
+    : '<p class="erzaehl">Noch keine früheren Seiten.</p>';
+  verlaufBlatt.classList.add("offen"); verlaufBlatt.setAttribute("aria-hidden", "false");
+  verlaufBlatt.querySelector(".blatt").scrollTop = 0;
+});
+document.getElementById("verlaufZu").addEventListener("click", verlaufSchliessen);
+verlaufBlatt.addEventListener("click", (e) => { if (e.target === verlaufBlatt) verlaufSchliessen(); });
 zielBlatt.addEventListener("click", (e) => { if (e.target === zielBlatt) zielBlattSchliessen(); });
 
 // Eingabefeld nur zeigen, wenn das Spiel Text erwartet (Name, Menge) oder keine Auswahl erkennbar ist.
@@ -874,6 +929,7 @@ function hinweis(t) {
 try { history.replaceState({ void: 0 }, ""); history.pushState({ void: 1 }, ""); } catch (e) {}
 addEventListener("popstate", () => {
   const wieder = () => { try { history.pushState({ void: 1 }, ""); } catch (e) {} };
+  if (verlaufBlatt.classList.contains("offen")) { verlaufSchliessen(); wieder(); return; }
   if (zielBlatt.classList.contains("offen")) { zielBlattSchliessen(); wieder(); return; }
   if (einstEl.classList.contains("offen")) { einstSchliessen(); wieder(); return; }
   const rKnopf = ratEl().classList.contains("an") && ratEl().querySelector(".abbrechen");
@@ -966,6 +1022,7 @@ function einstellungenFuellen() {
   markieren("gSchrift", UI.serif ? "serif" : "aus");
   markieren("gFarben", UI.farben ? "an" : "aus");
   markieren("gFeld", UI.feld);
+  markieren("gVibr", UI.vibration === false ? "aus" : "an");
   const laut = Math.round((Klang.lautstaerke ? Klang.lautstaerke() : 0.5) * 100);
   document.getElementById("lautRegler").value = laut;
   document.getElementById("lautWert").textContent = laut;
@@ -993,7 +1050,7 @@ function punktSetzen() {
   document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
 }
 // Version, Offline-Speicher und Update-Hinweis.
-const APP_STAND = "2026-10-25-8";
+const APP_STAND = "2026-10-25-9";
 const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.wav","klang/feuer.wav","klang/hoehle.wav","klang/intro.wav","klang/kampf.wav","klang/kueste.wav","klang/markt.m4a","klang/taverne.wav","klang/wald.wav","klang/wind.wav","klang/zimmer.wav"];
 async function offlineListe() {
   let spiel = [];
@@ -1113,6 +1170,7 @@ function einstellungenVerdrahten() {
     if (Klang.lautstaerke) Klang.lautstaerke(e.target.value / 100);
   });
   document.getElementById("offline").addEventListener("click", offlineLaden);
+  gruppe("gVibr", (v) => { UI.vibration = v === "an"; if (UI.vibration && navigator.vibrate) navigator.vibrate(30); });
   gruppe("gFeld", (v) => { UI.feld = v; feldOffen = false; document.body.classList.remove("ohnefeld"); });
   document.getElementById("schriftRegler").addEventListener("input", (e) => {
     UI.schrift = +e.target.value; document.getElementById("schriftWert").textContent = UI.schrift; uiSichern(); uiAnwenden();
