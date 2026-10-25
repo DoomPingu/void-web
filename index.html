@@ -41,7 +41,11 @@
   #xp > i { background: #3a7bb3; }
   #terminal { flex: 1; min-height: 25vh; padding: 0 6px; touch-action: none; }
   #knoepfe { display: none; grid-template-columns: 1fr 1fr; gap: 6px; padding: 6px 8px 0; max-height: 30vh; overflow-y: auto; }
-  #knoepfe button { font-size: 15px; line-height: 1.2; padding: 8px 10px; min-height: 40px; background: #1a2230; color: #e6e8eb; border: 1px solid #2d3b52; border-radius: 8px; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  #knoepfe button { font-size: 15px; line-height: 1.2; padding: 8px 10px; min-height: 40px; background: #1a2230; color: #e6e8eb; border: 1px solid #2d3b52; border-radius: 8px; text-align: left; overflow: hidden; }
+  #knoepfe button .t { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+  #knoepfe button small { display: block; margin-top: 1px; font-size: 12px; color: #9aa3ae; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #knoepfe button .neu { color: #e5a13a; }
+  #knoepfe.kampf button { flex-direction: column; align-items: flex-start; justify-content: center; }
   #knoepfe button:active { background: #2b5d9b; }
   #knoepfe.kampf button { font-size: 17px; min-height: 54px; white-space: normal; line-height: 1.15; display: flex; align-items: center; }
   #knoepfe.kampf { max-height: 38vh; }
@@ -100,6 +104,18 @@
   #start .weiter small { display: block; margin-top: 3px; font-size: 13px; font-weight: 400; opacity: .85; }
   #start .weiter:active { background: #214a7d; }
   #start .weiter[hidden] { display: none; }
+  #start .ladetext { display: none; margin: 0; min-height: 1.3em; color: #aab2bd; font-size: 14px; text-shadow: 0 1px 8px rgba(0,0,0,.8); }
+  #start .ladebalken { display: none; width: min(70%, 240px); height: 4px; border-radius: 2px; background: rgba(255,255,255,.14); overflow: hidden; }
+  #start .ladebalken i { display: block; width: 40%; height: 100%; background: #4f8fe0; animation: lauf 1.2s ease-in-out infinite; }
+  @keyframes lauf { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+  body.laden #start .ladetext, body.laden #start .ladebalken { display: block; }
+  body.laden.ladefehler #start .ladebalken { display: none; }
+  body.laden #start .weiter { display: none; }
+  body.ohnefeld #leiste, body.laden #leiste { display: none; }
+  #tasten { display: none; font-size: 16px; padding: 2px 8px; background: transparent; color: #8b949e; border: 1px solid #2d333b; border-radius: 6px; }
+  body.ohnefeld #tasten { display: inline-block; }
+  #hinweiszeile { display: none; position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 30; max-width: 86vw; padding: 9px 14px; font-size: 14px; color: #e6e8eb; background: rgba(20,26,34,.96); border: 1px solid #2d3b52; border-radius: 10px; }
+  #hinweiszeile.an { display: block; }
   #raetsel { display: none; flex-direction: column; gap: 10px; padding: 10px 8px 8px; background: rgba(11,13,16,.9); border-top: 1px solid #22272e; }
   #raetsel.an { display: flex; }
   #raetsel .hilfe { margin: 0; text-align: center; color: #8b949e; font-size: 13px; }
@@ -138,14 +154,20 @@
 </style>
 </head>
 <body>
-<div id="kopf"><div id="status">Starte …</div><button id="install" type="button">⬇ App</button><a id="credits" href="https://github.com/DoomPingu/void-web/blob/main/CREDITS.md" target="_blank" rel="noopener" aria-label="Bildnachweise">ⓘ</a><button id="einstKnopf" type="button" aria-label="Anzeige und Sicherung">⚙<i id="punkt"></i></button><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
+<script>
+// Ladebildschirm sofort zeigen (Pyodide braucht einige Sekunden).
+document.body.classList.add("start", "laden");
+try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) document.body.classList.add("lesen"); } catch (e) { document.body.classList.add("lesen"); }
+</script>
+<div id="kopf"><div id="status">Starte …</div><button id="install" type="button">⬇ App</button><a id="credits" href="https://github.com/DoomPingu/void-web/blob/main/CREDITS.md" target="_blank" rel="noopener" aria-label="Bildnachweise">ⓘ</a><button id="tasten" type="button" aria-label="Eingabefeld zeigen">⌨</button><button id="einstKnopf" type="button" aria-label="Anzeige und Sicherung">⚙<i id="punkt"></i></button><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
 <div id="hintergrund" class="leer"></div>
 <div id="hud"></div>
 <div id="gegner"><img alt=""><div class="balken"><i></i><span></span></div></div>
 <div id="npc"><img alt=""><span></span><a id="credit" href="https://linktr.ee/coraxdigitalart" target="_blank" rel="noopener">Bild: Corax Digital Art</a></div>
-<div id="start"><h1>VOID</h1><p class="unter">Text-Rollenspiel</p><button id="weiterspielen" class="weiter" type="button" hidden></button></div>
+<div id="start"><h1>VOID</h1><p class="unter">Text-Rollenspiel</p><p class="ladetext" id="ladetext">Starte …</p><div class="ladebalken"><i></i></div><button id="weiterspielen" class="weiter" type="button" hidden></button></div>
 <div id="lese" class="lesestil"></div>
 <div id="terminal"></div>
+<div id="hinweiszeile" role="status"></div>
 <div id="raetsel"></div>
 <div id="knoepfe"></div>
 <form id="leiste" autocomplete="off">
@@ -162,6 +184,7 @@
     <div class="zeile"><span>Schrift</span><div class="gruppe" id="gSchrift"><button type="button" data-v="aus">Serifenlos</button><button type="button" data-v="serif">Mit Serifen</button></div></div>
     <div class="zeile"><span>Größe</span><input id="schriftRegler" type="range" min="13" max="26" step="1" aria-label="Schriftgröße"><span class="wert" id="schriftWert"></span></div>
     <div class="zeile nurlese"><span>Sprecher</span><div class="gruppe" id="gFarben"><button type="button" data-v="an">Farbig</button><button type="button" data-v="aus">Einfarbig</button></div></div>
+    <div class="zeile"><span>Eingabefeld</span><div class="gruppe" id="gFeld"><button type="button" data-v="auto">Nur wenn nötig</button><button type="button" data-v="immer">Immer</button></div></div>
     <div class="probe lesestil" id="probe">
       <p class="erzaehl">Hinter dem Tresen arbeitet Mara und behält die Gäste im Blick.</p>
       <p class="rede"><span class="name" style="--c:#f2b66d">Mara</span>Setz dich. Erst trinken, dann reden.</p>
@@ -179,12 +202,19 @@
     <p class="hinweis" id="schutz"></p>
   </div>
 </div>
+<script>
+// Hintergrund schon beim Laden, bevor das Skript bereit ist.
+(function () { var h = document.getElementById("hintergrund"); h.style.backgroundImage = 'url("bilder/ort_eichenruh.jpg")'; h.classList.remove("leer"); })();
+</script>
 <script src="klang.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
 <script>
 const statusZeile = document.getElementById("status");
 const hudEl = document.getElementById("hud");
+// Ladebildschirm: zeigt dieselben Statusmeldungen wie die Kopfzeile.
+new MutationObserver(() => { if (statusZeile.textContent) document.getElementById("ladetext").textContent = statusZeile.textContent; })
+  .observe(statusZeile, { childList: true, characterData: true, subtree: true });
 const knoepfeEl = document.getElementById("knoepfe");
 let leseStart = 0;
 let bildschirmZeilen = () => [];
@@ -336,6 +366,7 @@ function hudZeigen(d) {
 // Liest die Auswahl aus dem Text vor dem Prompt: "1. Text" und "[S] Text".
 // Passt nichts, bleibt nur das Textfeld.
 function knoepfeBauen() {
+  document.body.classList.remove("laden");
   knoepfeEl.replaceChildren();
   const zeilen = bildschirmZeilen();
   npcSetzen(zeilen);
@@ -380,13 +411,22 @@ function knoepfeBauen() {
     eintraege = /\?\s*$/.test(letzte) ? [] : [{ wert: "", text: "Weiter", weiter: true }];
   }
   if (istStart) eintraege = eintraege.filter((e) => !/^Beenden/.test(e.text));
+  feldSetzen(eintraege.length === 0 || (eintraege.length === 1 && !eintraege[0].weiter));
   if (raetselPruefen(zeilen, eintraege)) return;
   for (const e of eintraege) {
     const b = document.createElement("button");
     b.type = "button";
-    // Lange Beschreibung steht im Text darüber: der Button zeigt nur den Namen vor dem Gedankenstrich.
-    const text = e.text.replace(/\s+/g, " ").replace(/ [-–] .+$/, "").replace(/\s*\[[^\]]*\]\s*$/, "");
-    b.textContent = e.weiter ? "↵ " + text : (e.sonder ? "[" + e.wert.toUpperCase() + "] " : e.wert.toUpperCase() + ". ") + text;
+    // Name vor dem Gedankenstrich oder der Klammer als Hauptzeile, ein kurzer Zusatz (Preis, Hinweis) als kleine zweite Zeile.
+    // Lange Beschreibungen stehen im Text darüber und kommen nicht auf den Knopf.
+    let text = e.text.replace(/\s+/g, " "), detail = "";
+    const dm = text.match(/^(.*?) [-–] (.+)$/);
+    if (dm) { text = dm[1]; detail = dm[2]; }
+    const bm = text.match(/^(.*?)\s*\[([^\]]*)\]\s*$/);
+    let neu = false;
+    if (bm && bm[1]) { text = bm[1]; if (bm[2].trim() === "!") neu = true; else detail = detail || bm[2]; }
+    if (detail.length > 44) detail = "";
+    const kopf = e.weiter ? "↵ " : (e.sonder ? "[" + e.wert.toUpperCase() + "] " : e.wert.toUpperCase() + ". ");
+    b.innerHTML = '<span class="t">' + esc(kopf + text) + (neu ? ' <b class="neu">!</b>' : "") + "</span>" + (detail ? "<small>" + esc(detail) + "</small>" : "");
     if (e.sonder) b.className = "sonder";
     b.onclick = () => antwort(e.wert);
     knoepfeEl.append(b);
@@ -408,7 +448,9 @@ function knoepfeBauen() {
 // ---- Vorschau Paket A/B -------------------------------------------------------------
 // Darstellung und Sicherung. Eigene Einstellungen liegen unter "void-ui" (nicht unter "void:", sie gehören nicht in die Sicherung).
 const UI_KEY = "void-ui";
-const UI = Object.assign({ schrift: 16, lesen: true, serif: false, farben: true, sicherung: 0 }, (() => {
+// Eingabefeld: auf dem Handy nur zeigen, wenn das Spiel Text will; am PC immer.
+const UI = Object.assign({ schrift: 16, lesen: true, serif: false, farben: true, sicherung: 0,
+  feld: matchMedia("(pointer: coarse)").matches ? "auto" : "immer" }, (() => {
   try { return JSON.parse(localStorage.getItem(UI_KEY)) || {}; } catch (e) { return {}; }
 })());
 const uiSichern = () => { try { localStorage.setItem(UI_KEY, JSON.stringify(UI)); } catch (e) {} };
@@ -607,6 +649,45 @@ document.getElementById("weiterspielen").addEventListener("click", () => {
   antwort("2");
 });
 
+// Eingabefeld nur zeigen, wenn das Spiel Text erwartet (Name, Menge) oder keine Auswahl erkennbar ist.
+// Das Tastatur-Symbol im Kopf holt es bei Bedarf herbei.
+let feldOffen = false;
+function feldSetzen(noetig) {
+  feldOffen = false;
+  document.body.classList.toggle("ohnefeld", UI.feld === "auto" && !noetig);
+  if (UI.feld === "immer" || noetig) document.getElementById("eingabe").focus({ preventScroll: true });
+}
+document.getElementById("tasten").addEventListener("click", () => {
+  feldOffen = true;
+  document.body.classList.remove("ohnefeld");
+  document.getElementById("eingabe").focus();
+});
+
+// Zurück-Taste von Android: schließt das ⚙-Blatt oder löst im Spiel "Zurück"/"Abbrechen" aus.
+// Zweimal schnell Zurück verlässt die App.
+let beendenBis = 0;
+function hinweis(t) {
+  const el = document.getElementById("hinweiszeile");
+  el.textContent = t; el.classList.add("an");
+  clearTimeout(hinweis.t); hinweis.t = setTimeout(() => el.classList.remove("an"), 2000);
+}
+try { history.replaceState({ void: 0 }, ""); history.pushState({ void: 1 }, ""); } catch (e) {}
+addEventListener("popstate", () => {
+  const wieder = () => { try { history.pushState({ void: 1 }, ""); } catch (e) {} };
+  if (einstEl.classList.contains("offen")) { einstSchliessen(); wieder(); return; }
+  const rKnopf = ratEl().classList.contains("an") && ratEl().querySelector(".abbrechen");
+  if (rKnopf) { rKnopf.click(); wieder(); return; }
+  const zurueck = knoepfeEl.style.display !== "none" && [...knoepfeEl.querySelectorAll("button")].find((b) => {
+    const t = b.querySelector(".t");
+    return t && /^(\d+\.\s*)?(Nein,\s*)?(Zurück|zurück|Abbrechen|Schließen)\s*$/.test(t.textContent);
+  });
+  if (zurueck) { zurueck.click(); wieder(); return; }
+  if (Date.now() < beendenBis) { history.back(); return; }
+  beendenBis = Date.now() + 2000;
+  hinweis("Noch einmal Zurück, um die App zu verlassen");
+  wieder();
+});
+
 // Symbolrätsel (Eddas Truhe, Werkbank der Alten Schmiede): Das Spiel fragt Position für Position ab
 // ("Position 2 von 4" + Nummernliste + "Abbrechen"). Hier legt man die ganze Folge per Tippen und die App
 // schickt die Nummern nacheinander an das Spiel. Das Spiel selbst bleibt unverändert.
@@ -682,6 +763,7 @@ function einstellungenFuellen() {
   markieren("gAnsicht", UI.lesen ? "lese" : "terminal");
   markieren("gSchrift", UI.serif ? "serif" : "aus");
   markieren("gFarben", UI.farben ? "an" : "aus");
+  markieren("gFeld", UI.feld);
   document.getElementById("schriftRegler").value = UI.schrift;
   document.getElementById("schriftWert").textContent = UI.schrift;
   const schutz = document.getElementById("schutz");
@@ -769,6 +851,7 @@ function einstellungenVerdrahten() {
   gruppe("gAnsicht", (v) => { UI.lesen = v === "lese"; });
   gruppe("gSchrift", (v) => { UI.serif = v === "serif"; });
   gruppe("gFarben", (v) => { UI.farben = v === "an"; });
+  gruppe("gFeld", (v) => { UI.feld = v; feldOffen = false; document.body.classList.remove("ohnefeld"); });
   document.getElementById("schriftRegler").addEventListener("input", (e) => {
     UI.schrift = +e.target.value; document.getElementById("schriftWert").textContent = UI.schrift; uiSichern(); uiAnwenden();
   });
@@ -786,6 +869,7 @@ function einstellungenVerdrahten() {
 async function starten() {
   if (typeof WebAssembly.Suspending !== "function") {
     statusZeile.textContent = "Dieser Browser ist zu alt für VOID. Bitte Chrome aktualisieren (Version 137 oder neuer).";
+    document.body.classList.add("ladefehler");
     return;
   }
   const term = new Terminal({ convertEol: true, fontSize: UI.schrift, scrollback: 5000, disableStdin: true,
@@ -910,9 +994,7 @@ async function starten() {
     const zeile = feld.value;
     if (wartet) feld.value = "";
     antwort(zeile);
-    feld.focus();
   });
-  feld.focus();
 }
 // Ton: Der Browser erlaubt Audio erst nach dem ersten Tippen.
 const tonKnopf = document.getElementById("ton");
