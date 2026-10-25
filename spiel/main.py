@@ -5888,7 +5888,7 @@ def dialog_sera():
                     [
                         "[Sera] Wieder da? Was darf es sein?",
                         "[Sera] Na? Was hast du diesmal herausgefunden?",
-                        "[Sera] Was darf es sein?",
+                        "[Sera] Was führt dich diesmal her?",
                         "[Sera] Setz dich, wenn du bleiben willst.",
                         (
                             "[Sera] Du kennst den Weg inzwischen. "
@@ -43063,7 +43063,8 @@ def dialog_tomas():
             if tomas_auswahl == 1:
                 if not hinweise.get("tomas", False):
                     text_ausgeben(
-                        "[Tomas] Joris? Ja. Der war heute Morgen hier."
+                        "[Tomas] Joris? Der hat heute Morgen bei mir "
+                        "vorbeigeschaut."
                     )
 
                     print()
@@ -44607,7 +44608,7 @@ def dialog_tomas():
                     "tomas",
                     "letzter_abschied_dauerbesuch",
                     [
-                        "[Tomas] Bis gleich, nehme ich an.",
+                        "[Tomas] Bis zur nächsten Frage.",
                         (
                             "[Tomas] Ich bleibe einfach sitzen.\n"
                             "[Tomas] Spart Zeit, wenn du wiederkommst."
@@ -52594,8 +52595,8 @@ def dialog_bjorn():
                 print()
 
                 text_ausgeben(
-                    "[Bjorn] Hilda wartet noch immer "
-                    "auf ihre Lieferung."
+                    "[Bjorn] Hildas Lieferung ist immer noch "
+                    "nicht da."
                 )
 
                 text_ausgeben(
