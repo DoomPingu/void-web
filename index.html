@@ -50,20 +50,107 @@
   #leiste { display: flex; gap: 8px; padding: 8px; border-top: 1px solid #22272e; background: rgba(11,13,16,.85); }
   #eingabe { flex: 1; min-width: 0; font-size: 18px; padding: 10px; background: #12161b; color: #e6e8eb; border: 1px solid #2d333b; border-radius: 8px; }
   #senden { font-size: 18px; padding: 10px 16px; background: #2b5d9b; color: #fff; border: 0; border-radius: 8px; }
+
+  /* Vorschau Paket A/B: Einstellungen, Sicherung, Leseansicht */
+  #einstKnopf { position: relative; font-size: 16px; padding: 2px 8px; background: transparent; color: #8b949e; border: 1px solid #2d333b; border-radius: 6px; }
+  #punkt { display: none; position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: #e5a13a; }
+  #punkt.an { display: block; }
+  .lesestil { font-size: var(--fs, 17px); line-height: 1.55; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #d7dbe0; }
+  .lesestil.serif { font-family: Georgia, "Noto Serif", "Times New Roman", serif; }
+  .lesestil p { margin: 0 0 .55em; }
+  .lesestil .name { font-weight: 700; margin-right: .45em; color: #8fb4e8; }
+  body.farben .lesestil .name { color: var(--c, #8fb4e8); }
+  .lesestil .rede { color: #eef1f5; }
+  .lesestil .erzaehl { color: #b9c1cc; }
+  .lesestil .titel { font-weight: 700; letter-spacing: .07em; font-size: 1.04em; margin: .1em 0 .1em; }
+  .lesestil hr { border: 0; border-top: 1px solid #2a323d; margin: .55em 0; }
+  .lesestil .wahl { color: #8b949e; font-size: .84em; margin: 0 0 .12em; font-family: ui-monospace, Menlo, Consolas, monospace; padding-left: 2.4ch; text-indent: -2.4ch; }
+  .lesestil .liste { margin: 0 0 .15em .4em; color: #eef1f5; }
+  .lesestil .liste b { margin-right: .5em; color: #8fb4e8; font-weight: 400; }
+  .lesestil .mono { color: #cfd4da; font: .8em/1.4 ui-monospace, Menlo, Consolas, "Courier New", monospace; white-space: pre-wrap; margin: 0 0 .12em; }
+  .lesestil .abstand { height: .45em; }
+  .lesestil .kv { display: flex; gap: .7em; margin: 0 0 .15em; color: #eef1f5; }
+  .lesestil .kv .l { flex: 0 0 8.2em; color: #8b949e; }
+  .lesestil .kv .w { flex: 1; min-width: 0; }
+  .lesestil .kv.ein { margin-left: 1.2em; font-size: .92em; }
+  .lesestil .abschnitt { margin: .7em 0 .2em; color: #8fb4e8; font-weight: 700; font-size: .8em; letter-spacing: .1em; text-transform: uppercase; }
+  .lesestil .beschr { margin: 0 0 .2em 1.2em; color: #9aa3ae; font-size: .92em; }
+  .lesestil .runde { text-align: center; color: #8fb4e8; font-weight: 700; font-size: .78em; letter-spacing: .14em; text-transform: uppercase; margin: .9em 0 .3em; }
+  .lesestil .mod { margin: 0 0 .12em; font-size: .88em; color: #aab2bd; }
+  .lesestil .mod b { margin-right: .45em; }
+  .lesestil .mod.pos b { color: #7fd08a; }
+  .lesestil .mod.neg b { color: #e07a7a; }
+  .lesestil .treff { margin: 0 0 .4em; padding-left: .6em; border-left: 3px solid; color: #eef1f5; }
+  .lesestil .treff.du { border-color: #7fd08a; }
+  .lesestil .treff.gegner { border-color: #e07a7a; }
+  .lesestil .pipe { color: #8b949e; font-size: .86em; margin: 0 0 .12em; }
+  .lesestil .kampfzeile { margin: .35em 0; padding: .25em .6em; text-align: center; color: #c9d0d9; font-size: .84em; background: rgba(255,255,255,.06); border-radius: 6px; }
+  #lese { display: none; flex: 1; min-height: 25vh; overflow-y: auto; padding: 8px 14px 12px; overscroll-behavior: contain; background: rgba(11,13,16,.62); }
+  body.lesen #lese { display: block; }
+  body.lesen #gegner img { max-height: 10vh; }
+  body.lesen #terminal { position: fixed; left: -200vw; top: 0; width: 100vw; height: 60vh; flex: none; min-height: 0; }
+  body:not(.lesen) .nurlese { display: none; }
+  #einst { position: fixed; inset: 0; z-index: 20; display: none; align-items: flex-end; background: rgba(0,0,0,.55); }
+  #einst.offen { display: flex; }
+  #einst .blatt { width: 100%; max-height: 90vh; overflow-y: auto; box-sizing: border-box; background: #141a22; border-radius: 16px 16px 0 0; padding: 14px 16px 24px; box-shadow: 0 -8px 30px rgba(0,0,0,.5); }
+  #einst h2 { margin: 0 0 4px; font-size: 18px; display: flex; justify-content: space-between; align-items: center; }
+  #einst h3 { margin: 18px 0 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #8b949e; }
+  #einst .zeile { display: flex; align-items: center; gap: 10px; margin: 8px 0; flex-wrap: wrap; }
+  #einst .zeile > span { flex: 0 0 auto; min-width: 5.5em; color: #aab2bd; font-size: 14px; }
+  #einst .gruppe { display: flex; gap: 6px; flex: 1; }
+  #einst button { font: inherit; font-size: 14px; color: #e6e8eb; background: #1a2230; border: 1px solid #2d3b52; border-radius: 8px; padding: 9px 12px; min-height: 40px; }
+  #einst .gruppe button { flex: 1; }
+  #einst button.gewaehlt { background: #2b5d9b; border-color: #2b5d9b; }
+  #einst button.gross { width: 100%; text-align: left; margin: 5px 0; }
+  #einst button.zu { min-height: 34px; padding: 4px 12px; }
+  #einst input[type=range] { flex: 1; min-width: 120px; height: 34px; accent-color: #4f8fe0; }
+  #einst .wert { width: 2.6em; text-align: right; color: #e6e8eb; }
+  #einst .probe { background: rgba(11,13,16,.9); border: 1px solid #232b36; border-radius: 10px; padding: 10px 12px 4px; margin: 8px 0; }
+  #einst .slot { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; background: #0e1319; border: 1px solid #232b36; border-radius: 8px; margin: 5px 0; font-size: 14px; }
+  #einst .slot small { color: #8b949e; }
+  #einst .hinweis { color: #8b949e; font-size: 13px; line-height: 1.45; margin: 6px 0; }
+  #einst .meldung { color: #9ac7b0; font-size: 13px; margin: 6px 0; min-height: 1.2em; }
 </style>
 </head>
 <body>
-<div id="kopf"><div id="status">Starte …</div><button id="install" type="button">⬇ App</button><a id="credits" href="https://github.com/DoomPingu/void-web/blob/main/CREDITS.md" target="_blank" rel="noopener" aria-label="Bildnachweise">ⓘ</a><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
+<div id="kopf"><div id="status">Starte …</div><button id="install" type="button">⬇ App</button><a id="credits" href="https://github.com/DoomPingu/void-web/blob/main/CREDITS.md" target="_blank" rel="noopener" aria-label="Bildnachweise">ⓘ</a><button id="einstKnopf" type="button" aria-label="Einstellungen und Sicherung">⚙<i id="punkt"></i></button><button id="ton" type="button" aria-label="Ton an oder aus">🔊</button></div>
 <div id="hintergrund" class="leer"></div>
 <div id="hud"></div>
 <div id="gegner"><img alt=""><div class="balken"><i></i><span></span></div></div>
 <div id="npc"><img alt=""><span></span><a id="credit" href="https://linktr.ee/coraxdigitalart" target="_blank" rel="noopener">Bild: Corax Digital Art</a></div>
+<div id="lese" class="lesestil"></div>
 <div id="terminal"></div>
 <div id="knoepfe"></div>
 <form id="leiste" autocomplete="off">
   <input id="eingabe" inputmode="text" enterkeyhint="send" placeholder="Eingabe, dann Enter" autocapitalize="off" autocorrect="off" spellcheck="false">
   <button id="senden" type="submit" aria-label="Senden">↵</button>
 </form>
+<div id="einst" aria-hidden="true">
+  <div class="blatt" role="dialog" aria-label="Einstellungen">
+    <h2>Einstellungen <button id="einstZu" class="zu" type="button">Schließen</button></h2>
+
+    <h3>Lesen</h3>
+    <div class="zeile"><span>Ansicht</span><div class="gruppe" id="gAnsicht"><button type="button" data-v="lese">Leseansicht</button><button type="button" data-v="terminal">Terminal</button></div></div>
+    <div class="zeile"><span>Schrift</span><div class="gruppe" id="gSchrift"><button type="button" data-v="aus">Serifenlos</button><button type="button" data-v="serif">Mit Serifen</button></div></div>
+    <div class="zeile"><span>Größe</span><input id="schriftRegler" type="range" min="13" max="26" step="1" aria-label="Schriftgröße"><span class="wert" id="schriftWert"></span></div>
+    <div class="zeile nurlese"><span>Sprecher</span><div class="gruppe" id="gFarben"><button type="button" data-v="an">Farbig</button><button type="button" data-v="aus">Einfarbig</button></div></div>
+    <div class="probe lesestil" id="probe">
+      <p class="erzaehl">Hinter dem Tresen arbeitet Mara und behält die Gäste im Blick.</p>
+      <p class="rede"><span class="name" style="--c:#f2b66d">Mara</span>Setz dich. Erst trinken, dann reden.</p>
+      <p class="rede"><span class="name" style="--c:#8fb4e8">Finch</span>Das hier ist kein Verfall. Das bewegt sich.</p>
+    </div>
+
+    <h3>Spielstand sichern</h3>
+    <div id="slots"></div>
+    <p class="hinweis">Dein Spielstand liegt nur in diesem Browser. Löschst du die Browserdaten oder wechselst das Handy, ist er weg. Die Sicherung ist eine Datei, die du in Drive, Mail oder auf dem PC ablegen kannst. Gesichert wird der zuletzt gespeicherte Stand (im Spiel: Q → Speichern).</p>
+    <button id="sichern" class="gross" type="button">⬇ Sicherung als Datei speichern</button>
+    <button id="teilen" class="gross" type="button" hidden>↗ Sicherung teilen …</button>
+    <button id="laden" class="gross" type="button">⬆ Sicherung einspielen …</button>
+    <input id="ladeDatei" type="file" accept=".json,application/json" hidden>
+    <div class="meldung" id="meldung"></div>
+    <p class="hinweis" id="schutz"></p>
+  </div>
+</div>
 <script src="klang.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
@@ -271,12 +358,303 @@ function knoepfeBauen() {
   anpassen();
 }
 
+// ---- Vorschau Paket A/B -------------------------------------------------------------
+// Darstellung und Sicherung. Eigene Einstellungen liegen unter "void-ui" (nicht unter "void:", sie gehören nicht in die Sicherung).
+const UI_KEY = "void-ui";
+const UI = Object.assign({ schrift: 16, lesen: true, serif: false, farben: true, sicherung: 0 }, (() => {
+  try { return JSON.parse(localStorage.getItem(UI_KEY)) || {}; } catch (e) { return {}; }
+})());
+const uiSichern = () => { try { localStorage.setItem(UI_KEY, JSON.stringify(UI)); } catch (e) {} };
+let termRef = null;
+let sicherungLaeuft = false;   // beim Einspielen keine Spielstände mehr aus dem laufenden Spiel übernehmen
+const spaltenWert = () => (UI.lesen ? 200 : (termRef ? termRef.cols : 80));
+
+const SPRECHER_FARBE = { Mara: "#f2b66d", Bjorn: "#e8895c", Hilda: "#e57fb0", Tomas: "#b6c27a", Joris: "#7fd0c4",
+  Finch: "#8fb4e8", Valerie: "#c79cf0", Ignaz: "#d9c27a", Haller: "#e07a7a", Ahrens: "#9ac7b0", Raban: "#d0a070",
+  Levin: "#a3b8e8", Sera: "#f09a8a", Marek: "#9fcf8f", Ida: "#f0a0c0", Edda: "#c0b0e0" };
+function sprecherFarbe(n) {
+  if (SPRECHER_FARBE[n]) return SPRECHER_FARBE[n];
+  let h = 0;
+  for (const c of n) h = (h * 31 + c.charCodeAt(0)) % 360;
+  return "hsl(" + h + " 55% 70%)";
+}
+const ANSI = ["#000", "#e06c75", "#98c379", "#e5c07b", "#61afef", "#c678dd", "#56b6c2", "#d7dbe0",
+  "#7d8590", "#ff7b86", "#b5e08d", "#f0d08a", "#7ec0ff", "#d996f0", "#7fd0dc", "#fff"];
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+// Leseansicht: spiegelt den Terminal-Puffer als Fließtext. Das Terminal bleibt im Hintergrund die Quelle
+// (Auswahl-Knöpfe, HUD, Sprecher werden weiter daraus gelesen). Tabellen und ausgerichtete Zeilen bleiben Festbreite.
+let leseTimer = 0;
+function leseNeu() {
+  if (!UI.lesen || !termRef || leseTimer) return;
+  leseTimer = setTimeout(() => { leseTimer = 0; leseRendern(); }, 60);
+}
+function zeilenFarbe(z) {
+  // Farbe des ersten sichtbaren Zeichens (z. B. cyanfarbene Überschriften).
+  const n = z.length;
+  for (let x = 0; x < n; x++) {
+    const c = z.getCell(x);
+    if (!c || !c.getChars().trim()) continue;
+    if (c.isFgPalette()) { const i = c.getFgColor(); return i < 16 && i !== 7 && i !== 15 ? ANSI[i] : ""; }
+    return "";
+  }
+  return "";
+}
+function leseRendern() {
+  const buf = termRef.buffer.active;
+  const lese = document.getElementById("lese");
+  const ende = buf.baseY + buf.cursorY;
+  const von = Math.max(0, ende - 700);
+  const zeilen = [];
+  for (let y = von; y <= ende; y++) {
+    const z = buf.getLine(y);
+    if (!z) continue;
+    const t = z.translateToString(true);
+    if (z.isWrapped && zeilen.length) zeilen[zeilen.length - 1].text += t;
+    else zeilen.push({ text: t, z });
+  }
+  const KV = /^[A-ZÄÖÜ][\wäöüßÄÖÜ \-]{1,28}:\s+\S.{0,56}$/;
+  const kvZeile = (s) => KV.test(s) && !/[.!]$/.test(s) && !/\w\?$/.test(s);
+  const art = zeilen.map(({ text: t }) => {
+    if (!t.trim()) return "leer";
+    if (/^\s*[=\-─]{6,}\s*$/.test(t)) return "hr";
+    if (/^\s*>\s*\S{0,3}\s*$/.test(t)) return "wahl";
+    if (/^\s*[─\-]{3,}\s*Runde\s+\d+\s*[─\-]{3,}\s*$/.test(t)) return "runde";
+    const m = t.match(/^\s*\[([A-ZÄÖÜ][\wäöüß' ?-]{1,22})\]\s+\S/);
+    if (m && !/^(Beliebige Taste)$/.test(m[1])) return "rede";
+    if (/^\s*(\d{1,2}[.)]|\[[A-Za-z]\]|[A-Z][.)])\s/.test(t) || /^(Auswahl|Eingabe)\b/.test(t) || /^\s*\[Beliebige Taste\]/.test(t)) return "wahl";
+    if (/^\s*===\s*.+\s*===\s*$/.test(t)) return "abschnitt";
+    if (/^\s*[-•]\s+\S/.test(t) && !/\S {2,}\S|\|/.test(t)) return "liste";
+    if (/^\s*Du:\s*\d+\/\d+\s*HP\s*\|/.test(t)) return "kampfzeile";
+    if (/^[+−]\s+\S/.test(t)) return t[0] === "+" ? "modpos" : "modneg";
+    if (/\b\d+ Schaden\b/.test(t) && /^(Du|Der|Die|Das|Dein|Deine|Ein|Eine)\b/.test(t) && !/:/.test(t)) return /^Du\b/.test(t) ? "treffdu" : "treffgegner";
+    if (/^\s{2,}\S/.test(t)) {
+      const s = t.trim();
+      if (/\S {2,}\S|\|/.test(s)) return "mono";
+      return kvZeile(s) ? "kvein" : "beschr";
+    }
+    if (/^[^|]{1,30} \| [^|]{1,40}$/.test(t) && !/\bHP\b/.test(t) && !/\S {2,}\S/.test(t)) return "pipe";
+    if (/\S {2,}\S|\|/.test(t)) return "mono";
+    if (kvZeile(t)) return "kv";
+    if (/^[A-ZÄÖÜ][A-ZÄÖÜ \-]{2,28}$/.test(t.trim())) return "abschnitt";
+    return "erzaehl";
+  });
+  // Kurze Zeile ohne Satzzeichen direkt über Auswahl, Werten oder Beschreibungen = Zwischenüberschrift.
+  art.forEach((a, i) => {
+    const t = zeilen[i].text.trim();
+    if (a === "erzaehl" && t.split(/\s+/).length <= 3 && !/[.!?:,;]$/.test(t) && ["wahl", "kv", "kvein", "beschr"].includes(art[i + 1])) art[i] = "abschnitt";
+  });
+  let html = "", vorherLeer = true;
+  zeilen.forEach(({ text: t, z }, i) => {
+    let a = art[i];
+    if (a === "leer") { if (!vorherLeer) html += '<div class="abstand"></div>'; vorherLeer = true; return; }
+    vorherLeer = false;
+    t = t.replace(/\s+$/, "");
+    if (a === "hr") {
+      html = html.replace(/<div class="abstand"><\/div>$/, "") + "<hr>";
+      vorherLeer = true;
+      return;
+    }
+    if ((a === "erzaehl" || a === "abschnitt") && art[i - 1] === "hr" && art[i + 1] === "hr") {
+      const f = zeilenFarbe(z);
+      html += '<p class="titel"' + (f ? ' style="color:' + f + '"' : "") + ">" + esc(t.trim()) + "</p>";
+      return;
+    }
+    if (a === "rede") {
+      const m = t.match(/^\s*\[([^\]]+)\]\s+(.*)$/);
+      html += '<p class="rede"><span class="name" style="--c:' + sprecherFarbe(m[1]) + '">' + esc(m[1]) + "</span>" + esc(m[2]) + "</p>";
+      return;
+    }
+    if (a === "wahl") { html += '<p class="wahl">' + esc(t.trim()) + "</p>"; return; }
+    if (a === "kv" || a === "kvein") {
+      const s = t.trim();
+      const k = s.indexOf(":");
+      html += '<p class="kv' + (a === "kvein" ? " ein" : "") + '"><span class="l">' + esc(s.slice(0, k).trim()) + '</span><span class="w">' + esc(s.slice(k + 1).trim()) + "</span></p>";
+      return;
+    }
+    if (a === "abschnitt") {
+      const f = zeilenFarbe(z);
+      html += '<p class="abschnitt"' + (f ? ' style="color:' + f + '"' : "") + ">" + esc(t.trim().replace(/^===\s*|\s*===$/g, "")) + "</p>";
+      return;
+    }
+    if (a === "liste") { html += '<p class="liste"><b>–</b>' + esc(t.trim().replace(/^[-•]\s+/, "")) + "</p>"; return; }
+    if (a === "beschr") { html += '<p class="beschr">' + esc(t.trim()) + "</p>"; return; }
+    if (a === "kampfzeile") { html += '<p class="kampfzeile">' + esc(t.trim()) + "</p>"; return; }
+    if (a === "runde") { html += '<p class="runde">' + esc(t.replace(/[─\-]/g, "").trim()) + "</p>"; return; }
+    if (a === "modpos" || a === "modneg") {
+      const s = t.trim();
+      html += '<p class="mod ' + (a === "modpos" ? "pos" : "neg") + '"><b>' + esc(s[0]) + "</b>" + esc(s.slice(1).trim()) + "</p>";
+      return;
+    }
+    if (a === "treffdu" || a === "treffgegner") { html += '<p class="treff ' + (a === "treffdu" ? "du" : "gegner") + '">' + esc(t.trim()) + "</p>"; return; }
+    if (a === "pipe") { html += '<p class="pipe">' + esc(t.trim().replace(/\s\|\s/g, " · ")) + "</p>"; return; }
+    if (a === "mono") { html += '<p class="mono">' + esc(t) + "</p>"; return; }
+    const f = zeilenFarbe(z);
+    html += '<p class="erzaehl"' + (f ? ' style="color:' + f + '"' : "") + ">" + esc(t.trim()) + "</p>";
+  });
+  leseProgramm = true;
+  lese.innerHTML = html;
+  if (leseFolgen) lese.scrollTop = lese.scrollHeight;
+  requestAnimationFrame(() => { leseProgramm = false; });
+}
+// Folgt dem neuesten Text, solange du nicht selbst nach oben gescrollt hast.
+let leseFolgen = true, leseProgramm = false;
+document.getElementById("lese").addEventListener("scroll", () => {
+  if (leseProgramm) return;
+  const l = document.getElementById("lese");
+  leseFolgen = l.scrollHeight - l.scrollTop - l.clientHeight < 90;
+}, { passive: true });
+// Ändert sich die Höhe (Knopfleiste wächst/schrumpft), bleibt die Ansicht beim Folgen am Ende.
+new ResizeObserver(() => {
+  const l = document.getElementById("lese");
+  if (leseFolgen) { leseProgramm = true; l.scrollTop = l.scrollHeight; requestAnimationFrame(() => { leseProgramm = false; }); }
+}).observe(document.getElementById("lese"));
+function uiAnwenden() {
+  document.body.classList.toggle("lesen", UI.lesen);
+  document.body.classList.toggle("farben", UI.farben);
+  document.getElementById("lese").classList.toggle("serif", UI.serif);
+  document.getElementById("probe").classList.toggle("serif", UI.serif);
+  document.documentElement.style.setProperty("--fs", (UI.schrift + 1) + "px");
+  if (termRef) termRef.options.fontSize = UI.schrift;
+  anpassen();
+  leseNeu();
+  if (UI.lesen) leseRendern();
+}
+
+// Einstellungen und Sicherung
+const einstEl = document.getElementById("einst");
+const meldungEl = document.getElementById("meldung");
+const SLOT_NAMEN = ["void_save_1.json", "void_save_2.json", "void_save_3.json"];
+function zeitText(sek) {
+  sek = Math.max(0, Math.floor(+sek || 0));
+  const h = Math.floor(sek / 3600), m = Math.floor((sek % 3600) / 60);
+  return h ? h + " h " + m + " min" : m + " min";
+}
+function slotInfo(text) {
+  try {
+    const s = JSON.parse(text).spieler || {};
+    const ort = String(s.ort || "").replace(/_/g, " ").replace(/(^|\s)\S/g, (c) => c.toUpperCase());
+    return { titel: (s.name || "Unbenannt") + " · " + (ort || "?"), info: (s.gold ?? 0) + " Gold" + (s.spielzeit ? " · ⏱ " + zeitText(s.spielzeit) : "") };
+  } catch (e) { return { titel: "Nicht lesbar", info: "" }; }
+}
+function einstellungenFuellen() {
+  const st = spielstaende();
+  document.getElementById("slots").innerHTML = SLOT_NAMEN.map((n, i) => {
+    if (!st[n]) return '<div class="slot"><span>Platz ' + (i + 1) + '</span><small>leer</small></div>';
+    const d = slotInfo(st[n]);
+    return '<div class="slot"><span>Platz ' + (i + 1) + ": " + esc(d.titel) + "</span><small>" + esc(d.info) + "</small></div>";
+  }).join("");
+  const markieren = (id, wert) => document.querySelectorAll("#" + id + " button").forEach((b) => b.classList.toggle("gewaehlt", b.dataset.v === wert));
+  markieren("gAnsicht", UI.lesen ? "lese" : "terminal");
+  markieren("gSchrift", UI.serif ? "serif" : "aus");
+  markieren("gFarben", UI.farben ? "an" : "aus");
+  document.getElementById("schriftRegler").value = UI.schrift;
+  document.getElementById("schriftWert").textContent = UI.schrift;
+  const schutz = document.getElementById("schutz");
+  if (navigator.storage && navigator.storage.persisted) {
+    navigator.storage.persisted().then((p) => {
+      schutz.textContent = p ? "Speicher: dauerhaft geschützt, der Browser löscht ihn nicht von selbst."
+        : "Speicher: nicht dauerhaft geschützt. Mit einer installierten App bleibt er in der Regel erhalten.";
+    });
+  }
+  const alt = !UI.sicherung ? Infinity : (Date.now() - UI.sicherung) / 864e5;
+  const zuletzt = UI.sicherung ? "Letzte Sicherung: " + new Date(UI.sicherung).toLocaleDateString("de-CH") + "." : "Noch nie gesichert.";
+  meldungEl.textContent = zuletzt;
+  einstEl.dataset.alt = alt;
+}
+function punktSetzen() {
+  const hatStand = Object.keys(spielstaende()).some((n) => n.startsWith("void_save_"));
+  const alt = !UI.sicherung ? Infinity : (Date.now() - UI.sicherung) / 864e5;
+  document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
+}
+function einstOeffnen() {
+  einstellungenFuellen();
+  einstEl.classList.add("offen");
+  einstEl.setAttribute("aria-hidden", "false");
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().then(() => einstellungenFuellen()).catch(() => {});
+}
+function einstSchliessen() {
+  einstEl.classList.remove("offen");
+  einstEl.setAttribute("aria-hidden", "true");
+}
+function sicherungBauen() {
+  const st = spielstaende();
+  if (!Object.keys(st).some((n) => n.startsWith("void_save_"))) { meldungEl.textContent = "Es gibt noch keinen gespeicherten Spielstand."; return null; }
+  const inhalt = { void_sicherung: 1, erstellt: new Date().toISOString(), dateien: st };
+  const d = new Date();
+  const name = "void-sicherung-" + d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") + ".json";
+  return new File([JSON.stringify(inhalt)], name, { type: "application/json" });
+}
+function sichernDatei() {
+  const datei = sicherungBauen();
+  if (!datei) return;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(datei);
+  a.download = datei.name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  UI.sicherung = Date.now(); uiSichern(); punktSetzen();
+  meldungEl.textContent = "Sicherung gespeichert (Ordner Downloads): " + datei.name;
+}
+// Teilen-Dialog des Handys (Drive, WhatsApp, Mail ...); der Knopf erscheint nur, wo der Browser Dateien teilen kann.
+function sicherungTeilen() {
+  const datei = sicherungBauen();
+  if (!datei) return;
+  navigator.share({ files: [datei], title: "VOID Sicherung" }).then(() => {
+    UI.sicherung = Date.now(); uiSichern(); punktSetzen();
+    meldungEl.textContent = "Sicherung geteilt: " + datei.name;
+  }).catch((e) => { if (e && e.name !== "AbortError") meldungEl.textContent = "Teilen nicht möglich. Nimm „Sicherung als Datei speichern“."; });
+}
+function einspielen(datei) {
+  const leser = new FileReader();
+  leser.onload = () => {
+    try {
+      const o = JSON.parse(leser.result);
+      if (!o || o.void_sicherung !== 1 || typeof o.dateien !== "object") throw new Error("keine VOID-Sicherung");
+      const namen = Object.keys(o.dateien);
+      if (!namen.length || !namen.every((n) => /^void_(save_[1-3]|settings)\.json$/.test(n) && typeof o.dateien[n] === "string")) throw new Error("unbekannter Inhalt");
+      namen.forEach((n) => JSON.parse(o.dateien[n]));
+      const anzahl = namen.filter((n) => n.startsWith("void_save_")).length;
+      if (!confirm(anzahl + " Spielstand/Spielstände einspielen? Vorhandene Spielstände auf denselben Plätzen werden ersetzt.")) return;
+      sicherungLaeuft = true;
+      namen.forEach((n) => localStorage.setItem("void:" + n, o.dateien[n]));
+      location.reload();
+    } catch (e) {
+      meldungEl.textContent = "Diese Datei lässt sich nicht einspielen: Sie ist keine gültige VOID-Sicherung. Es wurde nichts verändert.";
+    }
+  };
+  leser.readAsText(datei);
+}
+function einstellungenVerdrahten() {
+  document.getElementById("einstKnopf").addEventListener("click", (e) => { e.stopPropagation(); einstOeffnen(); });
+  document.getElementById("einstZu").addEventListener("click", einstSchliessen);
+  einstEl.addEventListener("click", (e) => { e.stopPropagation(); if (e.target === einstEl) einstSchliessen(); });
+  const gruppe = (id, tun) => document.getElementById(id).addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return; tun(b.dataset.v); uiSichern(); uiAnwenden(); einstellungenFuellen();
+  });
+  gruppe("gAnsicht", (v) => { UI.lesen = v === "lese"; });
+  gruppe("gSchrift", (v) => { UI.serif = v === "serif"; });
+  gruppe("gFarben", (v) => { UI.farben = v === "an"; });
+  document.getElementById("schriftRegler").addEventListener("input", (e) => {
+    UI.schrift = +e.target.value; document.getElementById("schriftWert").textContent = UI.schrift; uiSichern(); uiAnwenden();
+  });
+  document.getElementById("sichern").addEventListener("click", sichernDatei);
+  const teilenKnopf = document.getElementById("teilen");
+  try {
+    const probe = new File(["{}"], "p.json", { type: "application/json" });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [probe] })) { teilenKnopf.hidden = false; teilenKnopf.addEventListener("click", sicherungTeilen); }
+  } catch (e) {}
+  document.getElementById("laden").addEventListener("click", () => document.getElementById("ladeDatei").click());
+  document.getElementById("ladeDatei").addEventListener("change", (e) => { if (e.target.files[0]) einspielen(e.target.files[0]); e.target.value = ""; });
+  punktSetzen();
+}
+
 async function starten() {
   if (typeof WebAssembly.Suspending !== "function") {
     statusZeile.textContent = "Dieser Browser ist zu alt für VOID. Bitte Chrome aktualisieren (Version 137 oder neuer).";
     return;
   }
-  const term = new Terminal({ convertEol: true, fontSize: 15, scrollback: 5000, disableStdin: true,
+  const term = new Terminal({ convertEol: true, fontSize: UI.schrift, scrollback: 5000, disableStdin: true,
     cursorBlink: false, allowTransparency: true, theme: { background: "rgba(0,0,0,0)" } });
   const fit = new FitAddon.FitAddon();
   term.loadAddon(fit);
@@ -302,8 +680,12 @@ async function starten() {
 
   anpassen = function () {
     fit.fit();
-    worker.postMessage({ typ: "spalten", spalten: term.cols });
+    worker.postMessage({ typ: "spalten", spalten: spaltenWert() });
   };
+  termRef = term;
+  term.onWriteParsed(leseNeu);
+  einstellungenVerdrahten();
+  uiAnwenden();
   setTimeout(anpassen, 300);
   addEventListener("resize", anpassen);
 
@@ -323,12 +705,12 @@ async function starten() {
     else if (m.typ === "gegner") gegnerSetzen(m.name);
     else if (m.typ === "status") statusZeile.textContent = m.text;
     else if (m.typ === "eingabe") { wartet = true; term.write("", knoepfeBauen); }
-    else if (m.typ === "speichern") { try { localStorage.setItem("void:" + m.name, m.text); } catch (err) {} }
-    else if (m.typ === "loeschen") { try { localStorage.removeItem("void:" + m.name); } catch (err) {} }
+    else if (m.typ === "speichern") { if (!sicherungLaeuft) try { localStorage.setItem("void:" + m.name, m.text); } catch (err) {} }
+    else if (m.typ === "loeschen") { if (!sicherungLaeuft) try { localStorage.removeItem("void:" + m.name); } catch (err) {} }
     else if (m.typ === "ende") statusZeile.textContent = "Spiel beendet. Seite neu laden, um wieder zu starten.";
   };
   const dateien = await (await fetch("dateien.json", { cache: "no-cache" })).json();
-  worker.postMessage({ typ: "start", dateien, spielstaende: spielstaende(), spalten: term.cols });
+  worker.postMessage({ typ: "start", dateien, spielstaende: spielstaende(), spalten: spaltenWert() });
 
   const feld = document.getElementById("eingabe");
   antwort = (zeile) => {
