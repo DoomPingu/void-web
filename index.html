@@ -79,6 +79,14 @@
   .lesestil .name { font-weight: 700; margin-right: .45em; color: #8fb4e8; }
   body.farben .lesestil .name { color: var(--c, #8fb4e8); }
   .lesestil .rede { color: #eef1f5; }
+  .lesestil .sprech { display: flex; align-items: flex-end; gap: .55em; margin: .2em 0 .45em; }
+  .lesestil .sprech .av { flex: 0 0 1.9em; height: 1.9em; display: grid; place-items: center; border-radius: 50%; border: 2px solid var(--c, #8fb4e8); color: var(--c, #8fb4e8); background: rgba(255,255,255,.04); font-weight: 700; font-size: .85em; }
+  .lesestil .sprech .av.leer { visibility: hidden; }
+  .lesestil .sprech .blase { max-width: 88%; padding: .45em .85em; color: #eef1f5; background: rgba(255,255,255,.075); border-radius: 14px 14px 14px 4px; }
+  .lesestil .sprech .blase b { display: block; margin-bottom: .1em; font-size: .8em; letter-spacing: .03em; color: #8fb4e8; }
+  body.farben .lesestil .sprech .blase b { color: var(--c, #8fb4e8); }
+  .lesestil .sprech.ich { flex-direction: row-reverse; }
+  .lesestil .sprech.ich .blase { background: rgba(79,143,224,.2); border-radius: 14px 14px 4px 14px; }
   .lesestil .erzaehl { color: #b9c1cc; }
   .lesestil .titel { font-weight: 700; letter-spacing: .07em; font-size: 1.04em; margin: .1em 0 .1em; }
   #lesemarke, #lesespacer { display: block; height: 0; }
@@ -370,14 +378,14 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
     <div class="zeile"><span>Eingabefeld</span><div class="gruppe" id="gFeld"><button type="button" data-v="auto">Nur wenn nötig</button><button type="button" data-v="immer">Immer</button></div></div>
     <div class="probe lesestil" id="probe">
       <p class="erzaehl">Hinter dem Tresen arbeitet Mara und behält die Gäste im Blick.</p>
-      <p class="rede"><span class="name" style="--c:#f2b66d">Mara</span>Setz dich. Erst trinken, dann reden.</p>
-      <p class="rede"><span class="name" style="--c:#8fb4e8">Finch</span>Das hier ist kein Verfall. Das bewegt sich.</p>
+      <div class="sprech" style="--c:#f2b66d"><span class="av">M</span><div class="blase"><b>Mara</b>Setz dich. Erst trinken, dann reden.</div></div>
+      <div class="sprech" style="--c:#8fb4e8"><span class="av">F</span><div class="blase"><b>Finch</b>Das hier ist kein Verfall. Das bewegt sich.</div></div>
     </div>
 
     <h3>Ton</h3>
-    <div class="zeile"><span>Lautstärke</span><input id="lautRegler" type="range" min="0" max="100" step="5" aria-label="Lautstärke"><span class="wert" id="lautWert"></span></div>
+    <div class="zeile"><span>Musik</span><input id="lautRegler" type="range" min="0" max="100" step="5" aria-label="Lautstärke"><span class="wert" id="lautWert"></span></div>
 
-    <div class="zeile"><span>Effekte</span><div class="gruppe" id="gEffekte"><button type="button" data-v="an">An</button><button type="button" data-v="aus">Aus</button></div></div>
+    <div class="zeile"><span>Effekte</span><input id="effektRegler" type="range" min="0" max="100" step="5" aria-label="Lautstärke der Effekte"><span class="wert" id="effektWert"></span></div>
     <div class="zeile"><span>Vibration</span><div class="gruppe" id="gVibr"><button type="button" data-v="an">An</button><button type="button" data-v="aus">Aus</button></div></div>
 
     <button id="introNochmal" class="gross" type="button">ℹ️ Einführung noch einmal zeigen</button>
@@ -577,6 +585,7 @@ function npcSetzen(zeilen) {
 function hudZeigen(d) {
   document.body.classList.add("imspiel");
   hudOrt = String(d.ort || "");
+  spielerName = String(d.name || "");
   hintergrundSetzen(d.ort);
   if (!hudEl.firstChild) {
     hudEl.innerHTML = '<div class="zeile"><span class="ort"></span><span class="gold"></span></div>' +
@@ -621,7 +630,7 @@ function vibrieren(text) {
   }
   if (muster && UI.vibration !== false && navigator.vibrate) { try { navigator.vibrate(muster); } catch (e) {} }
   // Effekte nacheinander, damit Treffer und Schaden nicht übereinanderliegen.
-  if (UI.effekte !== false && typeof Klang !== "undefined" && Klang.effekt) effekte.forEach((n, i) => setTimeout(() => Klang.effekt(n), i * 300));
+  if (typeof Klang !== "undefined" && Klang.effekt) effekte.forEach((n, i) => setTimeout(() => Klang.effekt(n), i * 300));
 }
 let kette = [];
 const SCHNELLSPEICHERN = [
@@ -893,7 +902,7 @@ function leseRendern() {
     });
     abschliessen();
   }
-  let html = "", vorherLeer = true, markiert = false;
+  let html = "", vorherLeer = true, markiert = false, letzterSprecher = "";
   zeilen.forEach(({ text: t, z, y }, i) => {
     let a = art[i];
     // Auswahllisten ("1. ...", "[S] ...", "Auswahl:", "> 1") entfallen, wenn es dafür Knöpfe gibt.
@@ -902,6 +911,7 @@ function leseRendern() {
     if (a === "kampfzeile" && aktuellerGegner) return;   // steht schon als Balken oben
     if (a === "leer") { if (!vorherLeer) html += '<div class="abstand"></div>'; vorherLeer = true; return; }
     vorherLeer = false;
+    if (a !== "rede") letzterSprecher = "";
     // Marke an der ersten sichtbaren Zeile des neuen Bildschirms: dort beginnt das Fenster (leere und ausgeblendete Zeilen zählen nicht).
     if (!markiert && y >= start) { html += '<i id="lesemarke"></i>'; markiert = true; }
     t = t.replace(/\s+$/, "");
@@ -925,8 +935,12 @@ function leseRendern() {
       return;
     }
     if (a === "rede") {
+      // Sprechblase mit Anfangsbuchstaben-Kreis; folgen mehrere Zeilen desselben Sprechers, steht sein Name nur einmal.
       const m = t.match(/^\s*\[([^\]]+)\]\s+(.*)$/);
-      html += '<p class="rede"><span class="name" style="--c:' + sprecherFarbe(m[1]) + '">' + esc(m[1]) + "</span>" + esc(m[2]) + "</p>";
+      const wer = m[1], gleich = letzterSprecher === wer, ich = spielerName && wer === spielerName;
+      letzterSprecher = wer;
+      html += '<div class="sprech' + (ich ? " ich" : "") + '" style="--c:' + sprecherFarbe(wer) + '"><span class="av' + (gleich ? " leer" : "") + '">' + esc(wer.charAt(0).toUpperCase()) +
+        '</span><div class="blase">' + (gleich ? "" : "<b>" + esc(wer) + "</b>") + esc(m[2]) + "</div></div>";
       return;
     }
     if (a === "schritt") {
@@ -1007,7 +1021,7 @@ function leseRendern() {
   });
   if (!markiert) html += '<i id="lesemarke"></i>';
   // Drei oder mehr Wert-Zeilen hintereinander (Status, Inventar, Verfassungen) kommen auf eine Karte.
-  html = html.replace(/(?:<p class="kv[^"]*">.*?<\/p>){3,}/g, (m) => '<div class="karte">' + m + "</div>");
+  html = html.replace(/(?:<p class="kv[^"]*">.*?<\/p>){2,}/g, (m) => '<div class="karte">' + m + "</div>");
   const neuerSchirm = bildschirmNr !== gezeigtNr;
   // Die fertige vorige Seite wandert in den Verlauf (nur wenn sie wirklich Text enthielt).
   if (neuerSchirm && seiteHtml && /<p class="(erzaehl|rede|kv|beschr|liste|treff|mod|abschnitt|titel)/.test(seiteHtml)
@@ -1131,7 +1145,7 @@ document.getElementById("ziel").addEventListener("click", () => {
 document.getElementById("zielZu").addEventListener("click", zielBlattSchliessen);
 
 // Karte: die fünf Hauptorte. Ein Tipp auf einen von hier erreichbaren Ort drückt den passenden Knopf im Spiel.
-let hudOrt = "";
+let hudOrt = "", spielerName = "";
 const KARTE_ORTE = [
   { id: "eichenruh", name: "Eichenruh", sym: "🏘️", x: 160, y: 185, hier: /eichenruh|spieler_zimmer|gasthaus|marktplatz|^schmiede|bjorns/i, besucht: /eichenruh/i, knopf: /Eichenruh/ },
   { id: "koehlerei", name: "Köhlerei", sym: "🔥", x: 62, y: 80, hier: /k[oö]e?hlerei|brandschneise/i, besucht: /k[oö]e?hlerei/i, knopf: /K[öo]e?hlerei/ },
@@ -1200,11 +1214,11 @@ document.getElementById("einfuehrungZu").addEventListener("click", introSchliess
 
 // "Was ist neu": einmal nach jedem Update, falls für den Stand ein Text hinterlegt ist.
 const NEUES = {
-  "2026-10-25-14": [
-    "<b>Wisch zurück:</b> Ein Wisch vom linken Rand nach rechts wirkt wie die Zurück-Geste.",
-    "<b>Vorheriger Text (🕘)</b> bleibt jetzt auch nach dem Neustart der App erhalten.",
-    "<b>Journal:</b> Erfolge, Ziele und Quest-Stände sind übersichtlicher.",
-    "<b>Listen:</b> Bei langen Antworten (z. B. Rikas Ausbildung) steht die Auswahl nur noch einmal als Knopf da."
+  "2026-10-25-15": [
+    "<b>Gespräche</b> stehen jetzt als Sprechblasen mit Namenskreis. Deine eigenen Sätze stehen rechts.",
+    "<b>Ton:</b> Musik und Effekte haben je einen eigenen Regler unter ⚙.",
+    "<b>Gegenstände:</b> Werte wie Typ und Anzahl stehen auf einer Karte.",
+    "<b>Seit der letzten Version:</b> Wisch vom linken Rand = Zurück, vorheriger Text bleibt nach dem Neustart, Journal mit Karten."
   ]
 };
 const neuesBlatt = document.getElementById("neues");
@@ -1419,7 +1433,9 @@ function einstellungenFuellen() {
   markieren("gGross", UI.gross ? "gross" : "normal");
   markieren("gKontrast", UI.kontrast ? "hoch" : "normal");
   markieren("gVibr", UI.vibration === false ? "aus" : "an");
-  markieren("gEffekte", UI.effekte === false ? "aus" : "an");
+  const eff = Math.round((Klang.effektLautstaerke ? Klang.effektLautstaerke() : 0.8) * 100);
+  document.getElementById("effektRegler").value = eff;
+  document.getElementById("effektWert").textContent = eff;
   const laut = Math.round((Klang.lautstaerke ? Klang.lautstaerke() : 0.5) * 100);
   document.getElementById("lautRegler").value = laut;
   document.getElementById("lautWert").textContent = laut;
@@ -1447,7 +1463,7 @@ function punktSetzen() {
   document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
 }
 // Version, Offline-Speicher und Update-Hinweis.
-const APP_STAND = "2026-10-25-14";
+const APP_STAND = "2026-10-25-15";
 const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.wav","klang/feuer.wav","klang/hoehle.wav","klang/intro.wav","klang/kampf.wav","klang/kueste.wav","klang/markt.m4a","klang/taverne.wav","klang/wald.wav","klang/wind.wav","klang/zimmer.wav"];
 async function offlineListe() {
   let spiel = [];
@@ -1567,7 +1583,12 @@ function einstellungenVerdrahten() {
     if (Klang.lautstaerke) Klang.lautstaerke(e.target.value / 100);
   });
   document.getElementById("offline").addEventListener("click", offlineLaden);
-  gruppe("gEffekte", (v) => { UI.effekte = v === "an"; if (UI.effekte && Klang.effekt) Klang.effekt("treffer"); });
+  const effektRegler = document.getElementById("effektRegler");
+  effektRegler.addEventListener("input", (e) => {
+    document.getElementById("effektWert").textContent = e.target.value;
+    if (Klang.effektLautstaerke) Klang.effektLautstaerke(e.target.value / 100);
+  });
+  effektRegler.addEventListener("change", () => { if (Klang.effekt) Klang.effekt("treffer"); });
   gruppe("gGross", (v) => { UI.gross = v === "gross"; });
   gruppe("gKontrast", (v) => { UI.kontrast = v === "hoch"; });
   document.getElementById("introNochmal").addEventListener("click", () => { einstSchliessen(); introZeigen(); });

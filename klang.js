@@ -4,9 +4,11 @@ const Klang = (() => {
   let ctx = null, master = null, rauschen = null;
   let an = true;
   let szene = null, szeneName = "intro", kampfWunsch = false, kampfNode = null;
-  let laut = 0.5; // Lautstärke 0 bis 1 (Schieberegler in den Einstellungen)
+  let laut = 0.5; // Lautstärke der Musik 0 bis 1 (Schieberegler in den Einstellungen)
+  let effLaut = 0.8, fx = null; // Lautstärke der Effekte, getrennt von der Musik
   try { an = localStorage.getItem("void:ton") !== "aus"; } catch (e) {}
   try { const v = parseFloat(localStorage.getItem("void-laut")); if (v >= 0 && v <= 1) laut = v; } catch (e) {}
+  try { const v = parseFloat(localStorage.getItem("void-effekt-laut")); if (v >= 0 && v <= 1) effLaut = v; } catch (e) {}
 
   const ART = {
     // Ort (normalisierter Name) -> Stimmung
@@ -27,6 +29,7 @@ const Klang = (() => {
     master = ctx.createGain();
     master.gain.value = an ? laut : 0;
     master.connect(ctx.destination);
+    fx = ctx.createGain(); fx.gain.value = effLaut; fx.connect(master);
     const len = ctx.sampleRate * 2;
     rauschen = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = rauschen.getChannelData(0);
@@ -212,7 +215,7 @@ const Klang = (() => {
     o.type = typ; o.frequency.setValueAtTime(freq, t);
     if (bis) o.frequency.exponentialRampToValueAtTime(bis, t + dauer);
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(pegel, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + dauer);
-    o.connect(g); g.connect(master); o.start(t); o.stop(t + dauer + 0.05);
+    o.connect(g); g.connect(fx || master); o.start(t); o.stop(t + dauer + 0.05);
   }
   function stoss(dauer, pegel, freq, start = 0) {
     const t = ctx.currentTime + start;
@@ -220,7 +223,7 @@ const Klang = (() => {
     const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = freq;
     const g = ctx.createGain();
     g.gain.setValueAtTime(pegel, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dauer);
-    s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + dauer + 0.05);
+    s.connect(f); f.connect(g); g.connect(fx || master); s.start(t); s.stop(t + dauer + 0.05);
   }
   const EFFEKTE = {
     treffer() { stoss(0.12, 0.5, 900); ton(150, 0.12, "sine", 0.5, 0, 60); },
@@ -263,6 +266,13 @@ const Klang = (() => {
       return an;
     },
     istAn: () => an,
+    effektLautstaerke(v) {
+      if (v === undefined) return effLaut;
+      effLaut = Math.max(0, Math.min(1, +v || 0));
+      try { localStorage.setItem("void-effekt-laut", String(effLaut)); } catch (e) {}
+      if (fx) fx.gain.setTargetAtTime(effLaut, ctx.currentTime, 0.05);
+      return effLaut;
+    },
     lautstaerke(v) {
       if (v === undefined) return laut;
       laut = Math.max(0, Math.min(1, +v || 0));
