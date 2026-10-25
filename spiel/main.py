@@ -19145,7 +19145,7 @@ def erfolge():
 def wildspur_ortshinweis(rede=False):
     if weg_status("pfad_des_vergessens") == "entdeckt":
         return (
-            "Die Wildspur liegt im Wald am Alten Seitenpfad, "
+            "Die Wildspur liegt im Wald am alten Seitenpfad, "
             "abseits des Pfads des Vergessens."
         )
     if rede:
@@ -57332,7 +57332,7 @@ def reise_umgebung_erkunden():
                 optionen.append(
                     (
                         "seitenpfad",
-                        "Dem Alten Seitenpfad folgen"
+                        "Dem alten Seitenpfad folgen"
                     )
                 )
 

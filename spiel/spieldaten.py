@@ -1008,7 +1008,7 @@ MENSCHEN = {
         "name": "Sera",
         "gebiet": "letzthafen",
         "ort": "Zum letzten Licht, Letzthafen",
-        "text": "Wirtin im Zum letzten Licht. Schreibt auf, was in einem Hafen sonst Streit gibt."
+        "text": "Wirtin im Gasthaus „Zum letzten Licht“. Schreibt auf, was in einem Hafen sonst Streit gibt."
     },
     "marek": {
         "name": "Marek",

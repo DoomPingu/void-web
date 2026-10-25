@@ -843,13 +843,11 @@ REISE_STRECKEN = {
                     ),
                     (
                         "Mit dem nächsten Windstoß erreicht dich "
-                        "der Geruch von Rauch und verbranntem Holz. "
-                        "Die Köhlerei kann nicht mehr weit sein."
+                        "der Geruch von Rauch und verbranntem Holz."
                     ),
                     (
-                        "Zwischen feuchtem Laub und Waldboden liegt "
-                        "plötzlich ein anderer Geruch in der Luft: "
-                        "Holzkohle und Rauch."
+                        "Zum Geruch von feuchtem Laub und Erde kommt "
+                        "Rauch von Holzkohle."
                     )
                 ]
             },
@@ -1328,8 +1326,8 @@ REISE_STRECKEN = {
 
                 6: [
                     (
-                        "Zwischen den Bäumen wird der Boden felsiger. An mehreren "
-                        "Stellen ist die Straße direkt in den grauen Stein "
+                        "Am Weg tritt grauer Fels hervor. An mehreren "
+                        "Stellen ist die Straße direkt in den Stein "
                         "geschlagen worden."
                     ),
                     (
@@ -1543,8 +1541,8 @@ REISE_STRECKEN = {
                     "Der Weg bleibt auf einem schmalen Rücken und folgt ihm nach Norden."
                 ),
                 (
-                    "Zwischen den Bäumen wird der Boden felsiger. An mehreren Stellen "
-                    "ist die Straße direkt in den grauen Stein geschlagen worden."
+                    "Am Weg tritt grauer Fels hervor. An mehreren Stellen "
+                    "ist die Straße direkt in den Stein geschlagen worden."
                 ),
                 (
                     "Der Wald öffnet sich um einen alten Rastplatz. Dahinter zieht der "
@@ -1603,8 +1601,8 @@ REISE_STRECKEN = {
                     "erkennst du bereits die Dächer Eichenruhs."
                 ),
                 (
-                    "Du erreichst wieder den nördlichen Ortsrand. Stimmen und "
-                    "vertraute Arbeitsgeräusche ersetzen den Wind der Höhen."
+                    "Du erreichst wieder den nördlichen Ortsrand. Stimmen "
+                    "ersetzen den Wind der Höhen."
                 )
             ]
         }
@@ -2053,7 +2051,7 @@ REISE_STRECKEN = {
                 ),
                 (
                     "Vor dir liegen die vertrauten Dächer Eichenruhs. "
-                    "Mit ihnen kehren Stimmen und Arbeitsgeräusche zurück."
+                    "Aus den Gassen kommen Stimmen herüber."
                 )
             ]
         }
@@ -2262,7 +2260,7 @@ REISE_STRECKEN = {
                 ),
 
                 "option_bekannt": (
-                    "Dem Alten Seitenpfad folgen"
+                    "Dem alten Seitenpfad folgen"
                 ),
 
                 "text": [
@@ -2279,7 +2277,7 @@ REISE_STRECKEN = {
                 "bekannt_text": [
                     (
                         "An der alten Weggabelung erkennst du wieder die flachen "
-                        "Rinnen des Alten Seitenpfads zwischen Farn und Randsteinen."
+                        "Rinnen des alten Seitenpfads zwischen Farn und Randsteinen."
                     )
                 ]
             },
@@ -2458,8 +2456,8 @@ REISE_STRECKEN = {
                     "dringen wieder einzelne Arbeitsgeräusche herüber."
                 ),
                 (
-                    "Zwischen kleinen Feldern führt der Weg zurück nach Eichenruh. "
-                    "Rauch steigt über den ersten Dächern auf."
+                    "Kleine Felder säumen den Weg nach Eichenruh. "
+                    "Über den ersten Dächern steigt Rauch auf."
                 ),
                 (
                     "Die vertrauten Häuser liegen wieder vor dir. Stimmen, Hämmern und "
