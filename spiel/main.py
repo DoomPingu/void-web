@@ -1143,6 +1143,54 @@ def himmel_berechnen(sekunden):
     return tageszeit, wetter
 
 
+def schlaf_moeglich():
+    # Geschlafen wird erst ab dem Abend; tagsüber ist es zu früh.
+    spielzeit_aktualisieren()
+
+    return spieler.get("tageszeit") in ("Abend", "Nacht")
+
+
+def schlafen_bis_morgen(einleitung, heilung=None):
+    # Schlafen springt bis zum Beginn des nächsten Morgens. Die Spielzeit
+    # (Statistik) bleibt unberührt, nur der Zeitversatz wächst; damit ändern
+    # sich auch Tageszeit und Wetter. heilung=None heilt vollständig.
+    gesamt = int(spieler.get("spielzeit", 0)) + int(spieler.get("zeit_versatz", 0))
+    rest = gesamt % TAG_DAUER
+    morgen = int(TAG_DAUER * 0.90)
+
+    if rest < morgen:
+        sprung = morgen - rest
+    else:
+        sprung = TAG_DAUER - rest + morgen
+
+    spieler["zeit_versatz"] = int(spieler.get("zeit_versatz", 0)) + sprung
+    spielzeit_aktualisieren()
+
+    if heilung is None:
+        spieler["lebenspunkte"] = 100
+    else:
+        spieler["lebenspunkte"] = min(100, spieler["lebenspunkte"] + heilung)
+
+    print()
+    text_ausgeben(einleitung)
+    text_ausgeben("Du schläfst tief und wachst auf, als es hell wird.")
+
+    zeile = himmel_zeile(
+        spieler.get("tageszeit", "Tag"),
+        spieler.get("wetter", "Klar")
+    )
+
+    if zeile:
+        text_ausgeben(zeile)
+
+    print()
+
+    if heilung is None:
+        print("Deine Lebenspunkte wurden vollständig wiederhergestellt.")
+    else:
+        print(f"Du hast dich erholt. Lebenspunkte: {spieler['lebenspunkte']}/100")
+
+
 def spielzeit_aktualisieren():
     # Zählt die Zeit seit der letzten Messung zum Spielstand dazu. Wird an
     # Eingaben, beim Speichern und in der Anzeige aufgerufen; lange Pausen
@@ -1168,6 +1216,7 @@ def spielzeit_aktualisieren():
     if spieler.get("name"):
         spieler["tageszeit"], spieler["wetter"] = himmel_berechnen(
             spieler.get("spielzeit", 0)
+            + spieler.get("zeit_versatz", 0)
         )
 
     return spieler.get("spielzeit", 0)
@@ -21754,7 +21803,11 @@ def spielerhaus():
         inventar()
 
     elif haus_auswahl == 5:
-        if spieler["lebenspunkte"] < 100:
+        if schlaf_moeglich():
+            schlafen_bis_morgen(
+                "Du legst dich in dein Bett und schläfst ein."
+            )
+        elif spieler["lebenspunkte"] < 100:
             print()
             print("Du legst dich in dein Bett und ruhst dich eine Weile aus.")
             print("Du fühlst dich wieder vollständig erholt.")
@@ -25887,6 +25940,13 @@ def gasthaus():
     ):
         optionen.append(("raeuchern", "Mara die Holzkohle zeigen"))
 
+    if not prolog_laeuft():
+        optionen.append(
+            (
+                "zimmer",
+                "Ein Zimmer nehmen (10 Gold)"
+            )
+        )
     optionen.append(
         (
             "verlassen",
@@ -25986,6 +26046,8 @@ def gasthaus():
 
     elif aktion == "proviant":
         mara_proviant_kaufen()
+    elif aktion == "zimmer":
+        gasthaus_zimmer()
 
     elif aktion == "verlassen":
         spieler[
@@ -25996,6 +26058,51 @@ def gasthaus():
             "Du verlässt das Gasthaus.",
             "Vor dir liegen wieder die Straßen von Eichenruh."
         )
+
+def gasthaus_zimmer():
+    preis = 10
+
+    ort_titel("Gasthaus")
+
+    if not schlaf_moeglich():
+        text_ausgeben(
+            "[Mara] Jetzt schon? Komm wieder, wenn es dunkel wird."
+        )
+        warte_auf_taste()
+        return
+
+    if spieler["gold"] < preis:
+        text_ausgeben(
+            f"[Mara] Ein Zimmer kostet {preis} Gold. Das hast du gerade nicht."
+        )
+        warte_auf_taste()
+        return
+
+    print(f"Ein Zimmer kostet {preis} Gold. Du hast {spieler['gold']} Gold.")
+    print()
+    print("1. Zimmer nehmen")
+    print("2. Zurück")
+
+    auswahl = eingabe_menu(
+        1,
+        2,
+        sonder_tasten=()
+    )
+
+    if auswahl == 2:
+        return
+
+    spieler["gold"] -= preis
+
+    schlafen_bis_morgen(
+        "Du zahlst Mara zehn Gold und steigst die schmale Treppe zu deinem Zimmer hinauf."
+    )
+    print()
+    text_ausgeben(
+        "[Mara] Frühstück steht in der Gaststube, wenn du magst."
+    )
+    warte_auf_taste()
+
 
 def bjorn_rezeptgruppe(titel, rezepte):
     while True:
@@ -57483,6 +57590,126 @@ def reise_umgebung_erkunden():
             wald_abzweigung()
 
 
+def nacht_ueberfall():
+    # Mitten in der Nacht schleicht etwas ums Lager. Ablauf wie bei einer
+    # Reisebegegnung; wer verliert, ist am Ende des Spiels.
+    ort_titel("Lagerfeuer - Überfall")
+    text_ausgeben(
+        "Mitten in der Nacht knackt es im Unterholz. "
+        "Das Feuer ist fast heruntergebrannt."
+    )
+    print()
+    text_ausgeben(
+        "Etwas schleicht um das Lager."
+    )
+    print()
+
+    gegner_auswahl = ["Bandit", "Wolf"]
+
+    if level_fortschritt(spieler)["level"] >= 2:
+        gegner_auswahl.append("Keiler")
+
+    reise_daten = spieler.get("reise")
+
+    kampf_ergebnis = kampf_starten(
+        lebenspunkte=spieler["lebenspunkte"],
+        heiltraenke=spieler["heiltränke"],
+        waffe=spieler["waffe"],
+        gegner_typ=random.choice(gegner_auswahl),
+        kampf_situation=(
+            kampf_situation_reise(reise_daten)
+            if isinstance(reise_daten, dict)
+            else None
+        )
+    )
+
+    spieler["lebenspunkte"] = kampf_ergebnis["lebenspunkte"]
+    spieler["heiltränke"] = kampf_ergebnis["heiltraenke"]
+
+    if kampf_ergebnis.get("gewonnen", False):
+        spieler["besiegte_gegner"] += 1
+        gegner_typ = kampf_ergebnis.get("gegner_typ")
+
+        print()
+        print("-" * 34)
+        design_text(
+            "KAMPF GEWONNEN",
+            design="positiv",
+            art="ereignis"
+        )
+        print()
+        spieler["gold"] = kampf_beute_vergeben(
+            gegner_typ,
+            spieler["gold"],
+            ohne_items=kampf_ergebnis.get("gegner_verschont", False)
+        )
+        print(f"Lebenspunkte: {spieler['lebenspunkte']}")
+        print("-" * 34)
+        warte_auf_taste("Zurück ans Feuer")
+    elif kampf_ergebnis.get("besiegt", False):
+        print()
+        design_text(
+            "Game Over",
+            design="gefahr",
+            art="menue"
+        )
+        spieler["spiel_laeuft"] = False
+    else:
+        warte_auf_taste("Zurück ans Feuer")
+
+
+def lagerfeuer_nacht():
+    # Die Nacht am Feuer: 4 Holz, 50 Lebenspunkte, Schlaf bis zum Morgen.
+    # Mit einer Wahrscheinlichkeit von 20 % kommt vorher ein Überfall.
+    # Gibt True zurück, wenn die Rast damit zu Ende ist.
+    holz_kosten = 4
+
+    ort_titel("Lagerfeuer")
+
+    if not schlaf_moeglich():
+        print("Es ist noch zu früh zum Schlafen.")
+        warte_auf_taste()
+        return False
+
+    print(f"Für die Nacht am Feuer brauchst du {holz_kosten} Holz.")
+    print(f"Du besitzt: {item_anzahl('holz')} Holz")
+    print()
+
+    if not item_besitzt("holz", holz_kosten):
+        print("Du hast nicht genug trockenes Holz.")
+        warte_auf_taste()
+        return False
+
+    print("1. Die Nacht am Feuer verbringen")
+    print("2. Zurück")
+
+    auswahl = eingabe_menu(
+        1,
+        2,
+        sonder_tasten=()
+    )
+
+    if auswahl == 2:
+        return False
+
+    item_entfernen("holz", holz_kosten)
+
+    if spieler.get("waffe") and random.random() < 0.2:
+        nacht_ueberfall()
+
+        if not spieler.get("spiel_laeuft", True):
+            return True
+
+    ort_titel("Lagerfeuer")
+    schlafen_bis_morgen(
+        "Du schichtest das Holz auf, wickelst dich in deinen Mantel und schläfst am Feuer ein.",
+        heilung=50 + talent_bonus(spieler, "heilung_bonus")
+    )
+    warte_auf_taste("Weiterreisen")
+
+    return True
+
+
 def reise_rasten():
     while True:
         ort_titel(
@@ -57503,11 +57730,12 @@ def reise_rasten():
 
         print()
         print("1. Lagerfeuer errichten")
-        print("2. Zurück")
+        print("2. Die Nacht am Feuer verbringen")
+        print("3. Zurück")
 
         auswahl = eingabe_menu(
             1,
-            2,
+            3,
             sonder_tasten=()
         )
 
@@ -57515,6 +57743,10 @@ def reise_rasten():
             lagerfeuer()
 
         elif auswahl == 2:
+            if lagerfeuer_nacht():
+                return
+
+        elif auswahl == 3:
             return
 
 
