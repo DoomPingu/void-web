@@ -37,6 +37,7 @@ const Klang = (() => {
     for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; b = (b + 0.02 * w) / 1.02; d[i] = b * 3.5; } // braunes Rauschen
     if (szeneName) setzen(szeneName);
     if (kampfWunsch) kampfStart();
+    himmelAnwenden();
   }
 
   // ---- Bausteine ----
@@ -208,6 +209,54 @@ const Klang = (() => {
   }
   function kampfEnde() { if (kampfNode) { kampfNode.stop(); kampfNode = null; } }
 
+  // Wetter- und Nachtschicht über der Ortsstimmung (live erzeugt): Regen, Nebel, Grillen. Drinnen klingt alles gedämpft.
+  let himmelWunsch = null, himmelSchicht = null;
+  function himmelBauen(art, drinnen) {
+    const g = ctx.createGain(); g.gain.value = 0; g.connect(master);
+    let ziel = g;
+    if (drinnen) { const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 450; lp.connect(g); ziel = lp; }
+    const stopper = [];
+    if (art.includes("regen")) {
+      const a = rausch("highpass", 1600, 0.4, 0.07); a.aus.connect(ziel); lfo(0.13, 0.015, a.gain.gain);
+      const b = rausch("bandpass", 4200, 0.8, 0.05); b.aus.connect(ziel);
+      stopper.push(() => { a.quelle.stop(); b.quelle.stop(); });
+    }
+    if (art.includes("nebel")) {
+      const n = rausch("lowpass", 260, 0.3, 0.07); n.aus.connect(ziel); lfo(0.05, 0.03, n.gain.gain);
+      stopper.push(() => n.quelle.stop());
+    }
+    if (art.includes("nacht") && !art.includes("regen") && !drinnen) {
+      stopper.push(zufall(0.5, 1.8, () => {
+        const f = 4200 + Math.random() * 400;
+        for (let i = 0; i < 3; i++) {
+          const t = ctx.currentTime + i * 0.09;
+          const o = ctx.createOscillator(); o.type = "sine"; o.frequency.value = f;
+          const e = ctx.createGain(); e.gain.setValueAtTime(0, t); e.gain.linearRampToValueAtTime(0.02, t + 0.01); e.gain.linearRampToValueAtTime(0, t + 0.05);
+          o.connect(e); e.connect(ziel); o.start(t); o.stop(t + 0.07);
+        }
+      }));
+    }
+    g.gain.linearRampToValueAtTime(1, ctx.currentTime + 2.5);
+    return { gain: g, raeumen: () => stopper.forEach((s) => sicher(s)) };
+  }
+  function himmelAnwenden() {
+    if (!ctx || !himmelWunsch) return;
+    const [zeit, wetter, drinnen] = himmelWunsch;
+    const art = [zeit === "nacht" ? "nacht" : "", wetter === "regen" || wetter === "nebel" ? wetter : ""].filter(Boolean).join(" ");
+    const schluessel = art ? art + (drinnen ? " drinnen" : "") : "";
+    if ((himmelSchicht ? himmelSchicht.schluessel : "") === schluessel) return;
+    const alt = himmelSchicht;
+    himmelSchicht = null;
+    if (alt) {
+      const t = ctx.currentTime;
+      alt.gain.gain.cancelScheduledValues(t);
+      alt.gain.gain.setValueAtTime(alt.gain.gain.value, t);
+      alt.gain.gain.linearRampToValueAtTime(0, t + 2);
+      setTimeout(() => sicher(() => alt.raeumen()), 2300);
+    }
+    if (schluessel) { himmelSchicht = sicher(() => himmelBauen(art, drinnen)); if (himmelSchicht) himmelSchicht.schluessel = schluessel; }
+  }
+
   // Kurze Effekte (live erzeugt, keine Dateien): Treffer, Schaden, Level-up usw.
   function ton(freq, dauer, typ, pegel, start = 0, bis = 0) {
     const t = ctx.currentTime + start;
@@ -251,6 +300,11 @@ const Klang = (() => {
       if (an && ctx.state === "suspended") ctx.resume(); else if (!an && ctx.state === "running") ctx.suspend();
     },
     ort(name) { setzen(name); },
+    himmel(zeit, wetter, drinnen) {
+      himmelWunsch = [String(zeit || "").toLowerCase(), String(wetter || "").toLowerCase(), !!drinnen];
+      himmelAnwenden();
+    },
+    himmelArt() { return himmelSchicht ? himmelSchicht.schluessel : ""; },
     effekt(name) {
       if (!ctx || !an || ctx.state !== "running" || !EFFEKTE[name]) return;
       sicher(() => EFFEKTE[name]());

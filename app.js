@@ -206,6 +206,7 @@ function himmelTonen(d) {
   const st = document.body.style;
   st.setProperty("--ton-zeit", (!drin && TON_ZEIT[String(d.tageszeit || "").toLowerCase()]) || "brightness(1)");
   st.setProperty("--ton-wetter", (!drin && TON_WETTER[String(d.wetter || "").toLowerCase()]) || "brightness(1)");
+  if (typeof Klang !== "undefined" && Klang.himmel) Klang.himmel(d.tageszeit, d.wetter, drin);
 }
 let statistik = null;
 function hudZeigen(d) {
@@ -898,6 +899,10 @@ document.getElementById("einfuehrungZu").addEventListener("click", introSchliess
 
 // "Was ist neu": einmal nach jedem Update, falls für den Stand ein Text hinterlegt ist.
 const NEUES = {
+  "2026-10-25-28": [
+    "<b>Wetterklang:</b> Bei Regen rauscht es, bei Nebel wird es dumpf, nachts zirpen Grillen. Drinnen klingt alles gedämpft. Die Schicht liegt über der Ortsmusik und folgt dem Ton-Schalter und dem Musikregler.",
+    "<b>Neues Bild:</b> Der Bossraum hat jetzt einen eigenen Hintergrund."
+  ],
   "2026-10-25-26": [
     "<b>Stimmung im Text:</b> Unter dem Ortsnamen steht draußen eine Zeile zu Abend, Nacht, Regen oder Nebel.",
     "<b>Nachts und im Nebel</b> begegnest du auf Reisen etwas häufiger Gegnern.",
@@ -1347,7 +1352,7 @@ function punktSetzen() {
   document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
 }
 // Version, Offline-Speicher und Update-Hinweis.
-const APP_STAND = "2026-10-25-27";
+const APP_STAND = "2026-10-25-28";
 const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.ogg","klang/feuer.ogg","klang/hoehle.ogg","klang/intro.ogg","klang/kampf.ogg","klang/kueste.ogg","klang/markt.m4a","klang/taverne.ogg","klang/wald.ogg","klang/wind.ogg","klang/zimmer.ogg"];
 async function offlineListe() {
   let spiel = [], medien = OFFLINE_DATEIEN;
