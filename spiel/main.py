@@ -1185,6 +1185,61 @@ def spielzeit_text(sekunden=None):
     return f"{minuten // 60} Std {minuten % 60} Min"
 
 
+HIMMEL_ORTE = (
+    "Eichenruh", "Wald", "Köhlerei", "Marktplatz", "Verlassenes Dorf"
+)
+
+
+def himmel_zeile(zeit, wetter):
+    # Kurze Stimmungszeile für Orte im Freien; bei Tag und klarem Wetter
+    # (und bei bloßer Bewölkung) steht nichts da.
+    if wetter == "Regen":
+        if zeit == "Nacht":
+            return "Es ist Nacht und es regnet."
+        return "Es regnet. Der Boden ist nass."
+
+    if wetter == "Nebel":
+        if zeit == "Nacht":
+            return "Es ist Nacht, und Nebel liegt dicht über dem Land."
+        return "Nebel liegt über dem Land."
+
+    if zeit == "Nacht":
+        return "Es ist Nacht. Du siehst nur wenige Schritte weit."
+
+    if zeit == "Abend":
+        return "Der Abend kommt, das Licht wird flach."
+
+    if zeit == "Morgen":
+        return "Es ist früh am Morgen und kühl."
+
+    return None
+
+
+def himmel_zeile_anzeigen(titel):
+    if "spieler" not in globals() or not isinstance(spieler, dict):
+        return
+
+    ort = str(titel).split(" - ")[0].split(" am ")[0].strip()
+
+    if ort not in HIMMEL_ORTE:
+        return
+
+    # Zeit nachführen, damit auch die erste Seite nach dem Laden stimmt.
+    spielzeit_aktualisieren()
+
+    zeile = himmel_zeile(
+        spieler.get("tageszeit", "Tag"),
+        spieler.get("wetter", "Klar")
+    )
+
+    if zeile:
+        text_ausgeben(
+            zeile,
+            art="menue"
+        )
+        print()
+
+
 def ort_titel(name):
     global TEXT_SKIP_AKTIV
     TEXT_SKIP_AKTIV = False
@@ -1212,6 +1267,8 @@ def ort_titel(name):
 
     print("=" * 34)
     print()
+
+    himmel_zeile_anzeigen(name)
 
     rueckkehr_hinweis_meldung_anzeigen()
 
@@ -4800,6 +4857,15 @@ def reise_kampfbegegnung_pruefen(
 
         if isinstance(garantie_nach, int) and garantie_nach > 0:
             garantie_nach = -(-garantie_nach * 4 // 3)
+
+    # Nachts und im Nebel sind Begegnungen häufiger. Garantie, Ruhezeit
+    # und Höchstzahl pro Reise bleiben unverändert.
+    if isinstance(chance, (int, float)):
+        if spieler.get("tageszeit") == "Nacht":
+            chance = chance * 1.5
+
+        if spieler.get("wetter") == "Nebel":
+            chance = chance * 1.25
 
     zufall_trifft = (
         isinstance(
