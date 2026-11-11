@@ -22,6 +22,14 @@ KLASSEN = {
 }
 
 
+# WM-B: Eine Magier-Technik gibt es erst nach Selenes passender Übung (Lernquelle).
+MAGIER_UEBUNGEN = {
+    "lauschen": "wm_lauschen_uebung",
+    "daempfen": "wm_kontrolle_uebung",
+    "verankern": "wm_anker_uebung"
+}
+
+
 def magier_resonanzwerte(spieler_daten):
     geist = klassen_eigener_wert(spieler_daten, "geist")
     uebersinnliches = klassen_eigener_wert(spieler_daten, "uebersinnliches")
@@ -30,10 +38,32 @@ def magier_resonanzwerte(spieler_daten):
         and geist is not None and geist >= 2
         and uebersinnliches is not None and uebersinnliches >= 1
     )
+    verfassungen = spieler_daten.get("verfassungen", {}) if isinstance(spieler_daten, dict) else {}
+    lernquellen = spieler_daten.get("lernquellen", {}) if isinstance(spieler_daten, dict) else {}
+    if not isinstance(verfassungen, dict):
+        verfassungen = {}
+    if not isinstance(lernquellen, dict):
+        lernquellen = {}
+
+    def stufe(verfassung_id):
+        wert = verfassungen.get(verfassung_id, 0)
+        return min(3, wert) if gelernt and type(wert) is int and wert > 0 else 0
+
+    def geuebt(technik):
+        nutzungen = lernquellen.get(MAGIER_UEBUNGEN[technik], 0)
+        return gelernt and type(nutzungen) is int and nutzungen >= 1
+
     return {
         "magier_resonanz_gelernt": gelernt,
         "magier_geist": geist if gelernt else 0,
-        "magier_uebersinnliches": uebersinnliches if gelernt else 0
+        "magier_uebersinnliches": uebersinnliches if gelernt else 0,
+        "magier_resonanz_stufe": stufe("resonanz"),
+        "magier_sensibilitaet": stufe("sensibilitaet"),
+        "magier_kontrolle": stufe("kontrolle"),
+        "magier_anker": stufe("anker"),
+        "magier_lauschen_gelernt": geuebt("lauschen") and stufe("sensibilitaet") >= 1,
+        "magier_daempfen_gelernt": geuebt("daempfen") and stufe("kontrolle") >= 1,
+        "magier_verankern_gelernt": geuebt("verankern") and stufe("anker") >= 1
     }
 
 

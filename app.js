@@ -71,6 +71,10 @@ function menueKlang(zeilen) {
 }
 // Fehlt das Bild eines Ortes, zeigt ein Farbverlauf nach Gebiet statt Schwarz die Stimmung an.
 const GEBIETE = [
+  // Kapitel 7–9 (noch ohne eigenes Bild): Versunkene Chronik, Archiv der Schatten, Brunnfeld.
+  [/chronik/, ["#1f2229", "#0b0c10"]],
+  [/archiv_schatten/, ["#1a1b22", "#060609"]],
+  [/brunnfeld/, ["#1f2617", "#0b0f08"]],
   [/koehler|brand|boss|asche/, ["#2b1a14", "#100908"]],
   [/wald|bach|furt|unterholz|quell|lichtung|seitenpfad|wildspur|felshang|felsspalte|steinstufen|lagerplatz|wegmarke|wegstein|versunkene|schlamm|pfad|eingang/, ["#16261a", "#0a120c"]],
   [/oros|archiv|halle|vorhof|wachraum|schreibstube|keller|kammer|station|lehr/, ["#1d2430", "#0b0e14"]],
@@ -221,7 +225,8 @@ function hudZeigen(d) {
       '<div class="balken" id="hp"><i></i><span></span></div><div class="balken" id="xp"><i></i><span></span></div>';
   }
   const ORT_ANZEIGE = { spieler_zimmer: "Dein Haus", alte_schmiede: "Alte Schmiede", verlassenes_dorf: "Verlassenes Dorf",
-    lagerkeller: "Alter Lagerkeller", tiefen_messgang: "TIEFEN – Messgang", oros_zentrale_halle: "Oros – Zentrale Halle" };
+    lagerkeller: "Alter Lagerkeller", tiefen_messgang: "TIEFEN – Messgang", oros_zentrale_halle: "Oros – Zentrale Halle",
+    versunkene_chronik: "Versunkene Chronik", archiv_schatten: "Archiv der Schatten", brunnfeld: "Brunnfeld" };
   const ort = ORT_ANZEIGE[d.ort] || String(d.ort).replace(/_/g, " ").replace(/(^|\s)\S/g, (c) => c.toUpperCase());
   const himmel = himmelSymbol(d.tageszeit, d.wetter);
   hudEl.querySelector(".ort").textContent = (himmel ? himmel + " " : "") + d.name + " · " + ort;
@@ -899,6 +904,12 @@ document.getElementById("einfuehrungZu").addEventListener("click", introSchliess
 
 // "Was ist neu": einmal nach jedem Update, falls für den Stand ein Text hinterlegt ist.
 const NEUES = {
+  "2026-11-11-30": [
+    "<b>Drei neue Kapitel:</b> „Die versunkene Chronik“ über die Nordstraße, „Das Archiv der Schatten“ über den Bleichen Pfad und „Der Weg nach Hause“ über den Läuferpfad nach Brunnfeld.",
+    "<b>Neue Orte</b> haben einen eigenen Farbton und Klang, bis es Bilder dafür gibt.",
+    "<b>Dazu:</b> Kirans Nebenquest in Oros, neue Gegner, die Schieferklinge und Handel in Brunnfeld.",
+    "<b>Klassen:</b> Magier lernen bei Selene drei Techniken für den Kampf. Neu sind die Hybride Runenschmied und Fährtensteller. An einzelnen Stellen der Geschichte öffnet deine Klasse einen eigenen Weg."
+  ],
   "2026-10-25-29": [
     "<b>Schlafen bis zum Morgen:</b> Ab dem Abend kannst du im Bett zu Hause, in einem Zimmer im Gasthaus (10 Gold) oder auf Reisen am Lagerfeuer (4 Holz, mit Überfallrisiko) die Nacht verschlafen. Danach ist es Morgen, und das Wetter ist ein anderes.",
     "<b>Tageszeit und Wetter</b> kommen jetzt direkt aus dem Spiel."
@@ -1356,7 +1367,7 @@ function punktSetzen() {
   document.getElementById("punkt").classList.toggle("an", hatStand && alt > 14);
 }
 // Version, Offline-Speicher und Update-Hinweis.
-const APP_STAND = "2026-10-25-29";
+const APP_STAND = "2026-11-11-30";
 const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.ogg","klang/feuer.ogg","klang/hoehle.ogg","klang/intro.ogg","klang/kampf.ogg","klang/kueste.ogg","klang/markt.m4a","klang/taverne.ogg","klang/wald.ogg","klang/wind.ogg","klang/zimmer.ogg"];
 async function offlineListe() {
   let spiel = [], medien = OFFLINE_DATEIEN;

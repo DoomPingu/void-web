@@ -3,12 +3,16 @@ from beruf_system import (
     schmied_waffenpflege_gelernt,
     schmied_waffenpflege_kampfbonus
 )
-from klassen_system import grundklasse_holen
+from klassen_system import grundklasse_holen, magier_resonanzwerte
 from glutkrieger_system import (
     GLUTKRIEGER_GERICHTE,
     glutkrieger_ausbildung_moeglich,
     glutkrieger_portion_holen
 )
+
+
+# Alle Hybridwege; jeder hat höchstens eine offene Probe ("<weg>_probe").
+HYBRIDWEGE = ("bestienjaeger", "stahlkrieger", "glutkrieger", "runenschmied", "faehrtensteller")
 
 
 def _hybridstand(spieler_daten):
@@ -20,11 +24,11 @@ def _hybridstand(spieler_daten):
     gelernt = daten.get("freigeschaltet", [])
     if (not isinstance(gelernt, list)
             or not all(isinstance(wert, str) for wert in gelernt)
-            or daten.get("aktiv") not in (None, "bestienjaeger", "stahlkrieger", "glutkrieger")
+            or daten.get("aktiv") not in (None,) + HYBRIDWEGE
             or any(type(daten.get(weg + "_probe", False)) is not bool
-                   for weg in ("bestienjaeger", "stahlkrieger", "glutkrieger"))
+                   for weg in HYBRIDWEGE)
             or sum(daten.get(weg + "_probe", False)
-                   for weg in ("bestienjaeger", "stahlkrieger", "glutkrieger")) > 1
+                   for weg in HYBRIDWEGE) > 1
             or ("glutkrieger_portion" in daten
                 and (not isinstance(daten["glutkrieger_portion"], str)
                      or daten["glutkrieger_portion"] not in GLUTKRIEGER_GERICHTE))):
@@ -36,8 +40,14 @@ def hybrid_probe_offen(spieler_daten, ausser=None):
     daten = _hybridstand(spieler_daten)
     return daten is not None and any(
         daten.get(weg + "_probe", False)
-        for weg in ("bestienjaeger", "stahlkrieger", "glutkrieger") if weg != ausser
+        for weg in HYBRIDWEGE if weg != ausser
     )
+
+
+def hybrid_probe_bestanden(spieler_daten, weg):
+    # Gespeicherte Leistung, unabhängig von aktueller Grundklasse und Fusion.
+    daten = _hybridstand(spieler_daten)
+    return daten is not None and weg in daten.get("freigeschaltet", [])
 
 
 def bestienjaeger_voraussetzungen(spieler_daten):
@@ -85,11 +95,16 @@ def hybrid_aktiv_holen(spieler_daten):
         return "stahlkrieger"
     if daten.get("aktiv") == "glutkrieger" and glutkrieger_freigeschaltet(spieler_daten):
         return "glutkrieger"
+    if daten.get("aktiv") == "runenschmied" and runenschmied_freigeschaltet(spieler_daten):
+        return "runenschmied"
+    if daten.get("aktiv") == "faehrtensteller" and faehrtensteller_freigeschaltet(spieler_daten):
+        return "faehrtensteller"
     return None
 
 
 def hybrid_name_holen(spieler_daten):
-    return {"bestienjaeger": "Bestienjäger", "stahlkrieger": "Stahlkrieger", "glutkrieger": "Glutkrieger"}.get(
+    return {"bestienjaeger": "Bestienjäger", "stahlkrieger": "Stahlkrieger", "glutkrieger": "Glutkrieger",
+            "runenschmied": "Runenschmied", "faehrtensteller": "Fährtensteller"}.get(
         hybrid_aktiv_holen(spieler_daten)
     )
 
@@ -251,10 +266,202 @@ def glutkrieger_probe_auswerten(spieler_daten, ergebnis):
     return bestanden
 
 
+# WM-C2: Runenschmied (Magier + Schmied). Runen gehören zur Waffe (Feld "rune").
+RUNEN = {"klang": "Klangrune", "ruhe": "Ruherune", "halt": "Haltrune"}
+# Verfassung, die eine Rune zum Setzen braucht (Schlüssel aus magier_resonanzwerte).
+RUNEN_VERFASSUNG = {"klang": "magier_resonanz_stufe", "ruhe": "magier_kontrolle", "halt": "magier_anker"}
+RUNE_KOSTEN = {"schieferplatte": 2, "gold": 10}
+
+
+def runenschmied_voraussetzungen(spieler_daten):
+    return (
+        isinstance(spieler_daten, dict)
+        and grundklasse_holen(spieler_daten) == "magier"
+        and schmied_waffenpflege_gelernt(spieler_daten)
+        and magier_resonanzwerte(spieler_daten)["magier_resonanz_stufe"] >= 1
+        and _hybridstand(spieler_daten) is not None
+    )
+
+
+def runenschmied_freigeschaltet(spieler_daten):
+    daten = _hybridstand(spieler_daten)
+    return (
+        runenschmied_voraussetzungen(spieler_daten)
+        and "runenschmied" in daten.get("freigeschaltet", [])
+    )
+
+
+def rune_setzbar(spieler_daten, rune):
+    # Setzen braucht den freigeschalteten (nicht aktiven) Runenschmied und die passende Verfassung >= 1.
+    return (
+        rune in RUNEN
+        and runenschmied_freigeschaltet(spieler_daten)
+        and magier_resonanzwerte(spieler_daten)[RUNEN_VERFASSUNG[rune]] >= 1
+    )
+
+
+def runenschmied_probe_starten(spieler_daten, *, bestaetigt=False):
+    # Die ausgerüstete Waffe muss schon die Klangrune tragen (Übungsrune oder vorhandene).
+    waffe = spieler_daten.get("waffe") if isinstance(spieler_daten, dict) else None
+    if (bestaetigt is not True or not runenschmied_voraussetzungen(spieler_daten)
+            or runenschmied_freigeschaltet(spieler_daten)
+            or hybrid_probe_offen(spieler_daten)
+            or not isinstance(waffe, dict) or waffe.get("rune") != "klang"):
+        return False
+    neuer_stand = dict(_hybridstand(spieler_daten))
+    neuer_stand["runenschmied_probe"] = True
+    spieler_daten["hybrid"] = neuer_stand
+    return True
+
+
+def runenschmied_probe_abbrechen(spieler_daten):
+    # Auch ohne erfüllte Voraussetzungen möglich, damit eine offene Probe nie festhängt.
+    daten = _hybridstand(spieler_daten)
+    if daten is None or not daten.get("runenschmied_probe", False):
+        return False
+    neuer_stand = dict(daten)
+    neuer_stand["runenschmied_probe"] = False
+    spieler_daten["hybrid"] = neuer_stand
+    return True
+
+
+def runenschmied_kampfwerte(spieler_daten):
+    daten = _hybridstand(spieler_daten)
+    pruefung = runenschmied_voraussetzungen(spieler_daten) and daten.get("runenschmied_probe", False)
+    aktiv = hybrid_aktiv_holen(spieler_daten) == "runenschmied"
+    return {
+        # Für Rune wecken: aktiver Hybrid bei Grundklasse Magier, keine andere Probe offen.
+        "runenschmied_gelernt": aktiv and not hybrid_probe_offen(spieler_daten, "runenschmied"),
+        "runenschmied_pruefung": pruefung
+    }
+
+
+def runenschmied_probe_auswerten(spieler_daten, ergebnis):
+    # Nicht bestanden: Die Probe bleibt offen; der nächste Kampf ist der nächste Versuch.
+    if not runenschmied_voraussetzungen(spieler_daten):
+        return False
+    daten = _hybridstand(spieler_daten)
+    if not daten.get("runenschmied_probe", False) or not isinstance(ergebnis, dict):
+        return False
+    bestanden = (
+        ergebnis.get("gewonnen") is True
+        and ergebnis.get("besiegt") is False
+        and ergebnis.get("geflohen") is False
+        and "klang" in (ergebnis.get("rune_gewirkt") or [])
+    )
+    if not bestanden:
+        return False
+    neuer_stand = dict(daten)
+    neuer_stand["runenschmied_probe"] = False
+    if "runenschmied" not in daten.get("freigeschaltet", []):
+        neuer_stand["freigeschaltet"] = daten.get("freigeschaltet", []) + ["runenschmied"]
+    spieler_daten["hybrid"] = neuer_stand
+    return True
+
+
+# WM-D2: Fährtensteller (Späher + Jäger). Lehrerin Rika, Schlüssel "rika_faehrten".
+FAEHRTEN_PRUEFGEGNER = ("Wolf", "Keiler")
+
+
+def faehrtensteller_voraussetzungen(spieler_daten):
+    return (
+        isinstance(spieler_daten, dict)
+        and spieler_daten.get("prolog_status") == "prolog_abgeschlossen"
+        and grundklasse_holen(spieler_daten) == "spaeher"
+        and jaeger_beuteversorgung_gelernt(spieler_daten)
+        and _hybridstand(spieler_daten) is not None
+    )
+
+
+def faehrtensteller_freigeschaltet(spieler_daten):
+    daten = _hybridstand(spieler_daten)
+    return (
+        faehrtensteller_voraussetzungen(spieler_daten)
+        and "faehrtensteller" in daten.get("freigeschaltet", [])
+    )
+
+
+def faehrtensteller_probe_offen(spieler_daten):
+    daten = _hybridstand(spieler_daten)
+    return daten is not None and daten.get("faehrtensteller_probe", False) is True
+
+
+def faehrtensteller_aktiv(spieler_daten):
+    # Falle, Hinterhalt und Fährtenlesen: aktiver Fährtensteller, keine andere Probe offen.
+    return (hybrid_aktiv_holen(spieler_daten) == "faehrtensteller"
+            and not hybrid_probe_offen(spieler_daten, "faehrtensteller"))
+
+
+def faehrtensteller_probe_starten(spieler_daten, *, bestaetigt=False):
+    if (bestaetigt is not True or not faehrtensteller_voraussetzungen(spieler_daten)
+            or faehrtensteller_freigeschaltet(spieler_daten)
+            or hybrid_probe_offen(spieler_daten)):
+        return False
+    neuer_stand = dict(_hybridstand(spieler_daten))
+    neuer_stand["faehrtensteller_probe"] = True
+    spieler_daten["hybrid"] = neuer_stand
+    return True
+
+
+def faehrtensteller_probe_abbrechen(spieler_daten):
+    # Auch ohne erfüllte Voraussetzungen möglich, damit eine offene Probe nie festhängt.
+    if not faehrtensteller_probe_offen(spieler_daten):
+        return False
+    neuer_stand = dict(_hybridstand(spieler_daten))
+    neuer_stand["faehrtensteller_probe"] = False
+    spieler_daten["hybrid"] = neuer_stand
+    return True
+
+
+def faehrtensteller_kampfwerte(spieler_daten, gegner_typ, situation):
+    # Prüfungskampf: offene Probe, Wolf oder Keiler auf der Wildspur (auch vor der Freischaltung).
+    pruefung = (
+        faehrtensteller_voraussetzungen(spieler_daten)
+        and faehrtensteller_probe_offen(spieler_daten)
+        and gegner_typ in FAEHRTEN_PRUEFGEGNER
+        and isinstance(situation, dict)
+        and situation.get("gebiet") == "Wald"
+        and situation.get("umgebung") == "Wildspur"
+    )
+    return {
+        "faehrtensteller_gelernt": faehrtensteller_aktiv(spieler_daten),
+        "faehrtensteller_pruefung": pruefung
+    }
+
+
+def faehrtensteller_probe_auswerten(spieler_daten, ergebnis):
+    # Ein Kampf zählt für sich; Fortschritte aus mehreren Kämpfen werden nicht zusammengesetzt.
+    # Nur "bestanden" schaltet frei; sonst bleibt die Probe offen. None: keine Auswertung.
+    if (not faehrtensteller_voraussetzungen(spieler_daten)
+            or not faehrtensteller_probe_offen(spieler_daten)
+            or not isinstance(ergebnis, dict)):
+        return None
+    if ergebnis.get("faehrten_entdeckt") is not True:
+        return "nicht_bemerkt"
+    if not (ergebnis.get("gewonnen") is True
+            and ergebnis.get("besiegt") is False
+            and ergebnis.get("geflohen") is False
+            and ergebnis.get("gegner_typ") in FAEHRTEN_PRUEFGEGNER):
+        return "misslungen"
+    if ergebnis.get("faehrten_vorbereitung") not in ("falle", "hinterhalt"):
+        return "ohne_vorbereitung"
+    if ergebnis.get("faehrten_luecke_genutzt") is not True:
+        return "ohne_luecke"
+    daten = _hybridstand(spieler_daten)
+    neuer_stand = dict(daten)
+    neuer_stand["faehrtensteller_probe"] = False
+    if "faehrtensteller" not in daten.get("freigeschaltet", []):
+        neuer_stand["freigeschaltet"] = daten.get("freigeschaltet", []) + ["faehrtensteller"]
+    spieler_daten["hybrid"] = neuer_stand
+    return "bestanden"
+
+
 def hybrid_beim_lehrer_waehlen(spieler_daten, hybrid_id, lehrer, *, bestaetigt=False):
     wege = {"rika": ("bestienjaeger", bestienjaeger_freigeschaltet),
             "bjorn": ("stahlkrieger", stahlkrieger_freigeschaltet),
-            "mara": ("glutkrieger", glutkrieger_freigeschaltet)}
+            "mara": ("glutkrieger", glutkrieger_freigeschaltet),
+            "bjorn_runen": ("runenschmied", runenschmied_freigeschaltet),
+            "rika_faehrten": ("faehrtensteller", faehrtensteller_freigeschaltet)}
     if bestaetigt is not True or not isinstance(lehrer, str) or lehrer not in wege:
         return False
     weg, freigeschaltet = wege[lehrer]

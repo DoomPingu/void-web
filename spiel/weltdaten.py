@@ -216,6 +216,26 @@ WEGE = {
         "gebiet": "Nordweg"
     },
 
+    "tiefer_ring": {
+        "name": "Tiefer Ring",
+        "gebiet": "Alte Straße"
+    },
+
+    "nordstrasse": {
+        "name": "Nordstraße",
+        "gebiet": "Nordweg"
+    },
+
+    "bleicher_pfad": {
+        "name": "Bleicher Pfad",
+        "gebiet": "Hochebene"
+    },
+
+    "laeuferpfad": {
+        "name": "Läuferpfad",
+        "gebiet": "Wald"
+    },
+
     # Nur für die Routenkenntnis (Schnellreise); nie als "entdeckter Weg".
     "waldweg_koehlerei": {
         "name": "Waldweg zur Köhlerei",
@@ -2463,6 +2483,596 @@ REISE_STRECKEN = {
                     "Die vertrauten Häuser liegen wieder vor dir. Stimmen, Hämmern und "
                     "das Klappern vom Marktplatz ersetzen die Stille des alten Weges."
                 )
+            ]
+        }
+    },
+
+    frozenset(
+        (
+            "verlassenes_dorf",
+            "versunkene_chronik"
+        )
+    ): {
+        "name": "Tiefer Ring",
+        "auf_text": "auf dem Tiefen Ring",
+        "weg_id": "tiefer_ring",
+        "routenkenntnis_automatisch": True,
+        "schnellreise": True,
+        "variable_schritt_texte": {
+            "verlassenes_dorf>versunkene_chronik": {
+                3: [
+                    (
+                        "Die Straße windet sich in einem weiten Bogen um die "
+                        "Senke. Unter dir siehst du die Dächer der Chronik von "
+                        "einer Seite, die du noch nicht kanntest."
+                    ),
+                    (
+                        "Der Bogen ist so gleichmäßig, als hätte jemand ihn mit "
+                        "einer Schnur abgesteckt. Unter dir liegen die Dächer der "
+                        "Chronik."
+                    ),
+                    (
+                        "Auf halber Höhe hält eine niedrige Mauer den Hang zurück. "
+                        "Unter dir, im Grund der Senke, das Portal."
+                    )
+                ]
+            },
+            "versunkene_chronik>verlassenes_dorf": {
+                3: [
+                    (
+                        "Oben wird der Bogen flacher. Hinter dir liegt die Senke, "
+                        "rund und still."
+                    ),
+                    (
+                        "Der Hang wird flacher. Wenn du dich umdrehst, sind die "
+                        "Dächer der Chronik schon hinter dem Rand verschwunden."
+                    )
+                ]
+            }
+        },
+        "gebiet": "Alte Straße",
+        "schritte": 5,
+        "zufallsereignisse": False,
+        "kampfbegegnungen": {
+            "aktiv": False
+        },
+        "ereignisse": [],
+        "abzweigungen": [],
+        "schritt_texte": {
+            "verlassenes_dorf>versunkene_chronik": [
+                (
+                    "Hinter der alten Schmiede führt die breite Fahrbahn aus dem "
+                    "Dorf. Junge Birken stehen auf ihr, aber zwischen ihnen ist "
+                    "Platz für einen Wagen."
+                ),
+                (
+                    "An der Kante biegt die Straße nach rechts und läuft den Hang "
+                    "hinab. Wo du zuerst nur Geröll gesehen hast, liegt eine "
+                    "Fahrbahn, überwachsen, aber gangbar."
+                ),
+                (
+                    "Die Straße windet sich in einem weiten Bogen um die Senke. "
+                    "Unter dir siehst du die Dächer der Chronik von einer Seite, "
+                    "die du noch nicht kanntest."
+                ),
+                (
+                    "Die Mauer am Hang begleitet dich. In ihre Steine sind flache "
+                    "Kerben geschlagen. Die Kerben liegen in gleichmäßigen "
+                    "Abständen. Du versuchst, den Abstand mit deinen Schritten zu "
+                    "messen."
+                ),
+                (
+                    "Der Bogen schließt sich. Die Straße läuft auf den Grund der "
+                    "Senke und endet vor dem Portal."
+                )
+            ],
+            "versunkene_chronik>verlassenes_dorf": [
+                (
+                    "Vom Portal aus steigt die Straße in einem weiten Bogen den "
+                    "Hang hinauf."
+                ),
+                (
+                    "Die Kerben in der Mauer kommen in gleichen Abständen. Du "
+                    "merkst, dass du mitzählst."
+                ),
+                (
+                    "Oben wird der Bogen flacher. Hinter dir liegt die Senke, "
+                    "rund und still."
+                ),
+                (
+                    "An der Kante stehst du dort, wo du zum ersten Mal "
+                    "hinuntergesehen hast. Daneben liegt der Gegenpunkt im "
+                    "Geröll, wie du ihn freigelegt hast."
+                ),
+                (
+                    "Zwischen den Birken tauchen die ersten Hauswände des Dorfes "
+                    "auf."
+                )
+            ]
+        }
+    },
+
+    frozenset(
+        (
+            "universitaet_oros",
+            "archiv_schatten"
+        )
+    ): {
+        "name": "Bleicher Pfad",
+        "auf_text": "auf dem Bleichen Pfad",
+        "weg_id": "bleicher_pfad",
+        "routenkenntnis_automatisch": True,
+        "schnellreise": True,
+        "gebiet": "Hochebene",
+        "schritte": 10,
+        "zufallsereignisse": False,
+        "kampfbegegnungen": {
+            "aktiv": True,
+            "chance": 0.02,
+            "garantie_nach": 99,
+            "cooldown": 3,
+            "max_pro_reise": 1,
+            "gegner": ("Wolf",)
+        },
+        "ereignisse": [
+            {
+                "id": "bleicher_pfad_marken",
+                "schritt": 6,
+                "richtung": "universitaet_oros>archiv_schatten",
+                "einmalig": True,
+                "titel": "[Die Marken]",
+                "design": "wissen",
+                "text": [
+                    (
+                        "Bei der siebten Marke bleibst du stehen. In die Kerbe "
+                        "hat jemand mit einem Messer etwas geritzt, klein, kaum "
+                        "lesbar: einen Namen."
+                    ),
+                    "An der achten wieder einen. An der neunten wieder.",
+                    "Keinen davon kennst du."
+                ]
+            }
+        ],
+        "abzweigungen": [],
+        "schritt_texte": {
+            "universitaet_oros>archiv_schatten": [
+                (
+                    "Hinter den Lehrhallen führt ein Pfad aus dem Nordtor. Nach "
+                    "wenigen hundert Schritten hören die Felder auf."
+                ),
+                (
+                    "Der Boden wird hell. Kalk, kaum Erde darüber, Gras nur in "
+                    "den Ritzen."
+                ),
+                (
+                    "Eine Wegmarke, weiß wie der Boden. Die Farbe ist "
+                    "abgewaschen, nur die Kerbe ist geblieben."
+                ),
+                (
+                    "Der Wind kommt von vorn und hört nicht auf. Es gibt "
+                    "nichts, hinter dem man sich stellen könnte."
+                ),
+                (
+                    "Die Hochebene ist so weit, dass Oros hinter dir klein "
+                    "wird, ohne dass du merkst, wie."
+                ),
+                (
+                    "Wegmarken in gleichen Abständen. Bei jeder fehlt die "
+                    "Farbe. Du zählst sie, ohne es zu wollen."
+                ),
+                "Ein Schafgerippe am Wegrand, ausgebleicht wie die Steine.",
+                (
+                    "Vor dir ist die Ebene nicht mehr ganz flach. Eine dunkle "
+                    "Linie zieht sich quer durch das Weiß."
+                ),
+                (
+                    "Die Linie ist ein Spalt im Fels, tief und schmal. Der Pfad "
+                    "läuft auf ihn zu."
+                ),
+                (
+                    "Am Rand des Spalts beginnt eine Treppe, in den Fels "
+                    "geschlagen. Unten ist es dunkel."
+                )
+            ],
+            "archiv_schatten>universitaet_oros": [
+                (
+                    "Du steigst die Treppe hinauf. Oben ist es so hell, dass du "
+                    "die Augen zusammenkneifen musst."
+                ),
+                "Der Spalt bleibt hinter dir zurück, eine dunkle Linie im Weiß.",
+                "Der Wind kommt jetzt von hinten. Er schiebt.",
+                "Das Schafgerippe am Wegrand. Es liegt noch genauso da.",
+                (
+                    "Die weißen Marken, eine nach der anderen. Diesmal zählst "
+                    "du nicht."
+                ),
+                (
+                    "Weit vorn steht etwas auf der Ebene, das kein Fels ist. "
+                    "Oros."
+                ),
+                (
+                    "Der Wind lässt nach. Du hörst wieder deine eigenen "
+                    "Schritte."
+                ),
+                "Oros wächst aus der Ebene, Mauer um Mauer.",
+                "Unter dem Kalk kommt wieder Erde, dann Gras.",
+                (
+                    "Die ersten Felder. Vor dir das Nordtor hinter den "
+                    "Lehrhallen."
+                )
+            ]
+        }
+    },
+
+    frozenset(
+        (
+            "universitaet_oros",
+            "versunkene_chronik"
+        )
+    ): {
+        "name": "Nordstraße",
+        "auf_text": "auf der Nordstraße",
+        "weg_id": "nordstrasse",
+        "routenkenntnis_automatisch": True,
+        "schnellreise": True,
+        "variable_schritt_texte": {
+            "versunkene_chronik>universitaet_oros": {
+                3: [
+                    "In der Mauer fehlt kein Stein. Nirgends wächst ein Baum in den Fugen.",
+                    (
+                        "Die Mauer läuft neben dir her, Stein auf Stein, ohne eine "
+                        "Lücke. Kein Moos in den Fugen."
+                    ),
+                    (
+                        "Du suchst eine Stelle, an der die Mauer nachgegeben hat. "
+                        "Du findest keine."
+                    )
+                ],
+                5: [
+                    (
+                        "Hohes Gras steht bis an die Fahrbahn. Auf der Fahrbahn "
+                        "selbst wächst nichts."
+                    ),
+                    (
+                        "Links und rechts reicht dir das Gras bis zur Hüfte. Die "
+                        "Fahrbahn ist kahl, als würde sie jeden Tag benutzt."
+                    )
+                ],
+                7: [
+                    (
+                        "Die Straße biegt wieder nach Norden. Der Wind kommt von "
+                        "vorn und riecht nach Stein."
+                    ),
+                    (
+                        "Der Wind dreht und kommt von Norden. Er riecht nach Stein "
+                        "und kaltem Wasser."
+                    )
+                ]
+            },
+            "universitaet_oros>versunkene_chronik": {
+                3: [
+                    (
+                        "Die Kehren enden. Kahle Hügel, vereinzelte Kiefern, die "
+                        "Straße dazwischen."
+                    ),
+                    "Unten am Hang wird es still. Nur der Wind in den Kiefern."
+                ],
+                7: [
+                    "Hohes Gras an den Rändern, auf der Fahrbahn nichts.",
+                    (
+                        "Das Gras steht hoch und reglos. Die Fahrbahn zieht als "
+                        "heller Streifen hindurch."
+                    )
+                ]
+            }
+        },
+        "gebiet": "Nordweg",
+        "schritte": 12,
+        "zufallsereignisse": False,
+        "kampfbegegnungen": {
+            "aktiv": True,
+            "chance": 0.01,
+            "garantie_nach": 99,
+            "cooldown": 3,
+            "max_pro_reise": 1,
+            "gegner": ("Wolf", "Keiler")
+        },
+        "ereignisse": [
+            {
+                "id": "nordstrasse_meilenstein",
+                "schritt": 3,
+                "richtung": "versunkene_chronik>universitaet_oros",
+                "einmalig": True,
+                "titel": "[Ein Meilenstein]",
+                "design": "wissen",
+                "text": [
+                    (
+                        "Am Straßenrand steht ein Meilenstein, so gut erhalten, "
+                        "als hätte ihn jemand gestern gesetzt."
+                    ),
+                    (
+                        "Auf der Seite zur Straße eine Zahl und darüber ein Pfeil "
+                        "nach Norden."
+                    ),
+                    (
+                        "Auf der Rückseite ist eine glatte Stelle. Darunter lässt "
+                        "sich noch der Ansatz eines zweiten Pfeils erkennen."
+                    )
+                ]
+            },
+            {
+                "id": "nordstrasse_eichenruh",
+                "schritt": 6,
+                "richtung": "versunkene_chronik>universitaet_oros",
+                "einmalig": True,
+                "titel": "[Eichenruh von Westen]",
+                "design": "wissen",
+                "text": [
+                    (
+                        "Vom Hügel aus siehst du über den Wald nach Osten. Dort, "
+                        "wo der Rauch aufsteigt, muss Eichenruh liegen."
+                    ),
+                    (
+                        "Von dieser Seite hast du es nie gesehen. Es wirkt "
+                        "kleiner, als du es kennst."
+                    )
+                ]
+            },
+            {
+                "id": "nordstrasse_spuren",
+                "schritt": 7,
+                "richtung": "universitaet_oros>versunkene_chronik",
+                "einmalig": True,
+                "titel": "[Spuren auf der Fahrbahn]",
+                "design": "wissen",
+                "text": [
+                    (
+                        "Im Staub der Fahrbahn liegen Spuren. Gespaltene Schalen, "
+                        "große und kleine, und daneben die Pfoten eines Fuchses."
+                    ),
+                    (
+                        "Sie folgen der Straße ein ganzes Stück, dann verlieren "
+                        "sie sich im Gras."
+                    ),
+                    "Die Tiere haben den Weg schneller gefunden als die Menschen."
+                ]
+            }
+        ],
+        "abzweigungen": [],
+        "schritt_texte": {
+            "versunkene_chronik>universitaet_oros": [
+                (
+                    "Die Straße steigt aus der Senke. Die Gräben zu beiden Seiten "
+                    "sind sauber, als hätte sie jemand im letzten Herbst "
+                    "ausgehoben."
+                ),
+                (
+                    "Oben wird es flacher. Die Straße läuft zwischen niedrigen "
+                    "Hügeln nach Norden, die Trockenmauer immer links von dir."
+                ),
+                "In der Mauer fehlt kein Stein. Nirgends wächst ein Baum in den Fugen.",
+                (
+                    "Die Straße macht einen Bogen nach Westen um eine sumpfige "
+                    "Mulde. Am Rand des Wassers stehen Pfähle in einer Reihe, als "
+                    "hätte es einmal einen Steg gegeben."
+                ),
+                (
+                    "Hohes Gras steht bis an die Fahrbahn. Auf der Fahrbahn selbst "
+                    "wächst nichts."
+                ),
+                (
+                    "Zwischen zwei Hügeln öffnet sich der Blick nach Osten. Weit "
+                    "hinten Wald, darüber dünner Rauch."
+                ),
+                (
+                    "Die Straße biegt wieder nach Norden. Der Wind kommt von vorn "
+                    "und riecht nach Stein."
+                ),
+                (
+                    "Ein Bach quert die Straße unter einer flachen Brücke aus drei "
+                    "Platten. Sie liegen genau dort, wo sie liegen müssen."
+                ),
+                (
+                    "Die Hügel werden höher und kahler. Vereinzelte Kiefern stehen "
+                    "an den Hängen."
+                ),
+                (
+                    "Vor dir steigt das Gelände an. Die Straße nimmt den Hang in "
+                    "langen, gleichmäßigen Kehren."
+                ),
+                (
+                    "Oben auf dem Kamm siehst du im Norden Mauern. Von hier aus "
+                    "wirken sie fremd, weil du sie nie von dieser Seite gesehen "
+                    "hast."
+                ),
+                (
+                    "Die Straße läuft den Hang hinunter auf Oros zu und mündet von "
+                    "Westen in den Vorplatz."
+                )
+            ],
+            "universitaet_oros>versunkene_chronik": [
+                (
+                    "Vom Vorplatz aus führt die Straße nach Westen, über die "
+                    "Stelle, an der früher nur Gras war."
+                ),
+                (
+                    "Am Hang beginnen die Kehren. Unter dir liegt das Land im "
+                    "Westen, das du von Oros aus nie angesehen hast."
+                ),
+                (
+                    "Die Kehren enden. Kahle Hügel, vereinzelte Kiefern, die "
+                    "Straße dazwischen."
+                ),
+                "Die Brücke aus drei Platten. Der Bach darunter ist klar.",
+                "Die Straße biegt nach Süden. Der Wind kommt jetzt von hinten.",
+                (
+                    "Weit im Osten liegt Wald. Irgendwo dahinter muss Eichenruh "
+                    "sein."
+                ),
+                "Hohes Gras an den Rändern, auf der Fahrbahn nichts.",
+                (
+                    "Der Bogen um die sumpfige Mulde. Die Pfähle am Rand stehen "
+                    "noch, kein Steg zwischen ihnen."
+                ),
+                (
+                    "Die Trockenmauer begleitet dich wieder, jetzt rechts. Kein "
+                    "Stein fehlt."
+                ),
+                "Die Hügel werden flacher. Vor dir fällt das Land ab.",
+                (
+                    "Am Rand der Senke beginnt die Straße hinabzulaufen. Unten "
+                    "liegen die Dächer der Chronik."
+                ),
+                "Die Straße endet im Ringhof, an der Steinplatte mit der Fassung."
+            ]
+        }
+    },
+    frozenset(
+        (
+            "universitaet_oros",
+            "brunnfeld"
+        )
+    ): {
+        "name": "Läuferpfad",
+        "auf_text": "auf dem Läuferpfad",
+        "weg_id": "laeuferpfad",
+        "routenkenntnis_automatisch": True,
+        "schnellreise": True,
+        "gebiet": "Wald",
+        "schritte": 16,
+        "zufallsereignisse": False,
+        "kampfbegegnungen": {
+            "aktiv": True,
+            "chance": 0.05,
+            "garantie_nach": 99,
+            "cooldown": 3,
+            "max_pro_reise": 1,
+            # Gegner je Abschnitt, gezählt von Oros aus (auf dem Rückweg gespiegelt).
+            "abschnitte_von": "universitaet_oros",
+            # Eigener Wurf, nur solange die Zugänge gesperrt sind (Kapitel 9).
+            "schmuggler_chance": 0.025,
+            "abschnitte": (
+                {"von": 1, "bis": 11, "gegner": ("Wolf", "Keiler", "Bache")},
+                {"von": 12, "bis": 14, "gegner": ("Schlickbeißer",), "umgebung": "Offener Weg"}
+            )
+        },
+        "ereignisse": [
+            {
+                "id": "laeuferpfad_wegweiser",
+                "schritt": 2,
+                "richtung": "universitaet_oros>brunnfeld",
+                "einmalig": True,
+                "bedingung": {"typ": "quest_status", "id": "quest_brunnfeld", "status": "pfad"},
+                "schnellreise_sperre": {"typ": "quest_status", "id": "quest_brunnfeld", "status": "pfad"},
+                "aktion": "laeuferpfad_wegweiser"
+            },
+            {
+                "id": "laeuferpfad_marken",
+                "schritt": 6,
+                "richtung": "universitaet_oros>brunnfeld",
+                "einmalig": True,
+                "bedingung": {"typ": "quest_status", "id": "quest_brunnfeld", "status": "pfad"},
+                "schnellreise_sperre": {"typ": "quest_status", "id": "quest_brunnfeld", "status": "pfad"},
+                "aktion": "laeuferpfad_marken"
+            },
+            {
+                "id": "laeuferpfad_unterstand",
+                "schritt": 11,
+                "richtung": "universitaet_oros>brunnfeld",
+                "einmalig": True,
+                "bedingung": {"typ": "quest_status", "id": "quest_brunnfeld", "status": "pfad"},
+                "schnellreise_sperre": {"typ": "quest_status", "id": "quest_brunnfeld", "status": "pfad"},
+                "aktion": "laeuferpfad_unterstand"
+            },
+            {
+                "id": "laeuferpfad_steg",
+                "schritt": 15,
+                "richtung": "universitaet_oros>brunnfeld",
+                "einmalig": True,
+                "bedingung": {"typ": "quest_status", "id": "quest_brunnfeld", "status": "pfad"},
+                "schnellreise_sperre": {"typ": "quest_status", "id": "quest_brunnfeld", "status": "pfad"},
+                "aktion": "laeuferpfad_steg"
+            },
+            {
+                "id": "laeuferpfad_jungen",
+                "schritt": 6,
+                "richtung": "brunnfeld>universitaet_oros",
+                "bedingung": {"typ": "kapitel_wert", "kapitel": "kapitel9", "schluessel": "jungen", "werte": ["unterwegs"]},
+                "schnellreise_sperre": {"typ": "kapitel_wert", "kapitel": "kapitel9", "schluessel": "jungen", "werte": ["unterwegs"]},
+                "aktion": "laeuferpfad_jungen"
+            },
+            # Kapitel 9, Nachspiel N2: eine Zeile beim Betreten, je nach Ordnung.
+            {
+                "id": "laeuferpfad_alltag_tragfaehig",
+                "schritt": 1,
+                "bedingung": {"typ": "alle", "bedingungen": [{"typ": "kapitel_wert", "kapitel": "kapitel9", "schluessel": "ordnung", "werte": ["gemeinsam"]}, {"typ": "kapitel_wert", "kapitel": "kapitel9", "schluessel": "staerke", "werte": ["tragfaehig"]}]},
+                "text": ["Unterwegs kommt dir ein Läufer entgegen. Er hebt die Hand, ohne stehen zu bleiben, und zählt weiter. Die Marke an der Gabelung hat eine frische Kerbe."]
+            },
+            {
+                "id": "laeuferpfad_alltag_bruechig",
+                "schritt": 1,
+                "bedingung": {"typ": "alle", "bedingungen": [{"typ": "kapitel_wert", "kapitel": "kapitel9", "schluessel": "ordnung", "werte": ["gemeinsam"]}, {"typ": "kapitel_wert", "kapitel": "kapitel9", "schluessel": "staerke", "werte": ["bruechig"]}]},
+                "text": ["Die Marken sind da, aber an manchen ist das Moos schon wieder höher als die Kerben. An der Gabelung steht niemand."]
+            },
+            {
+                "id": "laeuferpfad_alltag_zentral",
+                "schritt": 1,
+                "bedingung": {"typ": "kapitel_wert", "kapitel": "kapitel9", "schluessel": "ordnung", "werte": ["zentral"]},
+                "text": ["Am Wegweiser sitzt der Schreiber unter einem Schutzdach. Unterwegs triffst du Wachen statt Läufer. Sie grüßen dich, weil sie wissen, wer du bist."]
+            },
+            # Gemeinsame Ordnung: Rast im Unterstand, einmal je Reise.
+            {
+                "id": "laeuferpfad_rast_hin",
+                "schritt": 11,
+                "richtung": "universitaet_oros>brunnfeld",
+                "bedingung": {"typ": "kapitel_wert", "kapitel": "kapitel9", "schluessel": "ordnung", "werte": ["gemeinsam"]},
+                "aktion": "laeuferpfad_rast"
+            },
+            {
+                "id": "laeuferpfad_rast_rueck",
+                "schritt": 6,
+                "richtung": "brunnfeld>universitaet_oros",
+                "bedingung": {"typ": "kapitel_wert", "kapitel": "kapitel9", "schluessel": "ordnung", "werte": ["gemeinsam"]},
+                "aktion": "laeuferpfad_rast"
+            }
+        ],
+        "abzweigungen": [],
+        "schritt_texte": {
+            "universitaet_oros>brunnfeld": [
+                "Der Faden der Erinnerung, die vertraute Straße aus Oros hinaus.",
+                "Der alte Wegweiser. Links der Straße beginnt das Gras.",
+                "Hinter einem Holunderbusch wird der Boden unter dem Gras fester.",
+                "Birken, dazwischen Felsbrocken. Eine Marke mit Kerben zur Wegseite.",
+                "Die nächste Marke. Jemand hat das Moos von den Kerben gekratzt, vor langer Zeit.",
+                "Am Fuß eines Hangs gabelt sich der Pfad.",
+                "Marke um Marke. Das Gelände wird flacher.",
+                "Ein Felsüberhang, unter dem der Boden trocken bleibt.",
+                "Die zwanzigste Marke. Hier beginnt das Schilf.",
+                "Der Boden wird weicher. Irgendwo vorn plätschert Wasser.",
+                "Eine Kuppe über dem Ried. Darauf eine Hütte mit Rindendach.",
+                "Der Pfad führt hinunter ins Ried. Zwischen den Halmen steht braunes Wasser.",
+                "Trittsteine im Schlamm. Einige liegen tiefer, als sie sollten.",
+                "Das Schilf wird lichter. Vor dir liegt ein breiter, langsamer Lauf.",
+                "Der Steg über dem braunen Wasser.",
+                "Ein ausgetretener Weg, an den Rändern mit Steinen eingefasst."
+            ],
+            "brunnfeld>universitaet_oros": [
+                "Vom Brunnen der eingefasste Weg zum Steg. Dreihundertzwölf Schritte.",
+                "Der Steg über dem braunen Wasser.",
+                "Das Ried. Die Halme stehen höher als du.",
+                "Trittsteine im Schlamm. Du suchst den nächsten, bevor du den Fuß hebst.",
+                "Der Pfad steigt aus dem Ried.",
+                "Die Kuppe mit dem Unterstand der Läufer.",
+                "Schilf, dann die ersten Birken.",
+                "Eine Marke. Ihre Kerben zeigen in die Richtung, aus der du kommst.",
+                "Der Felsüberhang, unter dem der Boden trocken bleibt.",
+                "Marke um Marke. Das Gelände steigt leicht.",
+                "Die Gabelung am Fuß des Hangs.",
+                "Birken und Felsbrocken. Die Marken stehen enger.",
+                "Hinter dem Holunderbusch kommt die Straße in Sicht.",
+                "Der alte Wegweiser. Du bist wieder auf dem Faden der Erinnerung.",
+                "Die vertraute Straße nach Oros.",
+                "Vor dir liegt der Vorplatz von Oros."
             ]
         }
     },

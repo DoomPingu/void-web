@@ -17,6 +17,7 @@ const Klang = (() => {
     eichenruh: "wind", marktplatz: "markt", verlassenes_dorf: "wind", wald: "wald", waldlichtung: "wald",
     bachlauf: "wald", koehlerei: "feuer", pfad_des_vergessens: "wald", wrackstrand: "kueste",
     felsterrassen: "wind", versorgungskehre: "wind", tiefen: "hoehle", lagerfeuer: "feuer",
+    versunkene_chronik: "drinnen", archiv_schatten: "hoehle", brunnfeld: "wind",
   };
 
   function sicher(f) { try { return f(); } catch (e) { console.warn("Klang:", e); return null; } }

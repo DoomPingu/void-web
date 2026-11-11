@@ -104,6 +104,12 @@ EXP_QUELLEN = {
         "limit": 1,
         "bedingung": (("jagdbuch", "Blasser Hirsch", "beute"), True)
     },
+    "revierherr_schwarzgeweih": {
+        "name": "Revierherr: Schwarzgeweih",
+        "exp": 30,
+        "limit": 1,
+        "bedingung": (("jagdbuch", "Schwarzgeweih", "beute"), True)
+    },
     "wege_versunkene_steine": {
         "name": "Die versunkenen Steine",
         "exp": 60,
@@ -253,6 +259,144 @@ EXP_QUELLEN = {
         "exp": 150,
         "limit": 1,
         "bedingung": ("quest_zurueckgelassene", "abgeschlossen")
+    },
+    "kiran_vergleich": {
+        "name": "Kirans Strecken",
+        "exp": 80,
+        "limit": 1,
+        "bedingung": (("kapitel6", "kiran_vergleich"), True)
+    },
+    "kiran_blatt": {
+        "name": "Eine Fundsache",
+        "exp": 60,
+        "limit": 1,
+        "bedingung": (("kapitel6", "kiran_blatt"), True)
+    },
+    "kiran_wegweiser": {
+        "name": "Der alte Wegweiser",
+        "exp": 60,
+        "limit": 1,
+        "bedingung": (("kapitel6", "kiran_wegweiser"), True)
+    },
+    "kiran_brunnen": {
+        "name": "Nicht stehen bleiben",
+        "exp": 60,
+        "limit": 1,
+        "bedingung": (("kapitel6", "kiran_brunnen"), True)
+    },
+    "kiran_gefunden": {
+        "name": "Ein Name auf der Rückseite",
+        "exp": 60,
+        "limit": 1,
+        "bedingung": (("kapitel6", "kiran_gefunden"), True)
+    },
+    "kiran_entscheidung": {
+        "name": "Nicht stehen bleiben",
+        "exp": 80,
+        "limit": 1,
+        "bedingung": (("kapitel6", "kiran_entscheidung"), True)
+    },
+    "chronik_senke": {
+        "name": "Die Senke",
+        "exp": 60,
+        "limit": 1,
+        "bedingung": (("kapitel7", "senke_gesehen"), True)
+    },
+    "chronik_anordnung": {
+        "name": "Die Anordnung",
+        "exp": 60,
+        "limit": 1,
+        "bedingung": (("kapitel7", "anordnung_gelesen"), True)
+    },
+    "chronik_ringhof": {
+        "name": "Der Ringhof",
+        "exp": 60,
+        "limit": 1,
+        "bedingung": (("kapitel7", "ringhof_geloest"), True)
+    },
+    "chronik_verfahren": {
+        "name": "Das Verfahren",
+        "exp": 80,
+        "limit": 1,
+        "bedingung": (("kapitel7", "verfahren_verstanden"), True)
+    },
+    "chronik_anbindung": {
+        "name": "Der Knoten der Senke",
+        "exp": 80,
+        "limit": 1,
+        "bedingung": (("kapitel7", "angebunden"), True)
+    },
+    "chronik_nordstrasse": {
+        "name": "Die versunkene Chronik",
+        "exp": 60,
+        "limit": 1,
+        "bedingung": ("quest_chronik", "abgeschlossen")
+    },
+    "archiv_erreicht": {
+        "name": "Das Archiv der Schatten",
+        "exp": 60,
+        "limit": 1,
+        "bedingung": (("kapitel8", "archiv_erreicht"), True)
+    },
+    "archiv_ankerbuch": {
+        "name": "Gehaltene Gegenpunkte",
+        "exp": 60,
+        "limit": 1,
+        "bedingung": (("kapitel8", "ankerbuch_gelesen"), True)
+    },
+    "archiv_tiefe": {
+        "name": "Die Tiefe",
+        "exp": 80,
+        "limit": 1,
+        "bedingung": (("kapitel8", "tiefe_geloest"), True)
+    },
+    "archiv_nachmessung": {
+        "name": "Die Nachmessung",
+        "exp": 60,
+        "limit": 1,
+        "bedingung": (("kapitel8", "nachmessung"), True)
+    },
+    "archiv_abschluss": {
+        "name": "Das Archiv der Schatten",
+        "exp": 140,
+        "limit": 1,
+        "bedingung": ("quest_archiv", "abgeschlossen")
+    },
+    "brunnfeld_laeuferpfad": {
+        "name": "Der Läuferpfad",
+        "exp": 80,
+        "limit": 1,
+        "bedingung": (("kapitel9", "erkundet"), True)
+    },
+    "brunnfeld_steg": {
+        "name": "Der Steg",
+        "exp": 40,
+        "limit": 1,
+        "bedingung": (("kapitel9", "steg_fertig"), True)
+    },
+    "brunnfeld_laeufer": {
+        "name": "Läufer für Brunnfeld",
+        "exp": 40,
+        "limit": 1,
+        "bedingung": (("kapitel9", "laeufer_fertig"), True)
+    },
+    "brunnfeld_versorgung": {
+        "name": "Versorgung für Brunnfeld",
+        "exp": 40,
+        "limit": 1,
+        "bedingung": (("kapitel9", "versorgung_fertig"), True)
+    },
+    "brunnfeld_versammlung": {
+        "name": "Die Versammlung am Brunnen",
+        "exp": 140,
+        "limit": 1,
+        "bedingung": (("kapitel9", "versammlung"), True)
+    },
+    "brunnfeld_eigenhaendig": {
+        "name": "Eigenhändig",
+        "exp": 100,
+        "limit": 1,
+        "bedingung": (("kapitel9", "befreiung"), "frei")
     }
 }
 

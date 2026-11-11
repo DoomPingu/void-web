@@ -396,7 +396,66 @@ ITEMS = {
         "typ": "Material",
         "beschreibung": (
             "Eine dunkle, schwere Steinplatte vom Rücken des Steinvaters. "
-            "Bjorn kann daraus eine Steinhautweste fertigen."
+            "Bjorn kann daraus eine Steinhautweste fertigen oder sie in eine "
+            "Schieferklinge einarbeiten."
+        )
+    },
+
+    "schlickhaut": {
+        "name": "Schlickhaut",
+        "typ": "Material",
+        "beschreibung": (
+            "Zähe, glatte Haut eines Schlickbeißers aus dem Ried. "
+            "Bjorn wickelt damit Griffe."
+        )
+    },
+
+    "schwarze_geweihschaufel": {
+        "name": "Schwarze Geweihschaufel",
+        "typ": "Material",
+        "beschreibung": (
+            "Eine breite, fast schwarze Geweihschaufel von Schwarzgeweih. "
+            "Bjorn kann daraus einen Schwarzgeweihstab fertigen."
+        )
+    },
+
+    "eisenklammern": {
+        "name": "Eisenklammern",
+        "typ": "Questgegenstand",
+        "beschreibung": (
+            "Zwölf Klammern, fingerdick, von Bjorn für den Steg in Brunnfeld "
+            "geschmiedet. Vorbohren, nicht reinprügeln."
+        )
+    },
+
+    "seilbuendel": {
+        "name": "Hannes' Seilbündel",
+        "typ": "Questgegenstand",
+        "beschreibung": (
+            "Ein Bündel Hanfseil vom Stegwärter in Brunnfeld. Früher hat er "
+            "damit in Oros bezahlt."
+        )
+    },
+
+    "salzsack": {
+        "name": "Salzsack für Brunnfeld",
+        "typ": "Questgegenstand",
+        "beschreibung": "Salz aus Rabans Versorgungshof, getauscht gegen Hannes' Seil."
+    },
+
+    "laeuferliste": {
+        "name": "Sannas Liste der Bewohner",
+        "typ": "Questgegenstand",
+        "beschreibung": "Sannas Liste, wer in Brunnfeld wohnt. Für Haller."
+    },
+
+    "laeufermarke": {
+        "name": "Läufermarke aus Brunnfeld",
+        "typ": "Andenken",
+        "beschreibung": (
+            "Eine flache Scheibe aus Holz an einer Lederschnur. Eingebrannt "
+            "ist das Zeichen des Läuferhauses: ein Brunnen mit einem Strich "
+            "darunter. Sanna hat sie dir gegeben."
         )
     },
 
@@ -642,6 +701,28 @@ KAMPF_BEUTE = {
         ]
     },
 
+    "Schlickbeißer": {
+        "gold_min": 0,
+        "gold_max": 0,
+        "items": [
+            {
+                "item_id": "schlickhaut",
+                "min": 1,
+                "max": 1,
+                "chance": 60
+            }
+        ]
+    },
+
+    "Schwarzgeweih": {
+        "gold_min": 0,
+        "gold_max": 0,
+        "items": [
+            {"item_id": "schwarze_geweihschaufel", "min": 1, "max": 1, "chance": 100},
+            {"item_id": "schlickhaut", "min": 2, "max": 2, "chance": 100}
+        ]
+    },
+
     "Wrackplünderer": {
         "gold_min": 10,
         "gold_max": 18,
@@ -681,6 +762,12 @@ KAMPF_BEUTE = {
         ]
     },
 
+    "Schmuggler": {
+        "gold_min": 6,
+        "gold_max": 14,
+        "items": []
+    },
+
     "Kohlenschmuggler": {
         "gold_min": 8,
         "gold_max": 16,
@@ -709,6 +796,19 @@ KAMPF_BEUTE = {
                 "min": 1,
                 "max": 1,
                 "chance": 60
+            }
+        ]
+    },
+
+    "Bache": {
+        "gold_min": 0,
+        "gold_max": 0,
+        "items": [
+            {
+                "item_id": "wildfleisch",
+                "min": 2,
+                "max": 3,
+                "chance": 100
             }
         ]
     }
@@ -1117,7 +1217,9 @@ SAMMLUNGEN = {
             ("blasses_geweih", "Blasses Geweih"),
             ("flatterhaut", "Flatterhaut"),
             ("kriecherplatte", "Kriecherplatte"),
-            ("molchhaut", "Molchhaut")
+            ("molchhaut", "Molchhaut"),
+            ("schlickhaut", "Schlickhaut"),
+            ("schwarze_geweihschaufel", "Schwarze Geweihschaufel")
         ]
     },
 
@@ -1143,7 +1245,9 @@ SAMMLUNGEN = {
             ("geweihtalisman", "Geweihtalisman"),
             ("Geweihspeer", "Geweihspeer"),
             ("plattenweste", "Plattenweste"),
-            ("flatterhautbinde", "Flatterhautbinde")
+            ("flatterhautbinde", "Flatterhautbinde"),
+            ("Schieferklinge", "Schieferklinge"),
+            ("Schwarzgeweihstab", "Schwarzgeweihstab")
         ]
     }
 }
@@ -1279,19 +1383,31 @@ ERFOLGE = {
         "name": "Bestienjäger",
         "kategorie": "weg",
         "verborgen": False,
-        "beschreibung": "Rikas Prüfung bestanden."
+        "beschreibung": "Rikas Bestienprobe bestanden."
     },
     "stahlkrieger": {
         "name": "Stahlkrieger",
         "kategorie": "weg",
         "verborgen": False,
-        "beschreibung": "Bjorns Prüfung bestanden."
+        "beschreibung": "Bjorns Stahlprobe bestanden."
     },
     "glutkrieger": {
         "name": "Glutkrieger",
         "kategorie": "weg",
         "verborgen": False,
         "beschreibung": "Maras Prüfung bestanden."
+    },
+    "runenschmied": {
+        "name": "Runenschmied",
+        "kategorie": "weg",
+        "verborgen": False,
+        "beschreibung": "Bjorns Runenprobe bestanden."
+    },
+    "faehrtensteller": {
+        "name": "Fährtensteller",
+        "kategorie": "weg",
+        "verborgen": False,
+        "beschreibung": "Rikas Fährtenprobe bestanden."
     },
     "am_herd": {
         "name": "Am Herd",
@@ -1466,6 +1582,13 @@ JAGDBUCH = {
         },
         "beute": "Viel Wildfleisch, manchmal ein Keilerhauer."
     },
+    "Bache": {
+        "beschreibung": "Verteidigt ihre Frischlinge. Hat sich im Ringhof der versunkenen Chronik eingerichtet.",
+        "verhalten": {
+            "keiler_ansturm": "Scharrt mit den Hufen: Danach stürmt sie. Ausweichen, abfangen oder verteidigen; nach dem Ansturm braucht sie eine Runde."
+        },
+        "beute": "Wildfleisch."
+    },
     "Bandit": {
         "beschreibung": "Ein Mensch mit Dolch, der von Reisenden lebt.",
         "verhalten": {
@@ -1575,5 +1698,20 @@ JAGDBUCH = {
             "krebs_losreissen": "Losreißen ist bei ihm schwerer. Ein Messer sticht durch die Schere."
         },
         "beute": "Seine Riesenschere und eine Krebsschere."
+    },
+    "Schlickbeißer": {
+        "beschreibung": "Kräftiges, niedrig gebautes Raubtier im schlammigen Ried am Läuferpfad. Wartet im Wasser und greift aus der Deckung an.",
+        "verhalten": {
+            "krebs_packen": "Duckt sich ins Wasser und reißt das Maul auf: Verteidigen weicht aus, sonst hält er dich fest.",
+            "krebs_losreissen": "Festgehalten: Verteidigen reißt dich los, ein Messer sticht ins Maul."
+        },
+        "beute": "Manchmal eine Schlickhaut."
+    },
+    "Schwarzgeweih": {
+        "beschreibung": "Ein Elch, so hoch wie der Unterstand, mit einem Geweih wie verbrannte Äste. Verteidigt das Ried, wo es in den Wald geht. Zeigt sich nur selten.",
+        "verhalten": {
+            "keiler_ansturm": "Scharrt mit den Hufen: Danach stürmt er. Ausweichen, abfangen oder verteidigen; nach dem Ansturm braucht er eine Runde."
+        },
+        "beute": "Eine Schwarze Geweihschaufel und Schlickhaut."
     }
 }

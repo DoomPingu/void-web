@@ -425,7 +425,7 @@ def kampf_status_nach_gegnertreffer(
     elif gegner_typ == "Wolf":
         chance = 10
 
-    elif gegner_typ == "Keiler":
+    elif gegner_typ in ("Keiler", "Bache", "Schwarzgeweih"):
         chance = 8
 
     else:
@@ -472,6 +472,69 @@ def kampf_status_nach_gegnertreffer(
 # =========================
 # SPIELER / GEGNER
 # =========================
+# Gegnernamen mit Artikel. Die Bache ist bisher der einzige weibliche Gegner.
+WEIBLICHE_GEGNER = ("Bache", "Gestalt")
+
+# Gegner, deren Name sich nach dem Artikel beugt.
+GEBEUGTE_GEGNER = {
+    "Haltender": {
+        "Der": "Der Haltende", "der": "der Haltende", "den": "den Haltenden",
+        "dem": "dem Haltenden", "am": "am Haltenden", "des": "des Haltenden"
+    }
+}
+
+
+# WM-D: Revierherren und Waldwächter; Falle 1 Runde, Hinterhalt schwächer.
+FAEHRTEN_STARK = (
+    "Waldwächter", "Graupelz", "Aschenkönig", "Steinvater", "Einscherer",
+    "Blasser Hirsch", "Schwarzgeweih"
+)
+# Welche Angriffsvorbereitung die Falle behindert (Textrunde WM-D, Teil C).
+FAEHRTEN_FALLE_TEXT = {
+    "Wolf": "kann nicht zum Sprung ansetzen",
+    "Rudelloser Wolf": "kann nicht zum Sprung ansetzen",
+    "Graupelz": "kann nicht zum Sprung ansetzen",
+    "Keiler": "kann keinen Anlauf nehmen",
+    "Bache": "kann keinen Anlauf nehmen",
+    "Schwarzgeweih": "kann keinen Anlauf nehmen",
+    "Bandit": "kann nicht zum schweren Hieb ausholen",
+    "Blindmolch": "kann nicht zum Schnappen ansetzen",
+    "Glutsalamander": "kann seine Haut nicht aufglühen lassen",
+    "Kohlenschmuggler": "kommt nicht an seinen Aschebeutel",
+    "Schieferpanzer": "kann sich nicht einrollen",
+    "Steinvater": "kann sich nicht einrollen",
+    "Schachtkriecher": "kann sich nicht einrollen",
+    "Kreischer": "kommt nicht vom Boden hoch",
+    "Gezeitenkrebs": "kann nicht zum Packen ansetzen",
+    "Einscherer": "kann nicht zum Packen ansetzen",
+    "Schlickbeißer": "kann nicht zum Packen ansetzen",
+    "Wrackplünderer": "bekommt sein Netz nicht frei",
+    "Waldwächter": "kann nicht zu seinem schweren Schlag ausholen",
+}
+
+
+def gegner_name(gegner, fall):
+    typ = gegner["typ"]
+
+    if typ in GEBEUGTE_GEGNER and fall in GEBEUGTE_GEGNER[typ]:
+        return GEBEUGTE_GEGNER[typ][fall]
+
+    if typ in WEIBLICHE_GEGNER:
+        return {
+            "Der": f"Die {typ}", "der": f"die {typ}", "den": f"die {typ}",
+            "dem": f"der {typ}", "am": f"an der {typ}", "des": f"der {typ}",
+            "Er": "Sie", "seinem": "ihrem", "seinen": "ihren"
+        }[fall]
+
+    if fall == "des":
+        return f"des {typ}s"
+
+    if fall in ("Er", "seinem", "seinen"):
+        return fall
+
+    return f"{fall} {typ}"
+
+
 def kampf_starten(
     lebenspunkte=100,
     heiltraenke=1,
@@ -485,7 +548,8 @@ def kampf_starten(
     wurfnetze=0,
     wundsalben=0,
     wundsalbe_heilung=8,
-    gegengifte=0
+    gegengifte=0,
+    trueber_geist=False
 ):
     status_effekte = kampf_status_kopieren(
         status_effekte
@@ -683,6 +747,10 @@ def kampf_starten(
         kampf_waffe["schaden_min"] = waffe["min_schaden"]
         kampf_waffe["schaden_max"] = waffe["max_schaden"]
 
+        # WM-C: Eine Rune gehört zur Waffe und kommt mit in den Kampf.
+        if waffe.get("rune") in ("klang", "ruhe", "halt"):
+            kampf_waffe["rune"] = waffe["rune"]
+
         for wert in [
             "wendigkeit",
             "parade",
@@ -757,6 +825,18 @@ def kampf_starten(
         "typ": "Gezeitenkrebs", "hp": 85, "max_hp": 85, "wahrnehmung": 2, "waldkenntnis": 1, "verstecken": 2,
         "angriffsart": "Nahkampf", "krit_chance": 4,
         "waffe": {"typ": "Schere", "wendigkeit": 1, "parade": 0, "reichweite": 0, "schaden_min": 9, "schaden_max": 13}
+    }
+
+    schlickbeisser = {
+        "typ": "Schlickbeißer", "hp": 105, "max_hp": 105, "wahrnehmung": 3, "waldkenntnis": 2, "verstecken": 4,
+        "angriffsart": "Nahkampf", "krit_chance": 5,
+        "waffe": {"typ": "Biss", "wendigkeit": 2, "parade": 0, "reichweite": 0, "schaden_min": 11, "schaden_max": 15}
+    }
+
+    schwarzgeweih = {
+        "typ": "Schwarzgeweih", "hp": 210, "max_hp": 210, "wahrnehmung": 3, "waldkenntnis": 3, "verstecken": 2,
+        "angriffsart": "Nahkampf", "krit_chance": 7,
+        "waffe": {"typ": "Geweih", "wendigkeit": 2, "parade": 0, "reichweite": 1, "schaden_min": 15, "schaden_max": 20}
     }
 
     wrackpluenderer = {
@@ -1039,6 +1119,17 @@ def kampf_starten(
     bestienjaeger_gelernt = kampfwerte.get("bestienjaeger_gelernt") is True
     krieger_deckung_gelernt = kampfwerte.get("krieger_deckung_gelernt") is True
     spaeher_luecke_gelernt = kampfwerte.get("spaeher_luecke_gelernt") is True
+    # WM-D: Falle und Hinterhalt vor dem Kampf. Nur mit Grundklasse Späher und
+    # aktivem Fährtensteller oder im Prüfungskampf bei Rika.
+    faehrten_vorbereiten = spaeher_luecke_gelernt and (
+        kampfwerte.get("faehrtensteller_gelernt") is True
+        or kampfwerte.get("faehrtensteller_pruefung") is True
+    )
+    faehrten_holz = kampfwerte.get("faehrten_holz", 0)
+    if type(faehrten_holz) is not int or faehrten_holz < 0:
+        faehrten_holz = 0
+    faehrten_vorbereitung = None
+    faehrten_luecke_genutzt = False
     gelehrter_muster_gelernt = kampfwerte.get("gelehrter_muster_gelernt") is True
     magier_geist = kampfwerte.get("magier_geist", 0)
     magier_uebersinnliches = kampfwerte.get("magier_uebersinnliches", 0)
@@ -1047,6 +1138,23 @@ def kampf_starten(
         and type(magier_geist) is int and magier_geist >= 2
         and type(magier_uebersinnliches) is int and magier_uebersinnliches >= 1
     )
+
+    # WM-B: Verfassungen des Magiers (0–3) und seine drei Techniken.
+    def magier_stufe(schluessel):
+        wert = kampfwerte.get(schluessel, 0)
+        return min(3, wert) if magier_resonanz_gelernt and type(wert) is int and wert > 0 else 0
+
+    magier_resonanz_stufe = magier_stufe("magier_resonanz_stufe")
+    magier_sensibilitaet = magier_stufe("magier_sensibilitaet")
+    magier_kontrolle = magier_stufe("magier_kontrolle")
+    magier_lauschen_gelernt = kampfwerte.get("magier_lauschen_gelernt") is True and magier_sensibilitaet >= 1
+    magier_daempfen_gelernt = kampfwerte.get("magier_daempfen_gelernt") is True and magier_kontrolle >= 1
+    magier_verankern_gelernt = (
+        kampfwerte.get("magier_verankern_gelernt") is True and magier_stufe("magier_anker") >= 1
+    )
+    magier_lauschen_texte = kampfwerte.get("magier_lauschen_texte")
+    if not isinstance(magier_lauschen_texte, dict):
+        magier_lauschen_texte = {}
 
 
     ausdauer_flucht_bonus = (
@@ -1136,11 +1244,21 @@ def kampf_starten(
     elif gegner_typ == "Keiler":
         gegner = keiler.copy()
 
+    elif gegner_typ == "Bache":
+        # Gleiche Werte und gleicher Ansturm wie der Keiler, eigener Name.
+        gegner = keiler.copy()
+        gegner["typ"] = "Bache"
+
     elif gegner_typ == "Glutsalamander":
         gegner = glutsalamander.copy()
 
     elif gegner_typ == "Kohlenschmuggler":
         gegner = kohlenschmuggler.copy()
+
+    elif gegner_typ == "Schmuggler":
+        # Läuferpfad bei gesperrten Zugängen: Werte des Kohlenschmugglers, eigener Name.
+        gegner = kohlenschmuggler.copy()
+        gegner["typ"] = "Schmuggler"
 
     elif gegner_typ == "Schieferpanzer":
         gegner = schieferpanzer.copy()
@@ -1150,6 +1268,12 @@ def kampf_starten(
 
     elif gegner_typ == "Gezeitenkrebs":
         gegner = gezeitenkrebs.copy()
+
+    elif gegner_typ == "Schlickbeißer":
+        gegner = schlickbeisser.copy()
+
+    elif gegner_typ == "Schwarzgeweih":
+        gegner = schwarzgeweih.copy()
 
     elif gegner_typ == "Graupelz":
         gegner = graupelz.copy()
@@ -1186,6 +1310,11 @@ def kampf_starten(
 
     elif gegner_typ == "Schachtspinner":
         gegner = schachtspinner.copy()
+
+    elif gegner_typ in ("Haltender", "Gestalt"):
+        # Kapitel 8, Tiefe: Werte des Blassen Hirschs, ohne dessen Verhalten.
+        gegner = blasser_hirsch.copy()
+        gegner["typ"] = gegner_typ
 
     elif gegner_typ is None:
         gegner = random.choice(
@@ -1513,7 +1642,35 @@ def kampf_starten(
 
         print()
         if gegner_entdeckt:
-            print(f"Du bemerkst den {gegner['typ']} rechtzeitig.")
+            print(f"Du bemerkst {gegner_name(gegner, 'den')} rechtzeitig.")
+            # WM-D: Genau eine Vorbereitung; Holz wird erst nach der Wahl verbraucht.
+            if faehrten_vorbereiten and waffe is not None:
+                faehrten_optionen = ["1", "2", "3"]
+                print()
+                print("1. Kämpfen")
+                if faehrten_holz > 0:
+                    print("2. Eine Falle stellen [1 Holz]")
+                else:
+                    print("2. Eine Falle stellen [kein Holz dabei]")
+                faehrten_dauer = "1 Runde" if gegner["typ"] in FAEHRTEN_STARK else "2 Runden"
+                print(f"   Behindert {faehrten_dauer} lang Angriffsvorbereitungen; Öffnung für Lücke nutzen.")
+                print("3. Einen Hinterhalt legen")
+                print("   Runde 1: Öffnung für Lücke nutzen, der Gegner trifft schlechter.")
+                if reise_umgehen:
+                    print("4. Unbemerkt umgehen")
+                    faehrten_optionen.append("4")
+                while True:
+                    faehrten_wahl = kampf_eingabe(tuple(faehrten_optionen))
+                    if faehrten_wahl == "2" and faehrten_holz <= 0:
+                        print("Für eine Falle brauchst du ein Stück Holz.")
+                        continue
+                    break
+                umgangen = faehrten_wahl == "4"
+                if faehrten_wahl == "2":
+                    faehrten_vorbereitung = "falle"
+                elif faehrten_wahl == "3":
+                    faehrten_vorbereitung = "hinterhalt"
+                break
             if reise_umgehen and waffe is not None:
                 print()
                 print("1. Kämpfen")
@@ -1558,7 +1715,7 @@ def kampf_starten(
     # Wachsam: Der Gegner wird umgangen, kein Kampf, keine Beute.
     if umgangen:
         print()
-        print(f"Du hältst Abstand und gehst unbemerkt am {gegner['typ']} vorbei.")
+        print(f"Du hältst Abstand und gehst unbemerkt {gegner_name(gegner, 'am')} vorbei.")
         return {
             "lebenspunkte": spieler["hp"],
             "heiltraenke": spieler["heiltraenke"],
@@ -1601,6 +1758,8 @@ def kampf_starten(
     kreischer_sturz_naechste_runde = False
     krebs_packen_bereit = False
     krebs_halt_runden = 0
+    # Packen wie beim Krebs; der Schlickbeißer hält mit dem Maul statt mit der Schere.
+    maul = gegner["typ"] == "Schlickbeißer"
     netz_bereit = False
     netz_wuerfe = 0
     netz_naechste_runde = False
@@ -1638,6 +1797,26 @@ def kampf_starten(
     letzter_combo_angriff = None
     gegner_zurueckgedraengt_naechste_runde = False
 
+    # WM-D: Wirkung der Vorbereitung.
+    # Falle: zurückgedrängt (Spezialangriffssperre, Öffnung für Lücke nutzen) und
+    # −10 Ausweichen, 2 Runden; keine Boni anderer Techniken, kein Schaden.
+    # Hinterhalt: Runde 1 Öffnung und −15 Treffer des Gegners.
+    # Revierherren und Waldwächter: Falle 1 Runde, Hinterhalt −8.
+    faehrten_stark = gegner["typ"] in FAEHRTEN_STARK
+    faehrten_falle_bis = 0
+    faehrten_hinterhalt_bis = 0
+    faehrten_hinterhalt_abzug = 0
+    if faehrten_vorbereitung == "falle":
+        faehrten_falle_bis = 1 if faehrten_stark else 2
+        print()
+        print("Du legst das Holz als Stolperfalle quer über den Weg und wartest.")
+    elif faehrten_vorbereitung == "hinterhalt":
+        faehrten_hinterhalt_bis = 1
+        faehrten_hinterhalt_abzug = 8 if faehrten_stark else 15
+        print()
+        print(f"Du gehst in Deckung und wartest, bis {gegner_name(gegner, 'der')} nah genug ist.")
+    faehrten_vorbereitet_bis = max(faehrten_falle_bis, faehrten_hinterhalt_bis)
+
 
     runde = 1
 
@@ -1650,9 +1829,9 @@ def kampf_starten(
     bestienjaeger_jagdhieb_getroffen = False
     bestienjaeger_abwehr_erfolgreich = False
     jagdinstinkt_bonus = 10 if bestienjaeger_gelernt and gegner["typ"] in (
-        "Wolf", "Keiler", "Glutsalamander", "Schieferpanzer", "Kreischer", "Gezeitenkrebs", "Graupelz",
+        "Wolf", "Keiler", "Bache", "Glutsalamander", "Schieferpanzer", "Kreischer", "Gezeitenkrebs", "Graupelz",
         "Aschenkönig", "Steinvater", "Einscherer", "Rudelloser Wolf", "Echohirsch", "Blasser Hirsch",
-        "Schachtflatterer", "Schachtkriecher", "Blindmolch", "Schachtspinner"
+        "Schachtflatterer", "Schachtkriecher", "Blindmolch", "Schachtspinner", "Schlickbeißer", "Schwarzgeweih"
     ) else 0
 
     glutkrieger_portion_verbraucht = False
@@ -1675,6 +1854,18 @@ def kampf_starten(
     spaeher_luecke_diese_runde = False
 
     magier_resonanz_ladungen = 3 if magier_resonanz_gelernt else 0
+    # Lauschen: Vorahnung bis einschließlich dieser Runde, Abzüge addieren sich nicht.
+    magier_lauschen_bis = 0
+    magier_lauschen_abzug = min(20, 5 + 5 * magier_sensibilitaet)
+    magier_verankert_bis = 0
+    magier_anker_schutz = False
+    magier_daempfen_diese_runde = False
+    magier_gedaempft = False
+    # WM-C: Runen. Wecken nur bei der Haltrune, beim aktiven Runenschmied, einmal je Kampf.
+    runenschmied_gelernt = kampfwerte.get("runenschmied_gelernt") is True and magier_resonanz_gelernt
+    rune_geweckt_genutzt = False
+    rune_gewirkt = set()
+    magier_genutzt = {"resonanzstoss": 0, "lauschen": 0, "daempfen": 0, "verankern": 0}
 
     gelehrter_muster_bereit_ab = 1
     gelehrter_muster_bis = 0
@@ -1782,6 +1973,7 @@ def kampf_starten(
         schadensbonus_durch_taumeln = 1.0
         starkes_taumeln_aktiv = False
         gegner_spezialangriff = False
+        magier_daempfen_diese_runde = False
 
         wolf_sprung_diese_runde = False
         wolf_sprung_abgefangen = False
@@ -1830,8 +2022,8 @@ def kampf_starten(
         keiler_erholt_sich_naechste_runde = False
 
         if keiler_erholt_sich_diese_runde:
-            print("Der Keiler muss nach seinem Ansturm wieder Halt finden.")
-            print("Er greift diese Runde nicht an. Nutze die Gelegenheit!")
+            print(f"{gegner_name(gegner, 'Der')} muss nach {gegner_name(gegner, 'seinem')} Ansturm wieder Halt finden.")
+            print(f"{gegner_name(gegner, 'Er')} greift diese Runde nicht an. Nutze die Gelegenheit!")
         keiler_ansturm_verstaerkt_diese_runde = False
         keiler_ausweichen_versucht = False
         keiler_ausweichen_erfolgreich = False
@@ -1864,7 +2056,7 @@ def kampf_starten(
             gegner_zurueckgedraengt_naechste_runde = False
             bonus_durch_oeffnung += 10
 
-            print(f"Der {gegner['typ']} wurde zurückgedrängt und muss sich neu positionieren.")
+            print(f"{gegner_name(gegner, 'Der')} wurde zurückgedrängt und muss sich neu positionieren.")
 
             if stab_kontrolle_naechste_runde:
                 stab_kontrolle_naechste_runde = False
@@ -1888,6 +2080,15 @@ def kampf_starten(
                 wolf_sprungbereit = False
                 print("Der Wolf verliert seinen Ansatz zum Sprung!")
 
+        # WM-D: Die Falle hält den Gegner zurück, ohne die Boni des Zurückdrängens.
+        if runde <= faehrten_falle_bis:
+            if not gegner_zurueckgedraengt_aktiv:
+                behindert = FAEHRTEN_FALLE_TEXT.get(gegner["typ"], "kommt nicht in Stellung")
+                print(f"{gegner_name(gegner, 'Der')} hängt in deiner Falle und {behindert}.")
+            gegner_zurueckgedraengt_aktiv = True
+        if runde <= faehrten_hinterhalt_bis:
+            print(f"Du kommst aus der Deckung, bevor {gegner_name(gegner, 'der')} sich ausrichten kann.")
+
 
         if starkes_taumeln_naechste_runde:
             bonus_durch_oeffnung = 20
@@ -1896,7 +2097,7 @@ def kampf_starten(
 
             starkes_taumeln_naechste_runde = False
 
-            print(f"Der {gegner['typ']} taumelt!")
+            print(f"{gegner_name(gegner, 'Der')} taumelt!")
 
             if spieler["waffe"]["typ"] == "Speer":
                 print("Ein schneller Stich verursacht mehr Schaden!")
@@ -1955,7 +2156,7 @@ def kampf_starten(
                 angekuendigt.add("wolf_sprung")
 
         elif (
-            gegner["typ"] == "Keiler"
+            gegner["typ"] in ("Keiler", "Bache", "Schwarzgeweih")
             and not starkes_taumeln_aktiv
             and not gegner_zurueckgedraengt_aktiv
             and not keiler_erholt_sich_diese_runde
@@ -1971,14 +2172,14 @@ def kampf_starten(
                 keiler_ansturm_bereit = True
                 keiler_bereitet_ansturm_vor = True
                 print()
-                print("Der Keiler scharrt mit den Hufen über den Boden.")
+                print(f"{gegner_name(gegner, 'Der')} scharrt mit den Hufen über den Boden.")
                 angekuendigt.add("keiler_ansturm")
-                print("Er senkt den Kopf und bereitet einen Ansturm vor.")
+                print(f"{gegner_name(gegner, 'Er')} senkt den Kopf und bereitet einen Ansturm vor.")
 
         if gegner["typ"] in ("Glutsalamander", "Aschenkönig"):
             if salamander_eingegraben:
                 print()
-                print(f"Der {gegner['typ']} ist unter der Asche verschwunden.")
+                print(f"{gegner_name(gegner, 'Der')} ist unter der Asche verschwunden.")
                 if spieler["wahrnehmung"] >= 3:
                     print("Links von dir hebt sich die Asche kaum merklich.")
                 print("Ein Angriff würde nur Asche treffen.")
@@ -1993,7 +2194,7 @@ def kampf_starten(
                     and random.randint(1, 100) <= 25):
                 salamander_gluehen = True
                 print()
-                print(f"Die Haut des {gegner['typ']}s glüht rot auf.")
+                print(f"Die Haut {gegner_name(gegner, 'des')} glüht rot auf.")
                 angekuendigt.add("salamander_gluehen")
                 print("Wer ihm jetzt zu nahe kommt, verbrennt sich.")
 
@@ -2026,7 +2227,7 @@ def kampf_starten(
                     and random.randint(1, 100) <= (35 if gegner["typ"] == "Steinvater" else 25)):
                 panzer_eingerollt = True
                 print()
-                print(f"Der {gegner['typ']} rollt sich zusammen. Nur zwischen den Platten bleiben schmale Lücken.")
+                print(f"{gegner_name(gegner, 'Der')} rollt sich zusammen. Nur zwischen den Platten bleiben schmale Lücken.")
                 print("Wuchtige Schläge prallen jetzt ab, schnelle Stiche finden die Lücken.")
                 angekuendigt.add("panzer_einrollen")
 
@@ -2044,31 +2245,41 @@ def kampf_starten(
                 print("Nur eine lange Waffe reicht jetzt bis zu ihm hinauf.")
                 angekuendigt.add("kreischer_aufstieg")
             elif random.randint(1, 100) <= 20:
-                schmuggler_benommen_bis = runde + 1
                 print()
-                print("Ein schriller Schrei fährt dir durch Mark und Bein. Du bist benommen.")
+                if runde <= magier_verankert_bis:
+                    print("Ein schriller Schrei gellt über dich hinweg. Du bleibst verankert.")
+                else:
+                    schmuggler_benommen_bis = runde + 1
+                    # Haltrune: eine Runde kürzer benommen.
+                    if spieler["waffe"].get("rune") == "halt":
+                        schmuggler_benommen_bis -= 1
+                        rune_gewirkt.add("halt")
+                    print("Ein schriller Schrei fährt dir durch Mark und Bein. Du bist benommen.")
                 angekuendigt.add("kreischer_schrei")
             if runde <= schmuggler_benommen_bis and not kreischer_in_luft:
                 print("Der Schrei hallt noch in deinen Ohren nach. Du triffst schlechter.")
 
-        if gegner["typ"] in ("Gezeitenkrebs", "Einscherer"):
+        if gegner["typ"] in ("Gezeitenkrebs", "Einscherer", "Schlickbeißer"):
             if krebs_halt_runden > 0:
                 print()
-                print("Die Schere hält deinen Arm fest umklammert.")
+                print("Das Maul hält deinen Arm fest." if maul else "Die Schere hält deinen Arm fest umklammert.")
                 print("Mit Verteidigen kannst du versuchen, dich loszureißen.")
                 if spieler["waffe"].get("typ") == "Messer":
-                    print("Mit dem Messer kannst du durch die Schere stechen.")
+                    print("Mit dem Messer kannst du ins Maul stechen." if maul
+                          else "Mit dem Messer kannst du durch die Schere stechen.")
             elif krebs_packen_bereit:
                 krebs_packen_bereit = False
                 krebs_packen_diese_runde = True
                 print()
-                print(f"Der {gegner['typ']} schnappt mit der offenen Schere nach dir!")
+                print(f"{gegner_name(gegner, 'Der')} schnappt mit offenem Maul nach dir!" if maul
+                      else f"{gegner_name(gegner, 'Der')} schnappt mit der offenen Schere nach dir!")
             elif (not starkes_taumeln_aktiv
                     and not gegner_zurueckgedraengt_aktiv
                     and random.randint(1, 100) <= (35 if gegner["typ"] == "Einscherer" else 25)):
                 krebs_packen_bereit = True
                 print()
-                print(f"Der {gegner['typ']} öffnet seine große Schere weit.")
+                print(f"{gegner_name(gegner, 'Der')} duckt sich ins flache Wasser und reißt das Maul auf." if maul
+                      else f"{gegner_name(gegner, 'Der')} öffnet seine große Schere weit.")
                 angekuendigt.add("krebs_packen")
 
         if gegner["typ"] == "Rudelloser Wolf":
@@ -2169,7 +2380,7 @@ def kampf_starten(
 
         elif keiler_ansturm_diese_runde:
             print()
-            print("Der Keiler stürmt mit voller Wucht auf dich zu!")
+            print(f"{gegner_name(gegner, 'Der')} stürmt mit voller Wucht auf dich zu!")
 
 
 
@@ -2177,19 +2388,57 @@ def kampf_starten(
         # AKTIONSMENÜ
         # =========================
 
+        # Dämpfen: nur gegen einen Spezialangriff, den du in dieser Runde kommen siehst.
+        magier_spezial_sichtbar = (
+            gegner_spezialangriff or wolf_sprung_diese_runde or keiler_ansturm_diese_runde
+            or waldwaechter_spezialangriff or kreischer_sturz_diese_runde
+            or graupelz_sprung_diese_runde
+            or (rudellos_sprung_diese_runde and spieler["sensibilitaet"] >= 2)
+            or krebs_packen_diese_runde or salamander_eingegraben
+            or schmuggler_aschewurf_diese_runde or netz_wurf_diese_runde
+        )
+
         spaeher_oeffnung_aktiv = (
             bonus_durch_oeffnung > 0
             or starkes_taumeln_aktiv
             or gegner_zurueckgedraengt_aktiv
             or messer_oeffnung_aktiv
             or keiler_erholt_sich_diese_runde
+            or runde <= faehrten_hinterhalt_bis
         )
         aktion_gewaehlt = False
+
+        def trueb(normal, stufe2, stufe3, stufe4):
+            # Trüber Geist (Kapitel 8, Tiefe): Ab Runde 2 verliert nur die
+            # Anzeige der Optionen ihre Worte; Tasten, Werte und Zufall
+            # bleiben unverändert.
+            # Sich verankern hält die Anzeige klar.
+            # Haltrune: die Anzeige bleibt eine Runde länger klar.
+            trueb_ab = 3 if spieler["waffe"].get("rune") == "halt" else 2
+            if not trueber_geist or runde < trueb_ab or runde <= magier_verankert_bis:
+                return normal
+            return (stufe2, stufe3, stufe4)[min(runde, 4) - 2]
+
+        def trueb_technik(name):
+            return trueb(
+                name,
+                f"{name} …",
+                "Die besondere … Bewegung",
+                "Die … Bewegung"
+            )
+
+        def trueb_ding():
+            return "Holzding" if spieler["waffe"]["typ"] == "Stab" else "Metallding"
 
         while not aktion_gewaehlt:
 
             print()
-            print("1. Angreifen")
+            print(trueb(
+                "1. Angreifen",
+                f"1. Mit dem {spieler['waffe']['typ']} … angreifen",
+                f"1. Mit dem … {trueb_ding()} zuschlagen",
+                "1. Mit dem Ding zuschlagen"
+            ))
             if gegner_spezialangriff and gegner["typ"] == "Blindmolch":
                 print("2. Den Biss abwehren")
             elif gegner_spezialangriff:
@@ -2204,7 +2453,12 @@ def kampf_starten(
             elif waldwaechter_spezialangriff:
                 print("2. Schweren Angriff abwehren [Schaden möglich]")
             else:
-                print("2. Verteidigen")
+                print(trueb(
+                    "2. Verteidigen",
+                    "2. Verteidigen",
+                    "2. Sich … schützen",
+                    "2. Sich schützen"
+                ))
             print("3. Gegenstand")
 
 
@@ -2221,13 +2475,13 @@ def kampf_starten(
                     if rest == 0
                     else f"noch {rest} Runden"
                 )
-                print(f"F. Fokussierter Angriff [{hinweis}]")
+                print(f"F. {trueb_technik('Fokussierter Angriff')} [{hinweis}]")
                 gueltige_aktionen += ("f",)
 
             if krieger_deckung_gelernt:
                 rest = max(0, krieger_deckung_bereit_ab - runde)
                 hinweis = "bereit" if rest == 0 else f"noch {rest} Runden"
-                print(f"K. Deckung halten [{hinweis}]")
+                print(f"K. {trueb_technik('Deckung halten')} [{hinweis}]")
                 print("   +10 Abwehr; bei gelungener Abwehr +30 % Waffenschaden nächste Runde.")
                 gueltige_aktionen += ("k",)
 
@@ -2237,48 +2491,75 @@ def kampf_starten(
                     hinweis = f"noch {rest} Runden"
                 else:
                     hinweis = "bereit" if spaeher_oeffnung_aktiv else "keine Öffnung"
-                print(f"L. Lücke nutzen [{hinweis}]")
+                print(f"L. {trueb_technik('Lücke nutzen')} [{hinweis}]")
                 print("   Angriff 1 mit +35 % Waffenschaden; benötigt eine Gegneröffnung.")
                 gueltige_aktionen += ("l",)
 
             if gelehrter_muster_gelernt:
                 rest = max(0, gelehrter_muster_bereit_ab - runde)
                 hinweis = "bereit" if rest == 0 else f"noch {rest} Runden"
-                print(f"M. Muster erkennen [{hinweis}]")
+                print(f"M. {trueb_technik('Muster erkennen')} [{hinweis}]")
                 print("   Angriff 1; nächste drei Runden Gegner -15 Treffer / -10 Krit.")
                 gueltige_aktionen += ("m",)
 
             if magier_resonanz_gelernt:
-                print(f"R. Resonanzstoß [{magier_resonanz_ladungen}/3 Ladungen]")
+                print(f"R. {trueb_technik('Resonanzstoß')} [{magier_resonanz_ladungen}/3 Ladungen]")
                 print("   Magischer Angriff; eine Runde und eine Ladung, auch bei Verfehlen.")
                 gueltige_aktionen += ("r",)
 
+            if magier_lauschen_gelernt:
+                print(f"H. {trueb_technik('Lauschen')} [{magier_resonanz_ladungen}/3 Ladungen]")
+                print("   Abwehren; drei Runden trifft dich der Gegner schlechter.")
+                gueltige_aktionen += ("h",)
+
+            if magier_daempfen_gelernt:
+                hinweis = f"{magier_resonanz_ladungen}/3 Ladungen" if magier_spezial_sichtbar else "kein Spezialangriff"
+                print(f"D. {trueb_technik('Dämpfen')} [{hinweis}]")
+                print("   Abwehren; mindert, was trotzdem durchkommt, danach Gegenresonanz.")
+                gueltige_aktionen += ("d",)
+
+            if magier_verankern_gelernt:
+                print(f"N. {trueb_technik('Sich verankern')} [{magier_resonanz_ladungen}/3 Ladungen]")
+                print("   Abwehren; drei Runden klarer Kopf, der nächste Spezialangriff wird schwächer.")
+                gueltige_aktionen += ("n",)
+
+            if runenschmied_gelernt and spieler["waffe"].get("rune") == "halt":
+                if rune_geweckt_genutzt:
+                    hinweis = "schon geweckt"
+                elif runde > schmuggler_benommen_bis:
+                    hinweis = "nicht benommen"
+                else:
+                    hinweis = f"{magier_resonanz_ladungen}/3 Ladungen"
+                print(f"W. {trueb_technik('Rune wecken')} (Haltrune) [{hinweis}]")
+                print("   Beendet deine Benommenheit sofort. Kostet keinen Zug.")
+                gueltige_aktionen += ("w",)
+
             if bestienjaeger_gelernt:
-                print("V. Beute studieren [bereits studiert]" if bestienjaeger_studiert else "V. Beute studieren [eine Vorbereitungsrunde]")
+                print(f"V. {trueb_technik('Beute studieren')} [bereits studiert]" if bestienjaeger_studiert else f"V. {trueb_technik('Beute studieren')} [eine Vorbereitungsrunde]")
                 rest = max(0, bestienjaeger_jagdhieb_bereit_ab - runde)
                 hinweis = "erst studieren" if not bestienjaeger_studiert else f"noch {rest} Runden" if rest else "bereit"
-                print(f"J. Gezielter Jagdhieb [{hinweis}]")
+                print(f"J. {trueb_technik('Gezielter Jagdhieb')} [{hinweis}]")
                 gueltige_aktionen += ("v", "j")
             if stahlkrieger_gelernt:
                 rest = max(0, stahlkrieger_amboss_bereit_ab - runde)
                 hinweis = f"noch {rest} Runden" if rest else "bereit"
-                print(f"A. Ambossstand [{hinweis}]")
+                print(f"A. {trueb_technik('Ambossstand')} [{hinweis}]")
                 rest = max(0, stahlkrieger_schmiedehieb_bereit_ab - runde)
                 hinweis = f"noch {rest} Runden" if rest else "bereit" if stahlkrieger_oeffnung_runde == runde else "erst erfolgreich verteidigen"
-                print(f"S. Schmiedehieb [{hinweis}]")
+                print(f"S. {trueb_technik('Schmiedehieb')} [{hinweis}]")
                 gueltige_aktionen += ("a", "s")
             if glutkrieger_gelernt:
                 hinweis = "verbraucht" if glutkrieger_portion_verbraucht else "bereit" if glutkrieger_portion_bereit else "keine Portion"
-                print(f"G. Kampfportion [{hinweis}]")
+                print(f"G. {trueb_technik('Kampfportion')} [{hinweis}]")
                 hinweis = "bereit" if glutkrieger_bonus_aktiv else "keine Stärkung"
-                print(f"B. Kraftschub [{hinweis}]")
+                print(f"B. {trueb_technik('Kraftschub')} [{hinweis}]")
                 gueltige_aktionen += ("g", "b")
             if flucht_erlaubt:
                 anzeige_fluchtchance = max(
                     10,
                     min(90, 40 + effekte["fluchtchance"] + ausdauer_flucht_bonus + talent_flucht_bonus)
                 )
-                print(f"4. Fliehen ({anzeige_fluchtchance} %)")
+                print(f"4. {trueb('Fliehen', 'Fliehen', 'Weglaufen', 'Weg')} ({anzeige_fluchtchance} %)")
 
             kampf_auswahl = kampf_eingabe(
                 gueltige_aktionen
@@ -2346,6 +2627,75 @@ def kampf_starten(
                 bestienjaeger_jagdhieb_bereit_ab = runde + 3
                 kampf_auswahl = "1"
 
+            # WM-B: Lauschen, Dämpfen und Sich verankern ersetzen das Abwehren dieser Runde.
+            # WM-C: Haltrune wecken ersetzt keine Handlung; danach erscheint nur das Menü erneut.
+            if kampf_auswahl == "w":
+                if rune_geweckt_genutzt:
+                    print("Du hast die Haltrune in diesem Kampf schon geweckt.")
+                    continue
+                if runde > schmuggler_benommen_bis:
+                    print("Du bist nicht benommen. Die Haltrune hat nichts zu lösen.")
+                    continue
+                if magier_resonanz_ladungen <= 0:
+                    print("Du hast in diesem Kampf keine Zauberladungen mehr.")
+                    continue
+                magier_resonanz_ladungen -= 1
+                rune_geweckt_genutzt = True
+                schmuggler_benommen_bis = 0
+                rune_gewirkt.add("halt")
+                print("Du weckst die Haltrune. Ein tiefer Ton geht durch den Griff. Die Benommenheit fällt von dir ab.")
+                continue
+
+            if kampf_auswahl in ("h", "d", "n"):
+                if magier_resonanz_ladungen <= 0:
+                    print("Du hast in diesem Kampf keine Zauberladungen mehr.")
+                    continue
+                if kampf_auswahl == "d" and not magier_spezial_sichtbar:
+                    print("Dämpfen wirkt nur gegen einen Spezialangriff in dieser Runde.")
+                    continue
+                magier_resonanz_ladungen -= 1
+
+                if kampf_auswahl == "h":
+                    magier_genutzt["lauschen"] += 1
+                    magier_lauschen_bis = runde + 2
+                    print("Du lauschst und wehrst aufmerksam ab.")
+                    # Nur was jetzt zu erkennen ist; das Jagdbuch bleibt unverändert.
+                    merkmale = []
+                    for merkmal, erkennbar in (
+                        ("wolf_sprung", wolf_bereitet_sprung_vor or wolf_sprung_diese_runde),
+                        ("keiler_ansturm", keiler_bereitet_ansturm_vor or keiler_ansturm_diese_runde),
+                        ("molch_lauschen", gegner_spezialangriff and gegner["typ"] == "Blindmolch"),
+                        ("bandit_hieb", gegner_spezialangriff and gegner["typ"] != "Blindmolch"),
+                        ("krebs_packen", krebs_packen_bereit or krebs_packen_diese_runde),
+                        ("graupelz_sprung", graupelz_sprung_naechste_runde or graupelz_sprung_diese_runde),
+                        ("rudellos_sprung", (rudellos_sprung_naechste_runde or rudellos_sprung_diese_runde)
+                         and spieler["sensibilitaet"] >= 2),
+                        ("kreischer_aufstieg", kreischer_in_luft or kreischer_sturz_diese_runde),
+                        ("schmuggler_asche", schmuggler_aschewurf_bereit or schmuggler_aschewurf_diese_runde),
+                        ("netz_wurf", netz_bereit or netz_wurf_diese_runde),
+                        ("panzer_einrollen", panzer_eingerollt),
+                        ("salamander_gluehen", salamander_gluehen),
+                        ("salamander_eingraben", salamander_eingegraben)
+                    ):
+                        if erkennbar and merkmal in magier_lauschen_texte:
+                            merkmale.append(magier_lauschen_texte[merkmal])
+                    for satz in merkmale:
+                        print(f"   {satz}")
+                    if not merkmale:
+                        print("   Du hörst nichts, was sich vorbereitet.")
+                elif kampf_auswahl == "d":
+                    magier_genutzt["daempfen"] += 1
+                    magier_daempfen_diese_runde = True
+                    print("Du dämpfst den Angriff und hältst die Resonanz für eine Antwort bereit.")
+                else:
+                    magier_genutzt["verankern"] += 1
+                    magier_verankert_bis = runde + 2
+                    magier_anker_schutz = True
+                    schmuggler_benommen_bis = 0
+                    print("Du sagst dir deinen Namen, einmal, leise. Drei Runden lang bleibt dein Kopf klar.")
+
+                kampf_auswahl = "2"
+
             if kampf_auswahl == "r":
                 if not magier_resonanz_gelernt:
                     print("Du hast diese Magierfähigkeit nicht gelernt.")
@@ -2354,6 +2704,7 @@ def kampf_starten(
                     print("Du hast in diesem Kampf keine Zauberladungen mehr.")
                     continue
                 magier_resonanz_ladungen -= 1
+                magier_genutzt["resonanzstoss"] += 1
                 aktion = "zauber"
                 aktion_gewaehlt = True
                 continue
@@ -2872,11 +3223,11 @@ def kampf_starten(
                             print("Du versuchst dem Ansturm auszuweichen, kommst aber nicht rechtzeitig weg.")
 
                 elif keiler_bereitet_ansturm_vor:
-                    print("Du gehst auf Abstand und beobachtest den Keiler.")
+                    print(f"Du gehst auf Abstand und beobachtest {gegner_name(gegner, 'den')}.")
 
                 else:
                     oeffnung_naechste_runde = True
-                    print(f"Du zwingst den {gegner['typ']} in eine ungünstige Position.")
+                    print(f"Du zwingst {gegner_name(gegner, 'den')} in eine ungünstige Position.")
 
 
 
@@ -3019,11 +3370,11 @@ def kampf_starten(
                     if wurfnetz_gross:
                         netz_spieler_bonus = 10
                         netz_bonus_runde = runde + 1
-                        print(f"Das Netz legt sich über den {gegner['typ']}. Er reißt daran, und die Maschen geben nach.")
+                        print(f"Das Netz legt sich über {gegner_name(gegner, 'den')}. {gegner_name(gegner, 'Er')} reißt daran, und die Maschen geben nach.")
                         print("Für einen Augenblick ist er behindert.")
                     else:
                         oeffnung_naechste_runde = True
-                        print(f"Das Netz legt sich über den {gegner['typ']}. Er verfängt sich darin.")
+                        print(f"Das Netz legt sich über {gegner_name(gegner, 'den')}. {gegner_name(gegner, 'Er')} verfängt sich darin.")
                 elif gegenstand_auswahl == zurueck_taste:
                     pass
 
@@ -3062,7 +3413,7 @@ def kampf_starten(
 
                 if flucht_wurf <= flucht_chance:
                     geflohen = True
-                    print(f"Du entkommst dem {gegner['typ']}!")
+                    print(f"Du entkommst {gegner_name(gegner, 'dem')}!")
 
                 else:
                     print("Deine Flucht misslingt!")
@@ -3117,19 +3468,20 @@ def kampf_starten(
                     magier_resonanz_basis
                     + 2 * magier_geist
                     + 2 * magier_uebersinnliches
+                    + min(4, 2 * magier_resonanz_stufe)
                 )
                 gegner["hp"] = max(0, gegner["hp"] - magier_resonanz_schaden)
-                print(f"Dein Resonanzstoß trifft den {gegner['typ']} für {magier_resonanz_schaden} Schaden.")
+                print(f"Dein Resonanzstoß trifft {gegner_name(gegner, 'den')} für {magier_resonanz_schaden} Schaden.")
             else:
                 print("Dein Resonanzstoß verfehlt den Gegner.")
             if gegner["hp"] <= 0:
-                print(f"Der {gegner['typ']} wurde besiegt.")
+                print(f"{gegner_name(gegner, 'Der')} wurde besiegt.")
                 break
             if (gegner["typ"] == "Bandit"
                     and gegner["hp"] <= gegner["max_hp"] * 0.25
                     and not bandit_raserei):
                 bandit_raserei = True
-                print(f"Der {gegner['typ']} gerät in Panik!")
+                print(f"{gegner_name(gegner, 'Der')} gerät in Panik!")
                 print("Er kämpft jetzt wilder, lässt dabei aber seine Deckung fallen.")
 
         if aktion == "angriff":
@@ -3184,6 +3536,9 @@ def kampf_starten(
                 spieler_trefferchance -= effekte["ausweichchance_gegner"]
                 spieler_trefferchance += angriffs_treffer_mod
                 spieler_trefferchance += bonus_durch_oeffnung
+                # WM-D: In der Falle weicht der Gegner 10 Punkte schlechter aus.
+                if runde <= faehrten_falle_bis:
+                    spieler_trefferchance += 10
                 spieler_trefferchance += netz_spieler_bonus
                 netz_spieler_bonus = 0
                 if fokus_diese_runde:
@@ -3313,6 +3668,8 @@ def kampf_starten(
             if spaeher_luecke_diese_runde and schaden > 0:
                 schaden = int(schaden * 1.35)
                 print("Du nutzt die Lücke für einen gezielten Angriff!")
+                if runde <= faehrten_vorbereitet_bis:
+                    faehrten_luecke_genutzt = True
 
             if bestienjaeger_gelernt and bestienjaeger_studiert and schaden > 0:
                 faktor = 1.80 if bestienjaeger_jagdhieb_diese_runde else 1.20
@@ -3359,7 +3716,7 @@ def kampf_starten(
                     waffenpflege_anwendungen -= 1
                     print(f"Waffenpflege wirkt: +{waffenpflege_bonus} Schaden. Verbleibende Anwendungen: {waffenpflege_anwendungen}.")
 
-            if (gegner["typ"] in ("Gezeitenkrebs", "Einscherer") and krebs_halt_runden > 0
+            if (gegner["typ"] in ("Gezeitenkrebs", "Einscherer", "Schlickbeißer") and krebs_halt_runden > 0
                     and schaden > 0 and spieler["waffe"].get("typ") != "Messer"):
                 schaden = max(1, int(schaden * 0.5))
                 print("Mit festgehaltenem Arm triffst du nur halb so hart.")
@@ -3370,9 +3727,14 @@ def kampf_starten(
                     angriffs_schaden_faktor > 1.1
                     or spieler["waffe"].get("typ") == "Hammer"
                 )
+                klangrune = spieler["waffe"].get("rune") == "klang"
                 if panzer_eingerollt:
                     if schwerer_schlag:
-                        schaden = max(1, int(schaden * 0.4))
+                        # Klangrune: 60 % statt 40 %, solange der Panzer ungebrochen ist.
+                        klang_bonus = klangrune and not panzer_gebrochen
+                        schaden = max(1, int(schaden * (0.6 if klang_bonus else 0.4)))
+                        if klang_bonus:
+                            rune_gewirkt.add("klang")
                         print("Dein Schlag prallt an den eingerollten Platten ab.")
                     else:
                         print("Du triffst genau in eine Lücke zwischen den Platten.")
@@ -3386,10 +3748,16 @@ def kampf_starten(
                         else:
                             print(f"Ein Riss zieht sich durch die {platten}.")
                     elif spieler["waffe"].get("typ") == "Messer":
-                        schaden = max(1, int(schaden * 0.7))
+                        # Klangrune: 80 % statt 70 %.
+                        schaden = max(1, int(schaden * (0.8 if klangrune else 0.7)))
+                        if klangrune:
+                            rune_gewirkt.add("klang")
                         print("Deine Klinge findet eine Fuge zwischen den Platten.")
                     else:
-                        schaden = max(1, int(schaden * 0.4))
+                        # Klangrune: 60 % statt 40 %.
+                        schaden = max(1, int(schaden * (0.6 if klangrune else 0.4)))
+                        if klangrune:
+                            rune_gewirkt.add("klang")
                         print(f"Dein schneller Angriff schrammt nur über die {platten}.")
                 else:
                     schaden = int(schaden * 1.2)
@@ -3419,7 +3787,7 @@ def kampf_starten(
                 print("Dein schwerer Stich geht vorbei – der Bandit nutzt deine Blöße!")
 
             elif treffer_art == "verfehlt":
-                print(f"Du verfehlst den {gegner['typ']}.")
+                print(f"Du verfehlst {gegner_name(gegner, 'den')}.")
 
             elif (starkes_taumeln_aktiv and angriffs_name == "Schneller Stich" and krit):
                 farbig_ausgeben(f"Du nutzt das Taumeln perfekt! Dein schneller Stich trifft kritisch für {schaden} Schaden!", "gelb")
@@ -3431,10 +3799,10 @@ def kampf_starten(
                 farbig_ausgeben(f"Du nutzt die offene Deckung perfekt! Dein schneller Hieb trifft kritisch für {schaden} Schaden!", "gelb")
 
             elif starkes_taumeln_aktiv and angriffs_name == "Schneller Hieb" and treffer_art == "voll":
-                farbig_ausgeben(f"Du nutzt die offene Deckung und triffst den {gegner['typ']} für {schaden} Schaden.", "blau")
+                farbig_ausgeben(f"Du nutzt die offene Deckung und triffst {gegner_name(gegner, 'den')} für {schaden} Schaden.", "blau")
 
             elif treffer_art == "streif":
-                farbig_ausgeben(f"Du streifst den {gegner['typ']} und verursachst {schaden} Schaden.", "blau")
+                farbig_ausgeben(f"Du streifst {gegner_name(gegner, 'den')} und verursachst {schaden} Schaden.", "blau")
 
             elif combo_nachsetzen and krit:
                 print("Combo: Nachsetzen!")
@@ -3448,7 +3816,7 @@ def kampf_starten(
                 farbig_ausgeben(f"Kritischer Treffer! Du verursachst {schaden} Schaden.", "gelb")
 
             else:
-                farbig_ausgeben(f"Du triffst den {gegner['typ']} für {schaden} Schaden.", "blau")
+                farbig_ausgeben(f"Du triffst {gegner_name(gegner, 'den')} für {schaden} Schaden.", "blau")
 
             if (
                 beil_druck_diese_runde
@@ -3465,7 +3833,7 @@ def kampf_starten(
 
             if gegner["typ"] == "Bandit" and gegner["hp"] <= gegner["max_hp"] * 0.25 and gegner["hp"] > 0 and not bandit_raserei:
                 bandit_raserei = True
-                print(f"Der {gegner['typ']} gerät in Panik!")
+                print(f"{gegner_name(gegner, 'Der')} gerät in Panik!")
                 print("Er kämpft jetzt wilder, lässt dabei aber seine Deckung fallen.")
 
             if (gegner["typ"] in ("Glutsalamander", "Aschenkönig") and salamander_gluehen
@@ -3482,7 +3850,7 @@ def kampf_starten(
                     and gegner["hp"] > 0
                     and random.randint(1, 100) <= (50 if gegner["typ"] == "Aschenkönig" else 35)):
                 salamander_eingegraben_naechste_runde = True
-                print(f"Der {gegner['typ']} wühlt sich blitzschnell in die Asche.")
+                print(f"{gegner_name(gegner, 'Der')} wühlt sich blitzschnell in die Asche.")
                 angekuendigt.add("salamander_eingraben")
 
             if (gegner["typ"] == "Graupelz" and 0 < gegner["hp"] <= gegner["max_hp"] * 0.6
@@ -3510,7 +3878,7 @@ def kampf_starten(
             # Gegner tot -> kein Gegenangriff
 
             if gegner["hp"] <= 0:
-                print(f"Der {gegner['typ']} wurde besiegt.")
+                print(f"{gegner_name(gegner, 'Der')} wurde besiegt.")
                 break
 
             if wolf_sprung_abgefangen:
@@ -3522,7 +3890,7 @@ def kampf_starten(
 
             print()
             print("Combo: Durchbruch!")
-            print(f"Dein kräftiger Hieb drängt den {gegner['typ']} zurück!")
+            print(f"Dein kräftiger Hieb drängt {gegner_name(gegner, 'den')} zurück!")
 
 
         if wolf_bereitet_sprung_vor:
@@ -3577,16 +3945,16 @@ def kampf_starten(
 
                 if treffer_art == "voll" and random.randint(1, 100) <= unterbrechung_chance:
                     keiler_ansturm_bereit = False
-                    print("Dein Angriff bringt den Keiler aus dem Gleichgewicht!")
-                    print("Der Keiler muss seinen Ansturm abbrechen!")
+                    print(f"Dein Angriff bringt {gegner_name(gegner, 'den')} aus dem Gleichgewicht!")
+                    print(f"{gegner_name(gegner, 'Der')} muss {gegner_name(gegner, 'seinen')} Ansturm abbrechen!")
 
                 else:
                     keiler_ansturm_verstaerkt = True
-                    print("Du schaffst es nicht, den Keiler aufzuhalten!")
-                    print("Der Keiler setzt seinen Ansturm unbeirrt fort!")
+                    print(f"Du schaffst es nicht, {gegner_name(gegner, 'den')} aufzuhalten!")
+                    print(f"{gegner_name(gegner, 'Der')} setzt {gegner_name(gegner, 'seinen')} Ansturm unbeirrt fort!")
 
             if keiler_ansturm_bereit:
-                print("Der Keiler hält Abstand und bereitet seinen Ansturm weiter vor.")
+                print(f"{gegner_name(gegner, 'Der')} hält Abstand und bereitet {gegner_name(gegner, 'seinen')} Ansturm weiter vor.")
 
 
             runde += 1
@@ -3611,24 +3979,24 @@ def kampf_starten(
 
             starkes_taumeln_naechste_runde = True
 
-            farbig_ausgeben(f"Der Keiler läuft direkt in deinen Speer! Du verursachst {keiler_speer_schaden} Schaden.", "blau")
+            farbig_ausgeben(f"{gegner_name(gegner, 'Der')} läuft direkt in deinen Speer! Du verursachst {keiler_speer_schaden} Schaden.", "blau")
 
             if gegner["hp"] <= 0:
                 if bestienjaeger_gelernt:
                     bestienjaeger_abwehr_erfolgreich = True
                 if stahlkrieger_gelernt and stahlkrieger_amboss_diese_runde:
                     stahlkrieger_amboss_erfolgreich = True
-                print("Der Keiler bricht zusammen.")
+                print(f"{gegner_name(gegner, 'Der')} bricht zusammen.")
                 break
 
         if keiler_erholt_sich_diese_runde:
-            print("Der Keiler sammelt sich und setzt zum nächsten Schritt an.")
+            print(f"{gegner_name(gegner, 'Der')} sammelt sich und setzt zum nächsten Schritt an.")
             runde += 1
             continue
 
         if gegner_im_wurfnetz and not wurfnetz_gross:
             gegner_im_wurfnetz = False
-            print(f"Der {gegner['typ']} zerrt am Netz und kommt nicht zum Angriff.")
+            print(f"{gegner_name(gegner, 'Der')} zerrt am Netz und kommt nicht zum Angriff.")
             runde += 1
             continue
 
@@ -3675,19 +4043,20 @@ def kampf_starten(
                 break
             print("Der Wrackplünderer greift wieder nach seinem Haken.")
 
-        if gegner["typ"] in ("Gezeitenkrebs", "Einscherer") and krebs_halt_runden > 0 and aktion == "verteidigen":
+        if gegner["typ"] in ("Gezeitenkrebs", "Einscherer", "Schlickbeißer") and krebs_halt_runden > 0 and aktion == "verteidigen":
             losreissen_chance = max(20, min(90, 50 + 10 * (spieler["staerke"] - 1)
                                             - (10 if gegner["typ"] == "Einscherer" else 0)))
             if random.randint(1, 100) <= losreissen_chance:
                 krebs_halt_runden = 0
                 oeffnung_naechste_runde = True
                 print()
-                print("Du reißt deinen Arm aus der Schere los!")
+                print("Du reißt deinen Arm aus dem Maul los!" if maul else "Du reißt deinen Arm aus der Schere los!")
                 angekuendigt.add("krebs_losreissen")
                 runde += 1
                 continue
             print()
-            print("Du stemmst dich gegen die Schere, aber sie hält dich fest.")
+            print("Du stemmst dich gegen das Maul, aber es hält dich fest." if maul
+                  else "Du stemmst dich gegen die Schere, aber sie hält dich fest.")
 
         if (gegner["typ"] == "Kohlenschmuggler" and schmuggler_flucht_diese_runde
                 and schmuggler_flucht_bereit and gegner["hp"] > 0):
@@ -3765,13 +4134,13 @@ def kampf_starten(
             if aktion != "verteidigen":
                 print("Der Wolf springt dich ohne jede Vorwarnung an!")
 
-        elif gegner["typ"] in ("Gezeitenkrebs", "Einscherer") and krebs_halt_runden > 0 and not krebs_packen_diese_runde:
+        elif gegner["typ"] in ("Gezeitenkrebs", "Einscherer", "Schlickbeißer") and krebs_halt_runden > 0 and not krebs_packen_diese_runde:
             spezial_schaden_faktor = 0.7
 
         elif salamander_eingegraben and aktion != "verteidigen":
             gegner_trefferchance += 10
             spezial_schaden_faktor = 1.5
-            print(f"Der {gegner['typ']} bricht unter dir aus der Asche hervor!")
+            print(f"{gegner_name(gegner, 'Der')} bricht unter dir aus der Asche hervor!")
 
 
 
@@ -3789,8 +4158,12 @@ def kampf_starten(
         if runde == 1:
             gegner_trefferchance += start_effekte["trefferchance_gegner"]
             gegner_trefferchance -= start_effekte["ausweichchance_spieler"]
+        if runde <= faehrten_hinterhalt_bis:
+            gegner_trefferchance -= faehrten_hinterhalt_abzug
         if gelehrter_muster_aktiv:
             gegner_trefferchance -= 15
+        if runde <= magier_lauschen_bis:
+            gegner_trefferchance -= magier_lauschen_abzug
         gegner_trefferchance = max(5, min(95, gegner_trefferchance))
 
         gegner_streifgrenze = min(100, gegner_trefferchance + 15)
@@ -3815,8 +4188,14 @@ def kampf_starten(
             if aktion == "verteidigen":
                 oeffnung_naechste_runde = True
                 print("Du drehst den Kopf rechtzeitig weg. Die Asche verfehlt deine Augen.")
+            elif runde <= magier_verankert_bis:
+                print("Asche trifft dich ins Gesicht. Du blinzelst sie weg und siehst klar.")
             else:
                 schmuggler_benommen_bis = runde + 2
+                # Haltrune: eine Runde kürzer benommen.
+                if spieler["waffe"].get("rune") == "halt":
+                    schmuggler_benommen_bis -= 1
+                    rune_gewirkt.add("halt")
                 farbig_ausgeben("Asche trifft dich in die Augen. Du bist benommen.", "rot")
 
         if rudellos_sprung_diese_runde and aktion == "verteidigen":
@@ -3834,16 +4213,18 @@ def kampf_starten(
             if aktion == "verteidigen":
                 gegner_treffer_art = "verfehlt"
                 oeffnung_naechste_runde = True
-                print("Du weichst der Schere im letzten Moment aus.")
+                print("Du weichst dem Maul im letzten Moment aus." if maul
+                      else "Du weichst der Schere im letzten Moment aus.")
             else:
                 gegner_treffer_art = "voll"
                 krebs_halt_runden = 3 if gegner["typ"] == "Einscherer" else 2
-                print("Die Schere schließt sich um deinen Arm!")
+                print("Das Maul schließt sich um deinen Arm!" if maul else "Die Schere schließt sich um deinen Arm!")
         elif krebs_halt_runden > 0:
             gegner_treffer_art = "voll"
             krebs_halt_runden -= 1
             if krebs_halt_runden == 0:
-                print("Der Krebs kneift ein letztes Mal zu und lässt dann los.")
+                print("Der Schlickbeißer beißt ein letztes Mal zu und lässt dann los." if maul
+                      else "Der Krebs kneift ein letztes Mal zu und lässt dann los.")
 
         if netz_wurf_diese_runde:
             if aktion == "verteidigen":
@@ -3862,7 +4243,7 @@ def kampf_starten(
         if salamander_eingegraben and aktion == "verteidigen":
             gegner_treffer_art = "verfehlt"
             oeffnung_naechste_runde = True
-            print(f"Du wartest ab. Als der {gegner['typ']} aus der Asche bricht, bist du bereit.")  
+            print(f"Du wartest ab. Als {gegner_name(gegner, 'der')} aus der Asche bricht, bist du bereit.")  
 
         gegner_treffer_art_original = gegner_treffer_art
 
@@ -3950,19 +4331,53 @@ def kampf_starten(
                     gegner_schaden = int(gegner_schaden * 1.5)
 
         if gegner["typ"] == "Waldwächter" and aktion == "verteidigen":
-            gegner_schaden //= 2
+            if magier_daempfen_diese_runde and waldwaechter_spezialangriff:
+                gegner_schaden = int(gegner_schaden * max(0.25, 0.35 - 0.05 * (magier_kontrolle - 1)))
+            elif waldwaechter_spezialangriff and spieler["waffe"].get("rune") == "ruhe":
+                # Ruherune: 42 % statt der Hälfte.
+                gegner_schaden = int(gegner_schaden * 0.42)
+                rune_gewirkt.add("ruhe")
+            else:
+                gegner_schaden //= 2
 
         if bandit_raserei and not gegner_spezialangriff:
             gegner_schaden = int(gegner_schaden * 1.20)
 
+        # Dämpfen (WM-B) lässt bei Sprung und Ansturm weniger Rest als Abwehren.
+        abwehr_rest = 0.60
+        if magier_daempfen_diese_runde:
+            abwehr_rest = max(0.30, 0.40 - 0.05 * (magier_kontrolle - 1))
+        elif (
+            spieler["waffe"].get("rune") == "ruhe" and aktion == "verteidigen"
+            and (wolf_sprung_diese_runde or keiler_ansturm_diese_runde)
+        ):
+            # Ruherune: 50 % statt 60 %.
+            abwehr_rest = 0.50
+            rune_gewirkt.add("ruhe")
+
         if wolf_sprung_diese_runde and aktion == "verteidigen":
-            gegner_schaden = int(gegner_schaden * 0.60)
+            gegner_schaden = int(gegner_schaden * abwehr_rest)
 
         elif wolf_sprung_diese_runde and wolf_schwert_konter_erfolgreich:
             gegner_schaden = int(gegner_schaden * 0.50)
 
         if keiler_ansturm_diese_runde and aktion == "verteidigen":
-            gegner_schaden = int(gegner_schaden * 0.60)
+            gegner_schaden = int(gegner_schaden * abwehr_rest)
+
+        # Sturz und Graupelz-Sprung ohne lange Waffe: Dämpfen lässt zwei Drittel.
+        if magier_daempfen_diese_runde and (kreischer_sturz_diese_runde or graupelz_sprung_diese_runde):
+            gegner_schaden = int(gegner_schaden * 2 / 3)
+
+        # Sich verankern: einmal 20 % weniger vom Rest des nächsten ausgeführten Spezialangriffs.
+        if magier_anker_schutz and runde <= magier_verankert_bis and (
+            gegner_spezialangriff or wolf_sprung_diese_runde or keiler_ansturm_diese_runde
+            or waldwaechter_spezialangriff or kreischer_sturz_diese_runde
+            or graupelz_sprung_diese_runde or rudellos_sprung_diese_runde
+            or krebs_packen_diese_runde or salamander_eingegraben
+            or schmuggler_aschewurf_diese_runde or netz_wurf_diese_runde
+        ):
+            magier_anker_schutz = False
+            gegner_schaden = int(gegner_schaden * 0.80)
 
         standhalten_gegenschaden = 0
 
@@ -4131,28 +4546,28 @@ def kampf_starten(
 
         if gegner_spezialangriff and aktion == "verteidigen":
             print("Du fängst den Spezialangriff ab!")
-            print(f"Der {gegner['typ']} verliert das Gleichgewicht und taumelt.")
+            print(f"{gegner_name(gegner, 'Der')} verliert das Gleichgewicht und taumelt.")
 
         elif keiler_ansturm_diese_runde and keiler_speer_abfangen_erfolgreich:
-            print("Der Keiler wird an deiner Speerspitze gestoppt und taumelt zurück!")
+            print(f"{gegner_name(gegner, 'Der')} wird an deiner Speerspitze gestoppt und taumelt zurück!")
 
         elif keiler_ansturm_diese_runde and keiler_ausweichen_erfolgreich:
-            print("Du springst im letzten Moment zur Seite! Der Keiler schießt an dir vorbei.")
+            print(f"Du springst im letzten Moment zur Seite! {gegner_name(gegner, 'Der')} schießt an dir vorbei.")
 
         elif keiler_ansturm_diese_runde and gegner_treffer_art == "verfehlt":
-            print("Der Keiler rauscht knapp an dir vorbei!")
+            print(f"{gegner_name(gegner, 'Der')} rauscht knapp an dir vorbei!")
 
         elif keiler_ansturm_diese_runde and keiler_speer_abfangen_versucht:
-            farbig_ausgeben(f"Der Keiler durchbricht deine Speerstellung! Du erleidest {gegner_schaden} Schaden.", "rot")
+            farbig_ausgeben(f"{gegner_name(gegner, 'Der')} durchbricht deine Speerstellung! Du erleidest {gegner_schaden} Schaden.", "rot")
 
         elif keiler_ansturm_diese_runde and aktion == "verteidigen":
             farbig_ausgeben(f"Du kommst nicht vollständig aus der Bahn und erleidest {gegner_schaden} Schaden.", "rot")
 
         elif keiler_ansturm_diese_runde and gegner_treffer_art == "streif":
-            farbig_ausgeben(f"Der Keiler erwischt dich im Vorbeistürmen! Du erleidest {gegner_schaden} Schaden.", "rot")
+            farbig_ausgeben(f"{gegner_name(gegner, 'Der')} erwischt dich im Vorbeistürmen! Du erleidest {gegner_schaden} Schaden.", "rot")
 
         elif keiler_ansturm_diese_runde:
-            farbig_ausgeben(f"Der Keiler rammt dich mit voller Wucht! Du erleidest {gegner_schaden} Schaden.", "rot")
+            farbig_ausgeben(f"{gegner_name(gegner, 'Der')} rammt dich mit voller Wucht! Du erleidest {gegner_schaden} Schaden.", "rot")
 
         elif wolf_sprung_diese_runde and gegner_treffer_art == "verfehlt":
             print("Der Wolf springt an dir vorbei!")
@@ -4170,7 +4585,7 @@ def kampf_starten(
             farbig_ausgeben(f"Der Wolf trifft dich mit voller Wucht! Du erleidest {gegner_schaden} Schaden.", "rot")
 
         elif gegner_treffer_art == "verfehlt":
-            print(f"Der {gegner['typ']} verfehlt dich.")
+            print(f"{gegner_name(gegner, 'Der')} verfehlt dich.")
 
         elif gegner_spezialangriff and gegner_treffer_art == "streif":
             farbig_ausgeben(f"Der Spezialangriff streift dich! Du erleidest {gegner_schaden} Schaden.", "rot")
@@ -4182,22 +4597,22 @@ def kampf_starten(
             print("Du blockierst den Angriff vollständig.")
 
         elif bandit_konter_bonus > 0 and gegner_krit:
-            farbig_ausgeben(f"Kritischer Konter! Der {gegner['typ']} nutzt deine Blöße und verursacht {gegner_schaden} Schaden!", "rot")
+            farbig_ausgeben(f"Kritischer Konter! {gegner_name(gegner, 'Der')} nutzt deine Blöße und verursacht {gegner_schaden} Schaden!", "rot")
 
         elif bandit_konter_bonus > 0 and gegner_treffer_art == "voll":
-            farbig_ausgeben(f"Der {gegner['typ']} nutzt deine Blöße und trifft dich für {gegner_schaden} Schaden!", "rot")
+            farbig_ausgeben(f"{gegner_name(gegner, 'Der')} nutzt deine Blöße und trifft dich für {gegner_schaden} Schaden!", "rot")
 
         elif gegner_krit:
-            farbig_ausgeben(f"Kritischer Treffer! Der {gegner['typ']} verursacht {gegner_schaden} Schaden!", "rot")
+            farbig_ausgeben(f"Kritischer Treffer! {gegner_name(gegner, 'Der')} verursacht {gegner_schaden} Schaden!", "rot")
 
         elif parade_erfolgreich:
             farbig_ausgeben(f"Du parierst einen Teil des Angriffs und erleidest {gegner_schaden} Schaden.", "rot")
 
         elif gegner_treffer_art == "streif":
-            farbig_ausgeben(f"Der {gegner['typ']} streift dich. Du erleidest {gegner_schaden} Schaden.", "rot")
+            farbig_ausgeben(f"{gegner_name(gegner, 'Der')} streift dich. Du erleidest {gegner_schaden} Schaden.", "rot")
 
         else:
-            farbig_ausgeben(f"Der {gegner['typ']} trifft dich für {gegner_schaden} Schaden.", "rot")
+            farbig_ausgeben(f"{gegner_name(gegner, 'Der')} trifft dich für {gegner_schaden} Schaden.", "rot")
 
 
         if unbeugsam_meldung:
@@ -4230,11 +4645,26 @@ def kampf_starten(
                 and not bandit_raserei
             ):
                 bandit_raserei = True
-                print(f"Der {gegner['typ']} gerät in Panik!")
+                print(f"{gegner_name(gegner, 'Der')} gerät in Panik!")
                 print("Er kämpft jetzt wilder, lässt dabei aber seine Deckung fallen.")
 
             if gegner["hp"] <= 0:
-                print(f"Der {gegner['typ']} wurde besiegt.")
+                print(f"{gegner_name(gegner, 'Der')} wurde besiegt.")
+                break
+
+        # Dämpfen (WM-B): Gegenresonanz nach dem ausgeführten Angriff, nur wenn du noch stehst.
+        # Fester Schaden ohne eigenen Wurf; keine Öffnung, kein Krit, kein weiterer Gegenangriff.
+        if magier_daempfen_diese_runde and gegner["hp"] > 0:
+            text_pause("kampf")
+            gegenresonanz = 6 + 3 * magier_kontrolle
+            gegner["hp"] = max(0, gegner["hp"] - gegenresonanz)
+            magier_gedaempft = True
+            farbig_ausgeben(
+                f"Deine Gegenresonanz trifft {gegner_name(gegner, 'den')} für {gegenresonanz} Schaden.",
+                "blau"
+            )
+            if gegner["hp"] <= 0:
+                print(f"{gegner_name(gegner, 'Der')} wurde besiegt.")
                 break
 
         runde += 1
@@ -4275,6 +4705,19 @@ def kampf_starten(
         ergebnis.update(
             glutkrieger_portion_verbraucht=glutkrieger_portion_verbraucht,
             glutkrieger_kraftschub=glutkrieger_kraftschub_getroffen
+        )
+    if spieler["waffe"].get("rune"):
+        ergebnis["rune_gewirkt"] = sorted(rune_gewirkt)
+    if faehrten_vorbereiten:
+        ergebnis.update(
+            faehrten_entdeckt=gegner_entdeckt,
+            faehrten_vorbereitung=faehrten_vorbereitung,
+            faehrten_luecke_genutzt=faehrten_luecke_genutzt
+        )
+    if magier_resonanz_gelernt:
+        ergebnis.update(
+            magier_genutzt=dict(magier_genutzt),
+            magier_gedaempft=magier_gedaempft
         )
     return ergebnis
 if __name__ == "__main__":

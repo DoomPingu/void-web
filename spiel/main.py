@@ -1,5 +1,7 @@
 
 from hybrid_system import (
+    HYBRIDWEGE,
+    hybrid_probe_bestanden,
     bestienjaeger_voraussetzungen,
     bestienjaeger_freigeschaltet,
     hybrid_aktiv_holen,
@@ -18,7 +20,24 @@ from hybrid_system import (
     glutkrieger_freigeschaltet,
     glutkrieger_probe_starten,
     glutkrieger_kampfwerte,
-    glutkrieger_probe_auswerten
+    glutkrieger_probe_auswerten,
+    RUNEN,
+    RUNE_KOSTEN,
+    rune_setzbar,
+    runenschmied_voraussetzungen,
+    runenschmied_freigeschaltet,
+    runenschmied_probe_starten,
+    runenschmied_probe_abbrechen,
+    runenschmied_kampfwerte,
+    runenschmied_probe_auswerten,
+    faehrtensteller_voraussetzungen,
+    faehrtensteller_freigeschaltet,
+    faehrtensteller_probe_offen,
+    faehrtensteller_aktiv,
+    faehrtensteller_probe_starten,
+    faehrtensteller_probe_abbrechen,
+    faehrtensteller_kampfwerte,
+    faehrtensteller_probe_auswerten
 )
 
 from glutkrieger_system import (
@@ -1154,6 +1173,8 @@ def schlafen_bis_morgen(einleitung, heilung=None):
     # Schlafen springt bis zum Beginn des nächsten Morgens. Die Spielzeit
     # (Statistik) bleibt unberührt, nur der Zeitversatz wächst; damit ändern
     # sich auch Tageszeit und Wetter. heilung=None heilt vollständig.
+    frist_handlung(FRIST_SCHLAFEN)
+
     gesamt = int(spieler.get("spielzeit", 0)) + int(spieler.get("zeit_versatz", 0))
     rest = gesamt % TAG_DAUER
     morgen = int(TAG_DAUER * 0.90)
@@ -1489,6 +1510,7 @@ def ort_nachricht_setzen(*zeilen):
 
 
 def ort_nachricht_anzeigen():
+    frist_meldung_anzeigen()
     nachricht = spieler.get("ort_nachricht")
 
     if not nachricht:
@@ -1769,6 +1791,7 @@ def reise(
                     "schritte"
                 ]
             )
+            frist_handlung(reise_daten["schritte"])
 
             if not status_schritte_abschliessen(
                 reise_daten[
@@ -1784,11 +1807,18 @@ def reise(
             spieler[
                 "ort"
             ] = ziel
+            archiv_ankunft(ziel)
+
+            # Streckennamen mit eigener Beugung ("auf der Nordstraße").
+            auf_text = reise_daten.get(
+                "auf_text",
+                f"auf dem {reise_name}"
+            )
 
             ort_nachricht_setzen(
                 (
-                    f"Du folgst den vertrauten Markierungen auf dem "
-                    f"{reise_name} und vermeidest unnötige Umwege."
+                    f"Du folgst den vertrauten Markierungen {auf_text} "
+                    f"und vermeidest unnötige Umwege."
                 ),
                 *ankunft_zeilen
             )
@@ -1990,6 +2020,15 @@ def reise_schritttext_waehlen(
         schritt,
         []
     )
+
+    # Nach dem Riss endet am Pfad des Vergessens ein Straßengraben (Kapitel 7).
+    if (
+        variable_texte
+        and richtung == "Eichenruh>verlassenes_dorf"
+        and schritt == 5
+        and akt1_riss_geschehen()
+    ):
+        variable_texte = variable_texte + [PFAD_GRABEN_NACH_RISS]
 
     if variable_texte:
         text_verlauf = spieler.setdefault(
@@ -2907,7 +2946,8 @@ def kampf_starten(
     waffe=None,
     gegner_typ=None,
     kampf_situation=None,
-    reise_umgehen=False
+    reise_umgehen=False,
+    trueber_geist=False
 ):
     status_kampf_vorbereiten()
 
@@ -2976,16 +3016,25 @@ def kampf_starten(
         **magier_resonanzwerte(spieler),
         **bestienjaeger_kampfwerte(spieler, gegner_typ, kampf_situation),
         **stahlkrieger_kampfwerte(spieler, waffe),
-        **glutkrieger_kampfwerte(spieler)
+        **glutkrieger_kampfwerte(spieler),
+        **runenschmied_kampfwerte(spieler),
+        **faehrtensteller_kampfwerte(spieler, gegner_typ, kampf_situation)
     }
+
+    # WM-B: Lauschen zeigt nur Jagdbuch-Sätze dieses Gegnertyps; eingetragen wird nichts.
+    if kampfwerte["magier_lauschen_gelernt"]:
+        kampfwerte["magier_lauschen_texte"] = dict(JAGDBUCH.get(gegner_typ, {}).get("verhalten", {}))
 
     kampfwerte["blutungsschutz"] = ausruestung_kennwert("ruestung", "blutungsschutz")
     kampfwerte["dunkel_milder"] = ausruestung_kennwert("zubehoer", "dunkel_milder")
+    # WM-D: Holz für die Falle des Fährtenstellers.
+    kampfwerte["faehrten_holz"] = item_anzahl("holz")
     # Wachsam: Umgehen nur bei gewöhnlichen Reisebegegnungen, nie während einer Klassenprüfung.
     kampfwerte["reise_umgehen"] = reise_umgehen is True and not (
         kampfwerte["bestienjaeger_pruefung"]
         or kampfwerte["stahlkrieger_pruefung"]
         or kampfwerte["glutkrieger_pruefung"]
+        or kampfwerte["faehrtensteller_pruefung"]
     )
 
     bandagen_vor_kampf = item_anzahl("bandage")
@@ -3006,18 +3055,30 @@ def kampf_starten(
         kampfwerte=kampfwerte,
         status_effekte=status_effekte_aktiv(),
         status_definitionen=STATUS_EFFEKTE,
-        kampf_situation=kampf_situation
+        kampf_situation=kampf_situation,
+        trueber_geist=trueber_geist
     )
 
     # Umgangen (Wachsam): kein Kampf, also nichts verbraucht, nichts eingetragen.
     if ergebnis.get("umgangen"):
         return ergebnis
 
+    # WM-D: Die gestellte Falle kostet ein Holz, egal wie der Kampf ausgeht.
+    if ergebnis.get("faehrten_vorbereitung") == "falle":
+        item_entfernen("holz", 1)
+
     schmied_waffenpflege_beenden(spieler)
     jagdbuch_eintragen(
         ergebnis.get("gegner_typ"),
         verhalten=ergebnis.get("angekuendigt", [])
     )
+    # WM-B2: das erste Dämpfen mit Gegenresonanz, nach einem überlebten Kampf.
+    if ergebnis.get("magier_gedaempft") and not ergebnis.get("besiegt"):
+        wm_erlebnis(
+            "wm_kontrolle_daempfen",
+            "Erst danach merkst du es: Du hast den Angriff nicht nur abgefangen. Ein "
+            "Teil davon ist zurückgegangen, genau so viel, wie du wolltest."
+        )
     if ergebnis.get("gegner_verschont"):
         spieler["wrackpluenderer_verschont"] = True
     if kampfwerte["glutkrieger_portion"]:
@@ -3089,6 +3150,21 @@ def kampf_starten(
             print("Glutkrieger-Prüfung bestanden. Kehre für die bewusste Fusion zu Mara zurück.")
         else:
             print("Die Glutkrieger-Probe ist beendet. Für einen neuen Versuch sprich mit Mara.")
+
+    # WM-C2: Die Runenschmied-Probe bleibt offen, bis ein Kampf sie besteht oder Bjorn sie abbricht.
+    if kampfwerte["runenschmied_pruefung"]:
+        if runenschmied_probe_auswerten(spieler, ergebnis):
+            print("Runenschmied-Prüfung bestanden. Kehre für die bewusste Fusion zu Bjorn zurück.")
+        elif ergebnis.get("gewonnen") is True:
+            print("Die Klangrune hat in diesem Kampf nicht gewirkt. Die Prüfung bleibt offen.")
+        else:
+            print("Die Prüfung bleibt offen. Der nächste Kampf ist ein neuer Versuch.")
+
+    # WM-D2: Rikas Probe bleibt offen, bis eine Jagd sie besteht oder Rika sie abbricht.
+    if kampfwerte["faehrtensteller_pruefung"]:
+        meldung = FAEHRTEN_PROBE_MELDUNG.get(faehrtensteller_probe_auswerten(spieler, ergebnis))
+        if meldung:
+            print(meldung)
 
     return ergebnis
 
@@ -3596,6 +3672,14 @@ def reise_bedingung_erfuellt(bedingung):
 
         return wert <= grenze
 
+    if typ == "kapitel_wert":
+        daten = spieler.get(bedingung.get("kapitel"))
+
+        if not isinstance(daten, dict):
+            return False
+
+        return daten.get(bedingung.get("schluessel")) in bedingung.get("werte", [])
+
     return False
 
 def reise_festes_ereignis_verfuegbar(
@@ -3769,6 +3853,11 @@ def reise_ereignisse_pruefen(
                 hilda_karren_ereignis()
             )
 
+            continue
+
+        if aktion and aktion.startswith("laeuferpfad_"):
+            laeuferpfad_etappe(aktion, reise_daten)
+            ereignis_angezeigt = True
             continue
 
         print()
@@ -4425,6 +4514,9 @@ def reise_abzweigungen_pruefen(
 def reise_ort_name(ort):
     sonder_namen = {
         "verlassenes_dorf": "Verlassenes Dorf",
+        "versunkene_chronik": "Versunkene Chronik",
+        "archiv_schatten": "Archiv der Schatten",
+        "brunnfeld": "Brunnfeld",
         "universitaet_oros": "Universität von Oros",
         "oros_haupttor": "Universität von Oros - Haupttor",
         "oros_zentrale_halle": "Universität von Oros - Zentrale Halle",
@@ -4778,6 +4870,87 @@ def kampf_situation_reise(
 
 
 
+def reise_abschnitt(reise_daten, kampf_daten):
+    # Strecken mit "abschnitte" legen Gegner je nach Lage fest, gezählt vom Ort
+    # "abschnitte_von" aus. None: Strecke ohne Abschnitte (wie bisher);
+    # False: an dieser Stelle keine Begegnung.
+    abschnitte = kampf_daten.get("abschnitte")
+
+    if not abschnitte:
+        return None
+
+    schritt = reise_daten.get("aktueller_schritt", 0)
+
+    if reise_daten.get("start") != kampf_daten.get("abschnitte_von"):
+        schritt = reise_daten.get("gesamt_schritte", 0) + 1 - schritt
+
+    for abschnitt in abschnitte:
+        if abschnitt["von"] <= schritt <= abschnitt["bis"]:
+            return abschnitt
+
+    return False
+
+
+def reise_moegliche_gegner(reise_daten):
+    # WM-D2, Fährtenlesen: dieselbe Gegnerauswahl wie in reise_kampfbegegnung_pruefen,
+    # ohne Wurf und ohne Zähler. Leer: an dieser Stelle keine gewöhnliche Begegnung.
+    kampf_daten = reise_strecken_daten(reise_daten).get("kampfbegegnungen", {})
+    if not isinstance(kampf_daten, dict) or not kampf_daten.get("aktiv", False):
+        return []
+    if (spieler.get("prolog_rueckweg_sicher", False)
+            and reise_daten.get("start") == "Köhlerei"
+            and reise_daten.get("ziel") == "Eichenruh"):
+        return []
+    abschnitt = reise_abschnitt(reise_daten, kampf_daten)
+    if abschnitt is False:
+        return []
+    if kampf_daten.get("erst_nach_prolog", False) and spieler.get("prolog_status") != "prolog_abgeschlossen":
+        return []
+    if abschnitt:
+        gegner = list(abschnitt["gegner"])
+    elif kampf_daten.get("gegner"):
+        gegner = list(kampf_daten["gegner"])
+    elif level_fortschritt(spieler)["level"] < 2:
+        gegner = ["Bandit", "Wolf"]
+    else:
+        gegner = ["Bandit", "Wolf", "Keiler"] + (
+            list(kampf_daten.get("zusatz_gegner", []))
+            if level_fortschritt(spieler)["level"] >= kampf_daten.get("zusatz_ab_level", 2)
+            else []
+        )
+    if kampf_daten.get("schmuggler_chance") and abschnitt and brunnfeld_sperre_aktiv():
+        gegner.append("Schmuggler")
+    return list(dict.fromkeys(gegner))
+
+
+# Letzter Reisehinweis: wiederholt nur, wenn sich die möglichen Gegner ändern.
+FAEHRTEN_REISE = {"reise": None, "gegner": None}
+
+
+def faehrten_reisehinweis(reise_daten):
+    if not faehrtensteller_aktiv(spieler):
+        return
+    gegner = reise_moegliche_gegner(reise_daten)
+    if FAEHRTEN_REISE["reise"] is reise_daten and FAEHRTEN_REISE["gegner"] == gegner:
+        return
+    FAEHRTEN_REISE["reise"] = reise_daten
+    FAEHRTEN_REISE["gegner"] = gegner
+    print()
+    if gegner:
+        print("[Fährtenlesen] Auf diesem Abschnitt kannst du begegnen: " + ", ".join(gegner) + ".")
+    else:
+        print("[Fährtenlesen] Du findest keine eindeutigen frischen Fährten.")
+
+
+def reise_abschnitt_situation(reise_daten, abschnitt):
+    situation = kampf_situation_reise(reise_daten)
+
+    if abschnitt and abschnitt.get("umgebung"):
+        situation["umgebung"] = abschnitt["umgebung"]
+
+    return situation
+
+
 def reise_kampfbegegnung_pruefen(
     reise_daten
 ):
@@ -4818,6 +4991,11 @@ def reise_kampfbegegnung_pruefen(
         "aktiv",
         False
     ):
+        return False
+
+    abschnitt = reise_abschnitt(reise_daten, kampf_daten)
+
+    if abschnitt is False:
         return False
 
     # Der ruhige Prolog bleibt kampffrei.
@@ -4891,6 +5069,10 @@ def reise_kampfbegegnung_pruefen(
         0
     )
 
+    if kampf_daten.get("schmuggler_chance"):
+        # Läuferpfad: Die Ordnung von Kapitel 9 ändert die Tiergefahr.
+        chance = brunnfeld_tier_chance(chance)
+
     garantie_nach = kampf_daten.get(
         "garantie_nach",
         0
@@ -4935,11 +5117,22 @@ def reise_kampfbegegnung_pruefen(
         ] >= garantie_nach
     )
 
+    schmuggler_trifft = False
+
     if not (
         zufall_trifft
         or garantie_trifft
     ):
-        return False
+        # Läuferpfad: Bei gesperrten Zugängen kommen Schmuggler, eigener Wurf.
+        schmuggler_trifft = bool(
+            kampf_daten.get("schmuggler_chance")
+            and abschnitt
+            and brunnfeld_sperre_aktiv()
+            and random.random() < kampf_daten["schmuggler_chance"]
+        )
+
+        if not schmuggler_trifft:
+            return False
 
     kampf_status[
         "schritte_ohne_kampf"
@@ -4996,7 +5189,14 @@ def reise_kampfbegegnung_pruefen(
             "waffe"
         ],
         gegner_typ=(
-            random.choice(["Bandit", "Wolf"])
+            # Eine Strecke kann ihre Gegner selbst festlegen (Nordstraße: nur Tiere).
+            "Schmuggler"
+            if schmuggler_trifft
+            else random.choice(list(abschnitt["gegner"]))
+            if abschnitt
+            else random.choice(list(kampf_daten["gegner"]))
+            if kampf_daten.get("gegner")
+            else random.choice(["Bandit", "Wolf"])
             if level_fortschritt(spieler)["level"] < 2
             else random.choice(
                 ["Bandit", "Wolf", "Keiler"]
@@ -5008,8 +5208,9 @@ def reise_kampfbegegnung_pruefen(
                 )
             )
         ),
-        kampf_situation=kampf_situation_reise(
-            reise_daten
+        kampf_situation=reise_abschnitt_situation(
+            reise_daten,
+            abschnitt
         ),
         reise_umgehen=True
     )
@@ -5197,6 +5398,8 @@ def reise_fortsetzen():
             art="atmosphaere"
         )
 
+        faehrten_reisehinweis(reise_daten)
+
         # -------------------------
         # SELTENE INTERAKTIVE ENTDECKUNG
         # -------------------------
@@ -5274,6 +5477,7 @@ def reise_fortsetzen():
             )
 
         stollen_regenerieren()
+        frist_handlung(1)
 
         festes_ereignis = (
             reise_ereignisse_pruefen(
@@ -5351,6 +5555,7 @@ def reise_fortsetzen():
 
     spieler["reise"] = None
     spieler["ort"] = ziel
+    archiv_ankunft(ziel)
 
     if (
         spieler.get(
@@ -12155,8 +12360,13 @@ def letzthafen_wrackstrand_jagd():
             )
         )
 
+        # WM-D2: Fährtenlesen erkennt die Spuren immer.
+        faehrten_gelesen = not spuren_erkannt and faehrtensteller_aktiv(spieler)
+        spuren_erkannt = spuren_erkannt or faehrten_gelesen
+
         if spuren_erkannt:
-            print("Du kannst die Spuren im Sand unterscheiden.")
+            print(faehrten_vorsatz(faehrten_gelesen) + "Du kannst die Spuren im Sand unterscheiden.")
+            faehrten_revierhinweis("wrackstrand")
             print()
             print("1. Den Schleifspuren zwischen den Wrackteilen folgen - Gezeitenkrebs [1 Schritt]")
             print("2. Den Stiefelabdrücken zum Bootswrack folgen - Wrackplünderer [1 Schritt]")
@@ -12332,8 +12542,13 @@ def pfad_des_vergessens_jagd():
             )
         )
 
+        # WM-D2: Fährtenlesen erkennt die Spuren immer.
+        faehrten_gelesen = not spuren_erkannt and faehrtensteller_aktiv(spieler)
+        spuren_erkannt = spuren_erkannt or faehrten_gelesen
+
         if spuren_erkannt:
-            print("Du kannst die Spuren im Nebel unterscheiden.")
+            print(faehrten_vorsatz(faehrten_gelesen) + "Du kannst die Spuren im Nebel unterscheiden.")
+            faehrten_revierhinweis("pfad")
             print()
             print("1. Den einzelnen Pfotenabdrücken folgen - Rudelloser Wolf [1 Schritt]")
             print("2. Den hellen Hufspuren in den Nebel folgen - Echohirsch [1 Schritt]")
@@ -17310,7 +17525,8 @@ def klassenmenue(wechsel_klasse=None):
             print(f"Deine Grundklasse: {name}")
         hybrid_name = hybrid_name_holen(spieler)
         if hybrid_name:
-            lehrer = {"stahlkrieger": "Bjorn", "bestienjaeger": "Rika", "glutkrieger": "Mara"}[hybrid_aktiv_holen(spieler)]
+            lehrer = {"stahlkrieger": "Bjorn", "bestienjaeger": "Rika", "glutkrieger": "Mara",
+                      "runenschmied": "Bjorn", "faehrtensteller": "Rika"}[hybrid_aktiv_holen(spieler)]
             print(f"Aktiver Hybrid: {hybrid_name} – Wechsel beim passenden Lehrer ({lehrer}).")
         print("Die Grundklasse kannst du später beim Lehrer einer anderen")
         print("Klasse wechseln, wenn du dessen Ausbildung abgeschlossen hast.")
@@ -17406,9 +17622,353 @@ def klassenmenue(wechsel_klasse=None):
         warte_auf_taste("Weiter")
 
 
+# =========================
+# WM-B2: Magier lernen bei Selene, Erlebnisse prägen die Verfassungen
+# =========================
+
+# Kennung: (Verfassung, Prägung). Storyereignis und Ersatzweg teilen sich eine
+# Kennung; jede Lernquelle wirkt nur einmal (Technikplan WM-B, Abschnitt 3).
+WM_LERNQUELLEN = {
+    "wm_lauschen_uebung": ("sensibilitaet", 1),
+    "wm_resonanz_uebung": ("resonanz", 4),
+    "wm_kontrolle_uebung": ("kontrolle", 4),
+    "wm_anker_uebung": ("anker", 4),
+    "wm_resonanz_klang": ("resonanz", 3),
+    "wm_resonanz_stein": ("resonanz", 3),
+    "wm_kontrolle_messung": ("kontrolle", 3),
+    "wm_kontrolle_daempfen": ("kontrolle", 3),
+    "wm_anker_kante": ("anker", 3),
+    "wm_anker_name": ("anker", 3)
+}
+
+
+def wm_gelernt(kennung):
+    nutzungen = (spieler.get("lernquellen") or {}).get(kennung, 0)
+    return type(nutzungen) is int and nutzungen >= 1
+
+
+def wm_erwacht():
+    return (klassen_eigener_wert(spieler, "uebersinnliches") or 0) >= 1
+
+
+def wm_lernen(kennung):
+    verfassung, punkte = WM_LERNQUELLEN[kennung]
+    ergebnis = system_lernerfahrung_hinzufuegen(
+        spieler,
+        kennung,
+        "uebersinnliches",
+        menge=1,
+        praegungen={verfassung: punkte},
+        max_nutzungen=1
+    )
+    attribut_entwicklungen_anzeigen(ergebnis)
+    return ergebnis is not None
+
+
+def wm_erlebnis(kennung, satz):
+    # Neue Erlebnisse prägen jede Grundklasse, die erwacht ist; jeder Satz nur einmal.
+    if wm_gelernt(kennung) or not wm_erwacht():
+        return
+    print()
+    text_ausgeben(satz)
+    wm_lernen(kennung)
+
+
+def wm_erlebtes_offen():
+    # Nur lesen: Ereignisse aus dem Spielstand, die Selene noch anrechnen kann.
+    if not wm_erwacht():
+        return []
+
+    eintraege = []
+
+    if kapitel8_wert("amboss_eingebunden"):
+        eintraege.append((
+            "wm_resonanz_klang",
+            "Du erzählst vom dritten Schlag und von der Antwort an der Kante. "
+            "Selene nickt langsam. „Dann weißt du, wie es klingt, wenn etwas "
+            "antwortet.“"
+        ))
+    if kapitel8_wert("marit_gesehen"):
+        eintraege.append((
+            "wm_resonanz_stein",
+            "Du erzählst von Marit und ihren Steinen. „Ein guter Stein klingt "
+            "nach dem, worauf er liegt“, sagt Selene leise. „Das hätte ich nicht "
+            "besser sagen können.“"
+        ))
+    if kapitel8_wert("nachmessung"):
+        eintraege.append((
+            "wm_kontrolle_messung",
+            "Du erzählst, wie Finch die Zwanzig aufschrieb und unterstrich. „Er "
+            "hat nicht weitergemessen, als er es wusste“, sagt Selene. „Das ist "
+            "auch Kontrolle.“"
+        ))
+    if kapitel8_wert("ausgang") in ("abtrennung", "zwang", "freiwillig", "eigene_loesung"):
+        eintraege.append((
+            "wm_anker_kante",
+            "Du erzählst von der Kante und davon, was du dort entschieden hast. "
+            "Selene fragt nicht nach. „Du warst dabei. Das bleibt bei dir.“"
+        ))
+    # Eine Kennung, zwei Nachweise: das Ankerbuch geht vor.
+    if kapitel8_wert("ankerbuch_gelesen"):
+        eintraege.append((
+            "wm_anker_name",
+            "Du erzählst von Bertram Kolb, der am dritten Tag seinen Namen nicht "
+            "mehr wusste. Selene schweigt eine Weile. „Merk dir, wie schnell das "
+            "geht.“"
+        ))
+    elif kapitel9_wert("widerspruch", False):
+        eintraege.append((
+            "wm_anker_name",
+            "Du erzählst vom Widerspruch neben dem Namen und von der eigenen "
+            "Hand, die strich. „Da hat jemand sich selbst wieder gehalten“, sagt "
+            "Selene. „Das kann man lernen.“"
+        ))
+
+    return [(kennung, zeile) for kennung, zeile in eintraege if not wm_gelernt(kennung)]
+
+
+def wm_stein_offen():
+    # Ersatz für Marit: nach Kapitel 8 für jede erwachte Figur.
+    return wm_erwacht() and archiv_status() == "abgeschlossen" and not wm_gelernt("wm_resonanz_stein")
+
+
+def wm_klang_ersatz_offen():
+    # Ersatz für den Amboss: an der Kante, nach Kapitel 8.
+    return wm_erwacht() and archiv_status() == "abgeschlossen" and not wm_gelernt("wm_resonanz_klang")
+
+
+SELENE_UEBUNGEN = {
+    "wm_lauschen_uebung": {
+        "name": "Lauschen",
+        "technik": "Lauschen",
+        "einleitung": [
+            "Selene hängt den Metallring hinter ein Tuch. Du siehst ihn nicht mehr.",
+            "[Selene] Ich lasse ihn schwingen, wann ich will. Sag mir, wenn es "
+            "anfängt, nicht erst, wenn er klingt."
+        ],
+        "falsch": "Auf den Klang warten",
+        "richtig": "Auf Selene und das Tuch achten",
+        "bei_falsch": [
+            "Der Ring klingt. Du hast ihn gehört, aber erst, als es schon so weit war.",
+            "[Selene] Dann ist es zu spät. Versuch es noch einmal."
+        ],
+        "bei_richtig": [
+            "Selene atmet ein. Das Tuch bewegt sich kaum, nur an der Kante, wo der "
+            "Ring hängt. „Jetzt.“ Dann klingt er.",
+            "[Selene] Du hast nicht gehört, was kommt. Du hast gesehen, dass es "
+            "anfängt. Mehr ist Lauschen nicht."
+        ]
+    },
+    "wm_resonanz_uebung": {
+        "name": "Den Ring klingen lassen",
+        "technik": None,
+        "einleitung": [
+            "Auf dem Tisch liegen zwei Ringe, ein Stück voneinander entfernt. "
+            "Selene schlägt den einen an.",
+            "[Selene] Der andere soll antworten. Nicht, weil du ihn berührst."
+        ],
+        "falsch": "Den zweiten Ring mit der Hand anstoßen",
+        "richtig": "Den Klang des ersten halten, bis der zweite mitklingt",
+        "bei_falsch": [
+            "Der zweite Ring rollt ein Stück und bleibt liegen. Er klingt nach "
+            "deiner Hand, nicht nach dem ersten.",
+            "[Selene] Das war Kraft. Wir üben Resonanz."
+        ],
+        "bei_richtig": [
+            "Es dauert. Dann zittert der zweite Ring, ganz schwach, im selben Ton.",
+            "[Selene] Klein. Richtig so. Was mitklingt, war schon bereit dazu."
+        ]
+    },
+    "wm_kontrolle_uebung": {
+        "name": "Die Wirkung dämpfen",
+        "technik": "Dämpfen",
+        "einleitung": [
+            "Selene lässt eine Handvoll Sand von oben in die Schale rieseln, auf "
+            "die Furche, die du gezogen hast.",
+            "[Selene] Er kommt. Du kannst ihn nicht aufhalten. Was machst du?"
+        ],
+        "falsch": "Die Furche festhalten, mit aller Kraft",
+        "richtig": "Den Druck des Sandes abschwächen und deine Wirkung danach selbst beenden",
+        "bei_falsch": [
+            "Die Furche hält einen Augenblick. Dann bricht sie, und der Sand liegt "
+            "schief darüber.",
+            "[Selene] Gegen etwas zu halten ist nicht Kontrolle. Versuch es noch einmal."
+        ],
+        "bei_richtig": [
+            "Der Sand fällt weicher, als er sollte. Die Furche wird flacher, aber "
+            "sie bleibt. Ein paar Körner springen zurück in die Schale.",
+            "Dann löst du die Bündelung. Der Sand liegt still.",
+            "[Selene] Abschwächen, dann aufhören. Was zurückgesprungen ist, war "
+            "deine Antwort. Mehr braucht es nicht."
+        ]
+    },
+    "wm_anker_uebung": {
+        "name": "Sich selbst halten",
+        "technik": "Sich verankern",
+        "einleitung": [
+            "Selene lässt den Ring über der Schale kreisen. Der Ton wird tiefer und "
+            "füllt den Raum. Er drängt sich zwischen deine Gedanken.",
+            "[Selene] Sag mir deinen Namen."
+        ],
+        "falsch": "Dem Ton folgen, bis er leiser wird",
+        "richtig": "Deinen Namen sagen, und noch einmal, bis er wieder fest ist",
+        "bei_falsch": [
+            "Der Ton trägt dich ein Stück mit. Als er abbricht, musst du kurz "
+            "überlegen, wo du bist.",
+            "[Selene] Er hat dich gehalten, nicht du dich. Versuch es noch einmal."
+        ],
+        "bei_richtig": [
+            "Du sagst deinen Namen. Beim zweiten Mal klingt er wie deiner. Der Ton "
+            "ist noch da, aber er ist nur noch ein Ton.",
+            "[Selene] Was du hier lernst, hält nur dich selbst. Mit dieser Übung "
+            "bindest du niemanden sonst. Vergiss das nicht."
+        ]
+    },
+    "wm_resonanz_stein": {
+        "name": "Selenes Steinübung",
+        "technik": None,
+        "einleitung": [
+            "Selene legt einen Pflasterstein auf den Tisch, dann auf ein Brett, "
+            "dann in die Sandschale. Jedes Mal klopft sie dagegen.",
+            "[Selene] Hör nicht auf den Stein. Hör auf das darunter."
+        ],
+        "falsch": "Den lautesten Klang wählen",
+        "richtig": "Den Klang wählen, der nach dem Sand klingt",
+        "bei_falsch": [
+            "[Selene] Laut ist nicht deutlich. Versuch es noch einmal."
+        ],
+        "bei_richtig": [
+            "[Selene] Der Stein ist jedes Mal derselbe. Was sich ändert, liegt "
+            "darunter. Das zu hören ist Resonanz."
+        ]
+    }
+}
+
+SELENE_UEBUNGEN_REIHE = (
+    "wm_lauschen_uebung", "wm_resonanz_uebung", "wm_kontrolle_uebung", "wm_anker_uebung"
+)
+
+
+def selene_uebung(kennung):
+    uebung = SELENE_UEBUNGEN[kennung]
+    ort_titel("Selene – " + uebung["name"])
+
+    for zeile in uebung["einleitung"]:
+        text_ausgeben(zeile)
+
+    wahl = chronik_auswahl([
+        ("falsch", uebung["falsch"]),
+        ("richtig", uebung["richtig"]),
+        ("zurueck", "Übung abbrechen")
+    ])
+
+    if wahl == "zurueck":
+        return
+
+    for zeile in uebung["bei_" + wahl]:
+        text_ausgeben(zeile)
+
+    if wahl == "richtig" and wm_lernen(kennung) and uebung["technik"]:
+        design_text(f"Neue Technik: {uebung['technik']}", design="positiv", art="menue")
+
+    warte_auf_taste("Weiter")
+
+
+def selene_erlebtes():
+    # Anrechnung nur hier, beim ausdrücklichen Besuch; beim Laden geschieht nichts.
+    ort_titel("Selene – Über das Erlebte")
+    text_ausgeben("[Selene] Erzähl. Nicht was passiert ist. Was du dabei gespürt hast.")
+    eintraege = wm_erlebtes_offen()
+
+    for kennung, zeile in eintraege:
+        print()
+        text_ausgeben(zeile)
+        wm_lernen(kennung)
+
+    if wm_stein_offen():
+        print()
+        if chronik_auswahl([
+            ("stein", "Selenes Steinübung versuchen"),
+            ("zurueck", "Zurück")
+        ]) == "stein":
+            selene_uebung("wm_resonanz_stein")
+        return
+
+    if not eintraege:
+        text_ausgeben(
+            "[Selene] Dann ist im Moment nichts liegen geblieben. Komm wieder, "
+            "wenn dir etwas begegnet."
+        )
+
+    warte_auf_taste("Zurück")
+
+
+def selene_magier_menue():
+    text_ausgeben("Selene sieht von der Sandschale auf.")
+    text_ausgeben("[Selene] Du kommst wieder. Gut. Üben hört nicht auf, nur weil man es kann.")
+    erstes_mal = True
+
+    while True:
+        if not erstes_mal:
+            ort_titel("Selene – Magierausbildung")
+        erstes_mal = False
+        uebungen = [kennung for kennung in SELENE_UEBUNGEN_REIHE if not wm_gelernt(kennung)]
+
+        if wm_stein_offen():
+            uebungen.append("wm_resonanz_stein")
+
+        wahl = chronik_auswahl([
+            ("ueben", "Mit Selene üben" + (" [!]" if uebungen else "")),
+            ("erlebt", "Mit Selene über das Erlebte sprechen" + (" [!]" if wm_erlebtes_offen() else "")),
+            ("klasse", "Grundklasse ansehen"),
+            ("zurueck", "Zurück")
+        ])
+
+        if wahl == "zurueck":
+            return
+        if wahl == "klasse":
+            klassenmenue()
+        elif wahl == "erlebt":
+            selene_erlebtes()
+        elif not uebungen:
+            text_ausgeben(
+                "[Selene] Mehr kann ich dir gerade nicht zeigen. Den Rest lehrt "
+                "dich, was dir begegnet."
+            )
+            warte_auf_taste("Weiter")
+        else:
+            auswahl = chronik_auswahl(
+                [(kennung, SELENE_UEBUNGEN[kennung]["name"]) for kennung in uebungen]
+                + [("zurueck", "Zurück")]
+            )
+
+            if auswahl != "zurueck":
+                selene_uebung(auswahl)
+
+
+def wm_gegenpunkt_klang():
+    # Ersatzweg für den Amboss (E1); behauptet keinen Kontakt zur Dorfseite.
+    ort_titel("Rand der Senke")
+    text_ausgeben("Du kniest dich an den Gegenpunkt und klopfst mit dem Knöchel dagegen.")
+    text_ausgeben(
+        "Erst hörst du nur dein Klopfen. Dann, beim zweiten Mal, einen tieferen "
+        "Ton darunter, der nicht vom Knöchel kommt, sondern vom Boden, auf dem "
+        "der Stein steht."
+    )
+    text_ausgeben("Du klopfst noch einmal. Diesmal wartest du auf den tieferen Ton.")
+    wm_lernen("wm_resonanz_klang")
+    warte_auf_taste("Zurück")
+
+
 def selene_magier_ausbildung():
     ort_titel("Selene – Magierausbildung")
     npc_besuch_starten("selene")
+
+    # WM-B2: Magier üben bei Selene weiter.
+    if spieler.get("prolog_status") == "prolog_abgeschlossen" and grundklasse_holen(spieler) == "magier":
+        selene_magier_menue()
+        return
+
     text_ausgeben(
         "Magistra Selene steht vor einer Schale mit feinem Sand."
     )
@@ -17418,6 +17978,21 @@ def selene_magier_ausbildung():
         "zeigen, wie du eine Resonanz kontrollierst. Erleben musst du sie selbst."
     )
     print()
+
+    # WM-B2: Über das Erlebte sprechen kann jede erwachte Figur.
+    if spieler.get("prolog_status") == "prolog_abgeschlossen" and (wm_erlebtes_offen() or wm_stein_offen()):
+        wahl = chronik_auswahl([
+            ("ausbildung", "Über die Magierausbildung sprechen"),
+            ("erlebt", "Mit Selene über das Erlebte sprechen [!]"),
+            ("zurueck", "Zurück")
+        ])
+
+        if wahl == "erlebt":
+            selene_erlebtes()
+            return
+        if wahl == "zurueck":
+            return
+
     print("Die Ausbildung legt deine Grundklasse noch nicht fest.")
     if spieler.get("prolog_status") != "prolog_abgeschlossen":
         print("Schließe zuerst den Prolog ab.")
@@ -17670,6 +18245,112 @@ def rika_bestienjaeger():
     warte_auf_taste("Zurück")
 
 
+# WM-D2: Meldungen nach Rikas Prüfungsjagd (Textrunde WM-D, Teil B).
+FAEHRTEN_PROBE_MELDUNG = {
+    "bestanden": "Fährtensteller-Prüfung bestanden. Kehre für die bewusste Fusion zu Rika zurück.",
+    "nicht_bemerkt": "Du hast das Tier nicht rechtzeitig bemerkt. Die Prüfung bleibt offen.",
+    "misslungen": "Die Prüfungsjagd ist misslungen. Die Prüfung bleibt offen; versorge dich, "
+                  "bevor du es erneut versuchst.",
+    "ohne_vorbereitung": "Du hast weder eine Falle gestellt noch einen Hinterhalt gelegt. "
+                         "Die Prüfung bleibt offen.",
+    "ohne_luecke": "In den vorbereiteten Runden ist dir mit Lücke nutzen kein Treffer gelungen. "
+                   "Die Prüfung bleibt offen.",
+}
+
+
+def rika_faehrten_lebenspunkte():
+    print(f"Aktuelle Lebenspunkte: {spieler['lebenspunkte']}/100")
+    if spieler["lebenspunkte"] <= 35:
+        print("Du bist schwer verletzt. Versorge dich, bevor du die Prüfungsjagd antrittst.")
+
+
+def rika_faehrtensteller():
+    ort_titel("Rika – Fährtensteller")
+    # Offene Probe zuerst: Abbrechen geht auch ohne die aktuellen Voraussetzungen.
+    if faehrtensteller_probe_offen(spieler):
+        print("Prüfungsjagd offen: Folge auf der Wildspur einem Wolf oder Keiler.")
+        print("Bemerke es rechtzeitig, bereite die Begegnung vor, triff in einer vorbereiteten "
+              "Runde mit Lücke nutzen und gewinne.")
+        rika_faehrten_lebenspunkte()
+        print()
+        print("1. Prüfung abbrechen")
+        print("2. Zurück")
+        if eingabe_menu(1, 2, sonder_tasten=()) == 1:
+            print("Die Prüfung endet. Du kannst sie später bei Rika neu beginnen.")
+            print()
+            print("1. Ja, Prüfung abbrechen")
+            print("2. Zurück")
+            if eingabe_menu(1, 2, sonder_tasten=()) == 1 and faehrtensteller_probe_abbrechen(spieler):
+                print("Prüfung abgebrochen.")
+        warte_auf_taste("Zurück")
+        return
+    if not faehrtensteller_voraussetzungen(spieler):
+        print("Dieser Lehrweg ist für deinen aktuellen Ausbildungsstand nicht verfügbar.")
+        warte_auf_taste("Zurück")
+        return
+    if hybrid_probe_offen(spieler, "faehrtensteller"):
+        print("Beende zuerst deine andere anstehende Hybridprüfung. Während einer Probe kannst du den Hybrid nicht wechseln.")
+        warte_auf_taste("Zurück")
+        return
+    text_ausgeben("[Rika] Du siehst früh, was kommt, und du kennst die Beute. Jetzt lernst du, "
+                  "die Begegnung vorzubereiten, bevor sie beginnt. Wer den Ort wählt, muss nicht "
+                  "stärker sein als das Tier.")
+    print("Falle stellen [1 Holz]: wenn du den Gegner rechtzeitig bemerkst. Zwei Runden lang kann er keinen "
+          "Sprung, Ansturm oder ähnlichen Angriff ansetzen, er weicht 10 Prozentpunkte schlechter aus und "
+          "bietet eine Öffnung für Lücke nutzen. Gegen Revierherren und den Waldwächter eine Runde. "
+          "Normale Angriffe kommen weiter.")
+    print("Hinterhalt legen: ebenfalls nach rechtzeitigem Bemerken, ohne Kosten. In Runde 1 bietet der "
+          "Gegner eine Öffnung für Lücke nutzen und trifft 15 Prozentpunkte schlechter (gegen Revierherren 8).")
+    print("Fährtenlesen: In den Jagdgebieten erkennst du die Spuren immer, auch ältere Spuren eines "
+          "größeren Tiers, wenn eines dort umgehen kann. Auf Reisen siehst du, wer auf dem Abschnitt "
+          "unterwegs sein kann.")
+    print("Je Begegnung wählst du eine Vorbereitung oder keine.")
+    print("Deine Späherklasse und Lücke nutzen bleiben erhalten.")
+    if faehrtensteller_freigeschaltet(spieler):
+        hybrid = spieler["hybrid"]
+        if not hybrid.get("faehrtensteller_gewuerdigt"):
+            print()
+            text_ausgeben("[Rika] Du hast das Tier dorthin gebracht, wo du es haben wolltest. "
+                          "So jagt man, wenn man nicht stärker ist als die Beute.")
+            hybrid["faehrtensteller_gewuerdigt"] = True
+        aktiv = hybrid_aktiv_holen(spieler) == "faehrtensteller"
+        print("Prüfung abgeschlossen. Ein Hybridwechsel ist hier möglich; nur ein Hybrid ist aktiv.")
+        print()
+        print("1. Als reiner Späher weiterspielen" if aktiv else "1. Zum Fährtensteller fusionieren")
+        print("2. Zurück")
+        if eingabe_menu(1, 2, sonder_tasten=()) != 1:
+            return
+        ziel = None if aktiv else "faehrtensteller"
+        print("Deine Grundklasse bleibt Späher. Der Wechsel kostet nichts.")
+        print()
+        print("1. Ja, Hybridwahl bestätigen")
+        print("2. Zurück")
+        if eingabe_menu(1, 2, sonder_tasten=()) == 1:
+            if hybrid_beim_lehrer_waehlen(spieler, ziel, "rika_faehrten", bestaetigt=True):
+                print("Hybrid aktiv: Fährtensteller." if ziel else "Du spielst wieder als reiner Späher.")
+        warte_auf_taste("Zurück")
+        return
+    print()
+    print("Prüfung: eine Jagd auf der Wildspur gegen einen Wolf oder Keiler.")
+    print("Bemerke das Tier rechtzeitig, stelle eine Falle oder lege einen Hinterhalt, triff in einer "
+          "vorbereiteten Runde mit Lücke nutzen und gewinne. Alles muss in derselben Jagd gelingen.")
+    print("Falle und Hinterhalt stehen dir für die Prüfungsjagd schon zur Verfügung.")
+    print("Bemerkst du das Tier nicht rechtzeitig, zählt die Jagd nicht als Versuch. Misslingt ein "
+          "Versuch, bleibt die Prüfung offen. Abbrechen kannst du hier bei Rika.")
+    print("Heilung und Flucht sind erlaubt; Lebenspunkte und Gegenstände werden regulär verbraucht.")
+    rika_faehrten_lebenspunkte()
+    print()
+    print("1. Prüfungsjagd vorbereiten")
+    print("2. Zurück")
+    if eingabe_menu(1, 2, sonder_tasten=()) == 1:
+        if faehrtensteller_probe_starten(spieler, bestaetigt=True):
+            text_ausgeben("[Rika] Nimm Holz mit, wenn du eine Falle stellen willst. Eine Falle hält "
+                          "ein Tier auf. Erlegen musst du es selbst.")
+            print("Prüfungsjagd bereit. Gehe zur Wildspur; die Fusion erfolgt erst nach bestandener "
+                  "Prüfung und Bestätigung.")
+    warte_auf_taste("Zurück")
+
+
 def rika_jaeger_praxis():
     ort_titel("Rika – Jagdpraxis")
     praxis = jaeger_praxisstand(spieler)
@@ -17681,12 +18362,20 @@ def rika_jaeger_praxis():
         print("Saubere Beuteversorgung gelernt.")
         print("Wildspur: Wolfsfell 60 % statt 45 %, Keilerhauer 75 % statt 60 %.")
         text_ausgeben("[Rika] Gute Beute beginnt mit ruhiger Arbeit. Verschwende nichts, was du nutzen kannst.")
+        angebote = []
         if bestienjaeger_voraussetzungen(spieler):
+            angebote.append(("Rikas weiterführenden Krieger-Jäger-Lehrweg ansehen", rika_bestienjaeger))
+        # WM-D2: Späher; bei offener Probe für jede Grundklasse (zum Abbrechen).
+        if faehrtensteller_voraussetzungen(spieler) or faehrtensteller_probe_offen(spieler):
+            angebote.append(("Rikas weiterführenden Späher-Jäger-Lehrweg ansehen", rika_faehrtensteller))
+        if angebote:
             print()
-            print("1. Rikas weiterführenden Krieger-Jäger-Lehrweg ansehen")
-            print("2. Zurück")
-            if eingabe_menu(1, 2, sonder_tasten=()) == 1:
-                rika_bestienjaeger()
+            for nummer, (text, _) in enumerate(angebote, start=1):
+                print(f"{nummer}. {text}")
+            print(f"{len(angebote) + 1}. Zurück")
+            auswahl = eingabe_menu(1, len(angebote) + 1, sonder_tasten=())
+            if auswahl <= len(angebote):
+                angebote[auswahl - 1][1]()
         else:
             warte_auf_taste("Zurück")
         return
@@ -18073,7 +18762,9 @@ def berufsmenue():
     ort_titel("Berufe und Praxis")
     hybrid_name = hybrid_name_holen(spieler)
     if hybrid_name:
-        print(f"Aktiver Hybrid: {hybrid_name} (Grundklasse: Krieger)")
+        grundklasse_name = {"runenschmied": "Magier", "faehrtensteller": "Späher"}.get(
+            hybrid_aktiv_holen(spieler), "Krieger")
+        print(f"Aktiver Hybrid: {hybrid_name} (Grundklasse: {grundklasse_name})")
         if hybrid_aktiv_holen(spieler) == "stahlkrieger":
             print("Veredelte Waffenpflege: +4 statt +2 Schaden bei vorbereiteten Treffern.")
         elif hybrid_aktiv_holen(spieler) == "glutkrieger":
@@ -18294,6 +18985,10 @@ def status():
         elif hybrid_aktiv_holen(spieler) == "glutkrieger":
             print("Hybridfähigkeiten: Kampfportion [G], Kraftschub [B], Nachwärme.")
             print("Kampfportion: " + ("vorbereitet" if glutkrieger_portion_holen(spieler) else "noch vorzubereiten"))
+        elif hybrid_aktiv_holen(spieler) == "runenschmied":
+            print("Hybridfähigkeiten: Runen setzen (Bjorns Werkbank), Haltrune wecken [W].")
+        elif hybrid_aktiv_holen(spieler) == "faehrtensteller":
+            print("Hybridfähigkeiten: Falle stellen und Hinterhalt legen (vor dem Kampf), Fährtenlesen.")
         else:
             print("Hybridfähigkeiten: Beute studieren [V], gezielter Jagdhieb [J], Jagdinstinkt.")
     if klasse_id == "kaempfer":
@@ -18372,7 +19067,7 @@ def status():
 
     if aktuelle_waffe:
         print(
-            f"Waffe: {aktuelle_waffe['name']} "
+            f"Waffe: {waffe_anzeigename(aktuelle_waffe)} "
             f"({aktuelle_waffe['min_schaden']}-"
             f"{aktuelle_waffe['max_schaden']} Schaden)"
         )
@@ -18813,7 +19508,9 @@ JAGDBUCH_GEBIETE = (
     ("Felsterrassen", ("Schieferpanzer", "Kreischer", "Steinvater")),
     ("Wrackstrand", ("Gezeitenkrebs", "Wrackplünderer", "Einscherer")),
     ("Pfad des Vergessens", ("Rudelloser Wolf", "Echohirsch", "Blasser Hirsch")),
-    ("Die TIEFEN", ("Schachtflatterer", "Schachtkriecher", "Blindmolch", "Schachtspinner"))
+    ("Die TIEFEN", ("Schachtflatterer", "Schachtkriecher", "Blindmolch", "Schachtspinner")),
+    ("Versunkene Chronik", ("Bache",)),
+    ("Ried am Läuferpfad", ("Schlickbeißer", "Schwarzgeweih"))
 )
 
 
@@ -18911,12 +19608,8 @@ def erfolg_bedingung_erfuellt(erfolg_id):
         return spieler.get("oros_tiefen_messbuch_gefunden") is True
     if erfolg_id == "eine_eigene_richtung":
         return grundklasse_holen(spieler) is not None
-    if erfolg_id == "bestienjaeger":
-        return bestienjaeger_freigeschaltet(spieler)
-    if erfolg_id == "stahlkrieger":
-        return stahlkrieger_freigeschaltet(spieler)
-    if erfolg_id == "glutkrieger":
-        return glutkrieger_freigeschaltet(spieler)
+    if erfolg_id in HYBRIDWEGE:
+        return hybrid_probe_bestanden(spieler, erfolg_id)
     if erfolg_id == "am_herd":
         return koch_gelernt(spieler)
     if erfolg_id == "auf_der_faehrte":
@@ -18951,7 +19644,13 @@ def erfolg_bedingung_erfuellt(erfolg_id):
     if erfolg_id == "gestohlene_kohle":
         return buch.get("Kohlenschmuggler", {}).get("beute") is True
     if erfolg_id == "volles_jagdbuch":
-        return all(gegner_typ in buch for gegner_typ in JAGDBUCH)
+        # Die Bache begegnet einem nur einmal und muss nicht bekämpft werden;
+        # wer friedlich löst, soll das volle Jagdbuch trotzdem erreichen.
+        return all(
+            gegner_typ in buch
+            for gegner_typ in JAGDBUCH
+            if gegner_typ != "Bache"
+        )
     if erfolg_id == "gebrochener_stein":
         return "panzer_bruch" in buch.get("Schieferpanzer", {}).get("verhalten", [])
     if erfolg_id == "aus_der_luft_geholt":
@@ -18975,7 +19674,7 @@ def erfolg_bedingung_erfuellt(erfolg_id):
     if erfolg_id == "herr_der_reviere":
         return all(
             buch.get(herr, {}).get("beute") is True
-            for herr in ("Graupelz", "Aschenkönig", "Steinvater", "Einscherer", "Blasser Hirsch")
+            for herr in ("Graupelz", "Aschenkönig", "Steinvater", "Einscherer", "Blasser Hirsch", "Schwarzgeweih")
         )
     if erfolg_id == "bekannte_gesichter":
         return len(menschen_getroffen()) == len(MENSCHEN)
@@ -19339,6 +20038,19 @@ def ausbildungsauftraege():
             "Glutkrieger-Prüfung",
             ["Ziel: Setze im nächsten Kampf G und danach einen treffenden "
              "Kraftschub B ein und gewinne."]
+        ))
+    if hybrid.get("runenschmied_probe") is True:
+        auftraege.append((
+            "Runenschmied-Prüfung",
+            ["Ziel: Gewinne einen Kampf, in dem die Klangrune deiner Waffe "
+             "wirkt, etwa gegen einen Panzergegner."]
+        ))
+    if hybrid.get("faehrtensteller_probe") is True:
+        auftraege.append((
+            "Fährtensteller-Prüfung",
+            ["Ziel: Bemerke auf der Wildspur einen Wolf oder Keiler rechtzeitig, stelle eine "
+             "Falle oder lege einen Hinterhalt, triff in einer vorbereiteten Runde mit Lücke "
+             "nutzen und gewinne. Abbrechen bei Rika."]
         ))
     return auftraege
 
@@ -20138,6 +20850,77 @@ def quests():
             print(f"Ziel: {zurueckgelassene_ziel()}")
 
     # --------------------
+    # Hauptquest: Die versunkene Chronik (Kapitel 7)
+    # --------------------
+
+    if chronik_status() != "nicht_entdeckt":
+        quest_vorhanden = True
+
+        menue_trenner()
+
+        design_text(
+            "Die versunkene Chronik",
+            design="wichtig",
+            art="menue"
+        )
+
+        if chronik_status() == "abgeschlossen":
+            design_text(
+                "[ABGESCHLOSSEN]",
+                design="quest_abgeschlossen",
+                art="menue"
+            )
+
+            print(chronik_abschluss_text())
+
+        else:
+            print(f"Ziel: {chronik_ziel()}")
+
+    # --------------------
+    # Hauptquest: Das Archiv der Schatten (Kapitel 8)
+    # --------------------
+
+    if archiv_status() != "nicht_entdeckt":
+        quest_vorhanden = True
+
+        menue_trenner()
+
+        design_text(
+            "Das Archiv der Schatten",
+            design="wichtig",
+            art="menue"
+        )
+
+        if archiv_status() == "abgeschlossen":
+            design_text(
+                "[ABGESCHLOSSEN]",
+                design="quest_abgeschlossen",
+                art="menue"
+            )
+
+            print(archiv_abschluss_text())
+
+        else:
+            print(f"Ziel: {archiv_ziel()}")
+
+            if archiv_frist_satz():
+                print(archiv_frist_satz())
+
+    # --------------------
+    # Hauptquest: Der Weg nach Hause (Kapitel 9)
+    # --------------------
+
+    if brunnfeld_questlog():
+        quest_vorhanden = True
+
+    # --------------------
+    # Nebenquest: Eigenhändig (Kapitel 9, Befreiung)
+    # --------------------
+
+    if befreiung_questlog():
+        quest_vorhanden = True
+
+    # --------------------
     # Nebenquest: Die Hütte am Waldrand (Kapitel 6)
     # --------------------
 
@@ -20168,6 +20951,33 @@ def quests():
 
         else:
             print(f"Ziel: {caelen_ziel()}")
+
+    # --------------------
+    # Nebenquest: Nicht stehen bleiben (Kapitel 6)
+    # --------------------
+
+    if kiran_status() != "nicht_entdeckt":
+        quest_vorhanden = True
+
+        menue_trenner()
+
+        design_text(
+            "Nicht stehen bleiben",
+            design="wichtig",
+            art="menue"
+        )
+
+        if kiran_status() == "abgeschlossen":
+            design_text(
+                "[ABGESCHLOSSEN]",
+                design="quest_abgeschlossen",
+                art="menue"
+            )
+
+            print(kiran_abschluss_text())
+
+        else:
+            print(f"Ziel: {kiran_ziel()}")
 
     # --------------------
     # Hildas Quest
@@ -21804,9 +22614,10 @@ def spielerhaus():
 
     elif haus_auswahl == 5:
         if schlaf_moeglich():
-            schlafen_bis_morgen(
-                "Du legst dich in dein Bett und schläfst ein."
-            )
+            if frist_schlafen_erlaubt():
+                schlafen_bis_morgen(
+                    "Du legst dich in dein Bett und schläfst ein."
+                )
         elif spieler["lebenspunkte"] < 100:
             print()
             print("Du legst dich in dein Bett und ruhst dich eine Weile aus.")
@@ -21848,12 +22659,12 @@ def spielerhaus():
 
 def waffenwahl_bestaetigen(waffe, aktuelle_waffe=None, starter=False):
     ort_titel("Waffenauswahl - Vorschau")
-    print(waffe["name"])
+    print(waffe_anzeigename(waffe))
     print(f"Waffenart: {waffe.get('typ', 'Unbekannt')}")
     print()
 
     if aktuelle_waffe:
-        print(f"Vergleich zu: {aktuelle_waffe['name']}")
+        print(f"Vergleich zu: {waffe_anzeigename(aktuelle_waffe)}")
         print("+ höher | - niedriger | = gleich")
         print()
 
@@ -22187,6 +22998,13 @@ def waffenvergleich_anzeigen(
             f"({delta})"
         )
     
+def waffe_anzeigename(waffe):
+    # WM-C2: Die Rune steht in einem eigenen Feld; der gespeicherte Name bleibt unverändert.
+    name = waffe.get("name", "") if isinstance(waffe, dict) else ""
+    rune = waffe.get("rune") if isinstance(waffe, dict) else None
+    return f"{name} ({RUNEN[rune]})" if rune in RUNEN else name
+
+
 def waffeninventar():
     while True:
         ort_titel("Inventar - Waffen")
@@ -22194,7 +23012,7 @@ def waffeninventar():
         waffen = spieler["waffen_inventar"]
 
         if aktuelle_waffe:
-            print(f"Ausgerüstet: {aktuelle_waffe['name']}")
+            print(f"Ausgerüstet: {waffe_anzeigename(aktuelle_waffe)}")
             waffenvergleich_anzeigen(aktuelle_waffe)
         else:
             print("Ausgerüstet: Keine")
@@ -22212,7 +23030,7 @@ def waffeninventar():
             print()
 
         for nummer, waffe in enumerate(waffen, start=1):
-            print(f"{nummer}. {waffe['name']}")
+            print(f"{nummer}. {waffe_anzeigename(waffe)}")
             waffenvergleich_anzeigen(waffe, aktuelle_waffe)
             print()
 
@@ -22231,9 +23049,9 @@ def waffeninventar():
             return
 
         print()
-        print(f"Du rüstest {neue_waffe['name']} aus.")
+        print(f"Du rüstest {waffe_anzeigename(neue_waffe)} aus.")
         if alte_waffe is not None:
-            print(f"{alte_waffe['name']} wurde ins Inventar gelegt.")
+            print(f"{waffe_anzeigename(alte_waffe)} wurde ins Inventar gelegt.")
         else:
             print("Du bist jetzt bewaffnet.")
         warte_auf_taste()
@@ -22355,6 +23173,22 @@ REVIERWAFFEN = {
         "werte": {"typ": "Hammer", "min_schaden": 16, "max_schaden": 24,
                   "wendigkeit": 1, "parade": 1, "reichweite": 1, "verkaufswert": 40},
         "beschreibung": "Ein schwerer Hammer, dessen Kopf aus der Riesenschere gefertigt ist."
+    },
+    "schieferklinge": {
+        "name": "Schieferklinge",
+        "gold": 35,
+        "zutaten": {"uraltschiefer": 1, "schieferplatte": 2, "holz": 1},
+        "werte": {"typ": "Messer", "min_schaden": 14, "max_schaden": 18,
+                  "wendigkeit": 3, "parade": 2, "reichweite": 1, "verkaufswert": 35},
+        "beschreibung": "Eine geschmiedete Stahlklinge, in deren Rücken Bjorn Uraltschiefer eingearbeitet hat. Das stärkste Messer."
+    },
+    "schwarzgeweihstab": {
+        "name": "Schwarzgeweihstab",
+        "gold": 35,
+        "zutaten": {"schwarze_geweihschaufel": 1, "schlickhaut": 2, "holz": 2},
+        "werte": {"typ": "Stab", "min_schaden": 11, "max_schaden": 15,
+                  "wendigkeit": 2, "parade": 5, "reichweite": 3, "verkaufswert": 35},
+        "beschreibung": "Ein schwerer Stab, beschlagen mit der Geweihschaufel von Schwarzgeweih. Der Stab mit der besten Parade."
     }
 }
 
@@ -22884,6 +23718,259 @@ def bjorn_stahlkrieger():
     warte_auf_taste("Zurück")
 
 
+RUNEN_BESCHREIBUNG = {
+    "klang": "Findet den Klang in Platten. Die Werte geben an, wie viel deines Trefferschadens durch die "
+             "Platten kommt: schnelle Treffer auf ungebrochene Panzerplatten mit dem Messer 80 % statt 70 %, "
+             "sonst 60 % statt 40 %; schwere Schläge gegen eingerollte Platten 60 % statt 40 %. "
+             "Nach dem Panzerbruch wirkt sie nicht mehr.",
+    "ruhe": "Hält die Waffe ruhig, wenn der Stoß kommt. Beim Abwehren von Sprung und Ansturm bleiben "
+            "50 % statt 60 % des Schadens, beim mächtigen Angriff des Waldwächters 42 % statt der Hälfte. "
+            "Mit Dämpfen gilt nur Dämpfen.",
+    "halt": "Hält dich bei dir. Benommenheit durch Schrei oder Asche hält eine Runde kürzer an. Bei getrübter "
+            "Wahrnehmung bleiben die Namen deiner Kampfoptionen eine Runde länger klar. Als aktiver "
+            "Runenschmied kannst du sie im Kampf wecken [W]."
+}
+RUNEN_GESPERRT = {
+    "klang": "braucht Resonanz 1",
+    "ruhe": "braucht Kontrolle 1",
+    "halt": "braucht Anker 1. Selene kann dir zeigen, wie du dich selbst verankerst."
+}
+RUNEN_MOMENT = {
+    "klang": "Die Platte klingt, und du hältst den Ton, bis er im Stein bleibt.",
+    "ruhe": "Die Platte klingt, und du dämpfst den Ton, bis das Plättchen ruhig unter deiner Hand liegt.",
+    "halt": "Die Platte klingt, und du sagst deinen Namen hinein, bis der Ton daran hängen bleibt."
+}
+
+
+def rune_bezahlen():
+    # Prüft und bucht 2 Schieferplatten und 10 Gold; bei Mangel wird nichts verbraucht.
+    platten = RUNE_KOSTEN["schieferplatte"]
+    gold = RUNE_KOSTEN["gold"]
+    fehlen = platten - item_anzahl("schieferplatte")
+    if fehlen > 0:
+        print(f"Dir fehlen {fehlen} Schieferplatten." if fehlen > 1 else "Dir fehlt 1 Schieferplatte.")
+        return False
+    if spieler["gold"] < gold:
+        print("Dir fehlt Gold.")
+        return False
+    if not item_entfernen("schieferplatte", platten):
+        return False
+    spieler["gold"] -= gold
+    return True
+
+
+def bjorn_runenschmied():
+    ort_titel("Bjorn – Runenschmied")
+    if (spieler.get("hybrid") or {}).get("runenschmied_probe") is True:
+        bjorn_runenschmied_probe_offen()
+        return
+    if grundklasse_holen(spieler) != "magier":
+        print("Dieser Lehrweg ist für deinen aktuellen Ausbildungsstand nicht verfügbar.")
+        warte_auf_taste("Zurück")
+        return
+    if not runenschmied_voraussetzungen(spieler):
+        text_ausgeben("[Bjorn] Eine Rune setzt man in eine Waffe, die man kennt.")
+        if not schmied_waffenpflege_gelernt(spieler):
+            text_ausgeben("[Bjorn] Lerne zuerst bei mir die Waffenpflege.")
+        if magier_resonanzwerte(spieler)["magier_resonanz_stufe"] < 1:
+            text_ausgeben("[Bjorn] Deine Resonanz reicht noch nicht. Selene kann dir zeigen, "
+                          "wie ein Ring den anderen zum Klingen bringt.")
+        warte_auf_taste("Zurück")
+        return
+    if hybrid_probe_offen(spieler, "runenschmied"):
+        print("Beende zuerst deine andere anstehende Hybridprüfung. Während einer Probe kannst du den Hybrid nicht wechseln.")
+        warte_auf_taste("Zurück")
+        return
+    if runenschmied_freigeschaltet(spieler):
+        bjorn_runenschmied_werkstatt()
+    else:
+        bjorn_runenschmied_probe_beginnen()
+
+
+def bjorn_runenschmied_probe_beginnen():
+    text_ausgeben("Bjorn legt einen gefalteten Brief neben den Amboss. Das Siegel ist schon gebrochen.")
+    text_ausgeben("[Bjorn] Von deiner Lehrerin aus Oros. Sie schreibt mehr als nötig.")
+    text_ausgeben("Er liest vor, ohne aufzusehen.")
+    text_ausgeben("[Bjorn] „Ein Stein, der klingt, kann einen Klang behalten. Setze den Stein in eine Waffe. "
+                  "Dann sieh, ob er im Kampf antwortet.“")
+    text_ausgeben("[Bjorn] Sie meint Schieferplatten. Die klingen, wenn man draufschlägt. Das weiß ich auch ohne Brief.")
+    print()
+    print("Runen sind feste Eigenschaften einer Waffe. Sie wirken passiv, sobald die passende "
+          "Kampfsituation eintritt. Ihre passive Wirkung kostet keine Ladung.")
+    print("Prüfung: Setze eine Klangrune auf deine ausgerüstete Waffe und gewinne einen Kampf, in dem sie wirkt.")
+    print("Die Klangrune wirkt bei Treffern auf Panzerplatten, zum Beispiel beim Schieferpanzer "
+          "auf den Felsterrassen oder beim Schachtkriecher in den Tiefen.")
+    print("Misslingt der Kampf, bleibt die Prüfung offen. Der nächste Kampf ist der nächste Versuch.")
+    print()
+    waffe = spieler.get("waffe")
+    if not isinstance(waffe, dict):
+        print("Rüste zuerst eine Waffe aus.")
+        warte_auf_taste("Zurück")
+        return
+    alte_rune = waffe.get("rune")
+    if alte_rune == "klang":
+        # Eine offene Probe sperrt andere Hybridprüfungen, deshalb auch ohne Kosten erst bestätigen.
+        text_ausgeben("[Bjorn] Die hat schon eine. Dann brauchst du keine zweite. Geh kämpfen.")
+        print()
+        print("1. Prüfung beginnen")
+        print("2. Zurück")
+        if eingabe_menu(1, 2, sonder_tasten=()) != 1:
+            return
+        if runenschmied_probe_starten(spieler, bestaetigt=True):
+            print("Prüfung offen. Gewinne einen Kampf, in dem die Klangrune deiner Waffe wirkt.")
+        warte_auf_taste("Zurück")
+        return
+    if alte_rune in RUNEN:
+        print(f"Auf {waffe['name']} liegt schon eine {RUNEN[alte_rune]}. Die Übungsrune würde sie ersetzen; "
+              f"die {RUNEN[alte_rune]} ist dann verloren.")
+        print()
+        print("1. Ersetzen und die Übungsrune setzen")
+    else:
+        print(f"Übungsrune: Klangrune auf {waffe['name']}. Kosten: "
+              f"{RUNE_KOSTEN['schieferplatte']} Schieferplatten, {RUNE_KOSTEN['gold']} Gold.")
+        print()
+        print("1. Die Übungsrune setzen")
+    print("2. Zurück")
+    if eingabe_menu(1, 2, sonder_tasten=()) != 1:
+        return
+    if not rune_bezahlen():
+        warte_auf_taste("Zurück")
+        return
+    text_ausgeben("Bjorn legt die Schieferplatte auf den Amboss und schlägt einmal leicht darauf. "
+                  "Sie klingt hell und lange.")
+    text_ausgeben("[Bjorn] Hör hin. Wenn er leiser wird, hältst du ihn.")
+    if wm_gelernt("wm_resonanz_uebung"):
+        text_ausgeben("Du hältst den Klang, wie bei Selenes Ringen. Er wird nicht leiser. Er geht in den Stein.")
+    else:
+        text_ausgeben("Du hältst den Klang fest. Er wird nicht leiser. Er geht in den Stein.")
+    text_ausgeben("[Bjorn] Jetzt schleifen. Schmal, nicht dünn.")
+    text_ausgeben("Du schleifst die Platte zu einem schmalen Plättchen und setzt es in die Waffe. Bjorn schaut "
+                  "zu und sagt nichts. Als du die Waffe aufhebst, summt sie einmal und ist still.")
+    text_ausgeben("[Bjorn] Hm. Klingt nach nichts. Soll wohl so.")
+    waffe["rune"] = "klang"
+    print(f"{waffe['name']} trägt jetzt eine Klangrune.")
+    if runenschmied_probe_starten(spieler, bestaetigt=True):
+        print("Prüfung offen. Gewinne einen Kampf, in dem die Klangrune deiner Waffe wirkt.")
+    warte_auf_taste("Weiter")
+
+
+def bjorn_runenschmied_probe_offen():
+    print("Prüfung offen. Gewinne einen Kampf, in dem die Klangrune deiner Waffe wirkt.")
+    print(f"Aktuelle Lebenspunkte: {spieler['lebenspunkte']}/100")
+    print()
+    print("1. Prüfung abbrechen")
+    print("2. Zurück")
+    if eingabe_menu(1, 2, sonder_tasten=()) != 1:
+        return
+    print("Die Prüfung endet. Die Rune bleibt auf der Waffe. Du kannst die Prüfung später neu beginnen.")
+    print()
+    print("1. Ja, abbrechen")
+    print("2. Zurück")
+    if eingabe_menu(1, 2, sonder_tasten=()) == 1 and runenschmied_probe_abbrechen(spieler):
+        text_ausgeben("[Bjorn] Die Rune läuft dir nicht weg.")
+        warte_auf_taste("Zurück")
+
+
+def bjorn_runenschmied_werkstatt():
+    hybrid = spieler["hybrid"]
+    if not hybrid.get("runenschmied_gewuerdigt"):
+        text_ausgeben("[Bjorn] Hat also geklungen. Gut.")
+        text_ausgeben("Er wischt sich die Hände an der Schürze ab.")
+        text_ausgeben("[Bjorn] Schreib ihr zurück, wenn du magst. Ich schreib keine Briefe.")
+        hybrid["runenschmied_gewuerdigt"] = True
+        print()
+    while spieler.get("spiel_laeuft", True):
+        ort_titel("Bjorn – Runenschmied")
+        print("Eine Rune setzen: Klang-, Ruhe- oder Haltrune auf eine deiner Waffen. Eine Rune je Waffe.")
+        print("Runen wirken passiv, sobald die passende Kampfsituation eintritt, auch ohne aktiven "
+              "Runenschmied und für jede Klasse, die die Waffe trägt. Ihre passive Wirkung kostet keine Ladung.")
+        print("Rune wecken [W]: nur mit der Haltrune und nur als aktiver Runenschmied. Beendet deine "
+              "Benommenheit sofort, einmal pro Kampf, kostet eine Ladung und keinen Zug.")
+        print("Deine Magierklasse und ihre Techniken bleiben erhalten. Nur ein Hybrid ist aktiv.")
+        print("Prüfung abgeschlossen. Ein Hybridwechsel ist hier möglich.")
+        aktiv = hybrid_aktiv_holen(spieler) == "runenschmied"
+        print()
+        print("1. Eine Rune setzen")
+        print("2. Als reiner Magier weiterspielen" if aktiv else "2. Zum Runenschmied fusionieren")
+        print("3. Zurück")
+        auswahl = eingabe_menu(1, 3, sonder_tasten=())
+        if auswahl == 3:
+            return
+        if auswahl == 1:
+            bjorn_rune_setzen()
+            continue
+        ziel = None if aktiv else "runenschmied"
+        print("Deine Grundklasse bleibt Magier. Andere Freischaltungen bleiben erhalten; der Wechsel kostet nichts.")
+        print()
+        print("1. Ja, Hybridwahl bestätigen")
+        print("2. Zurück")
+        if eingabe_menu(1, 2, sonder_tasten=()) == 1:
+            if hybrid_beim_lehrer_waehlen(spieler, ziel, "bjorn_runen", bestaetigt=True):
+                print("Hybrid aktiv: Runenschmied." if ziel else "Du spielst wieder als reiner Magier.")
+            warte_auf_taste("Weiter")
+
+
+def bjorn_rune_setzen():
+    ort_titel("Bjorn – Eine Rune setzen")
+    waffen = []
+    if isinstance(spieler.get("waffe"), dict):
+        waffen.append(spieler["waffe"])
+    waffen += [w for w in spieler.get("waffen_inventar", []) if isinstance(w, dict)]
+    if not waffen:
+        print("Du hast keine Waffe, auf die du eine Rune setzen kannst.")
+        warte_auf_taste("Zurück")
+        return
+    for nummer, waffe in enumerate(waffen, start=1):
+        zusatz = " [ausgerüstet]" if waffe is spieler.get("waffe") else ""
+        print(f"{nummer}. {waffe_anzeigename(waffe)}{zusatz}")
+    print(f"{len(waffen) + 1}. Zurück")
+    auswahl = eingabe_menu(1, len(waffen) + 1, sonder_tasten=())
+    if auswahl == len(waffen) + 1:
+        return
+    waffe = waffen[auswahl - 1]
+
+    ort_titel("Bjorn – Eine Rune setzen")
+    runen = list(RUNEN)
+    for nummer, rune in enumerate(runen, start=1):
+        if rune_setzbar(spieler, rune):
+            print(f"{nummer}. {RUNEN[rune]}")
+        else:
+            print(f"{nummer}. {RUNEN[rune]} – {RUNEN_GESPERRT[rune]}")
+        print(f"   {RUNEN_BESCHREIBUNG[rune]}")
+        print()
+    print(f"{len(runen) + 1}. Zurück")
+    auswahl = eingabe_menu(1, len(runen) + 1, sonder_tasten=())
+    if auswahl == len(runen) + 1:
+        return
+    rune = runen[auswahl - 1]
+    if not rune_setzbar(spieler, rune):
+        print(f"{RUNEN[rune]} – {RUNEN_GESPERRT[rune]}")
+        warte_auf_taste("Zurück")
+        return
+    alte_rune = waffe.get("rune")
+    if alte_rune == rune:
+        print(f"{waffe['name']} trägt schon eine {RUNEN[rune]}.")
+        warte_auf_taste("Zurück")
+        return
+    alt_text = RUNEN[alte_rune] if alte_rune in RUNEN else "keine Rune"
+    print(f"{waffe['name']}: {alt_text} → {RUNEN[rune]}. Kosten: "
+          f"{RUNE_KOSTEN['schieferplatte']} Schieferplatten, {RUNE_KOSTEN['gold']} Gold.")
+    if alte_rune in RUNEN:
+        print(f"Die {RUNEN[alte_rune]} ist danach verloren.")
+    print()
+    print("1. Rune setzen")
+    print("2. Zurück")
+    if eingabe_menu(1, 2, sonder_tasten=()) != 1:
+        return
+    if not rune_bezahlen():
+        warte_auf_taste("Zurück")
+        return
+    text_ausgeben(RUNEN_MOMENT[rune])
+    waffe["rune"] = rune
+    print(f"{waffe['name']} trägt jetzt eine {RUNEN[rune]}.")
+    warte_auf_taste("Weiter")
+
+
 def bjorn_waffenpflege():
     ort_titel("Bjorn – Waffenpflege")
     daten = spieler.get("berufe", {}).get("schmied", {}) if isinstance(spieler.get("berufe", {}), dict) else {}
@@ -22960,18 +24047,24 @@ def bjorn_eigene_herstellung():
         print()
         print("1. Hauermesser selbst herstellen")
         print("2. Waffenpflege bei Bjorn")
-        hybrid_angebot = stahlkrieger_voraussetzungen(spieler)
-        if hybrid_angebot:
-            print("3. Bjorns weiterführenden Krieger-Schmied-Lehrweg ansehen")
-        zurueck = 4 if hybrid_angebot else 3
+        angebote = []
+        if stahlkrieger_voraussetzungen(spieler):
+            angebote.append(("Bjorns weiterführenden Krieger-Schmied-Lehrweg ansehen", bjorn_stahlkrieger))
+        # WM-C2: für Magier; bei offener Probe immer, damit sie sich abbrechen lässt.
+        if (grundklasse_holen(spieler) == "magier"
+                or (spieler.get("hybrid") or {}).get("runenschmied_probe") is True):
+            angebote.append(("Bjorns Runenschmied-Lehrweg ansehen", bjorn_runenschmied))
+        for nummer, (angebot_text, _) in enumerate(angebote, start=3):
+            print(f"{nummer}. {angebot_text}")
+        zurueck = 3 + len(angebote)
         print(f"{zurueck}. Zurück")
         auswahl = eingabe_menu(1, zurueck, sonder_tasten=())
         if auswahl == zurueck:
             return
         if auswahl == 2:
             bjorn_waffenpflege()
-        elif auswahl == 3 and hybrid_angebot:
-            bjorn_stahlkrieger()
+        elif auswahl >= 3:
+            angebote[auswahl - 3][1]()
         else:
             bjorn_hauermesser_herstellen(selbst=True)
 
@@ -23416,7 +24509,7 @@ def waffe_verkaufen():
 
             else:
                 print(
-                    f"{i + 1}. {waffe['name']} "
+                    f"{i + 1}. {waffe_anzeigename(waffe)} "
                     f"- {waffe['verkaufswert']} Gold"
                 )
 
@@ -23464,7 +24557,7 @@ def waffe_verkaufen():
 
             continue
 
-        if not handel_bestaetigen(waffe["name"], 1, waffe["verkaufswert"], verkauf=True):
+        if not handel_bestaetigen(waffe_anzeigename(waffe), 1, waffe["verkaufswert"], verkauf=True):
             continue
 
         waffe = spieler[
@@ -23478,7 +24571,7 @@ def waffe_verkaufen():
         )
 
         design_text(
-            f"{waffe['name']} verkauft",
+            f"{waffe_anzeigename(waffe)} verkauft",
             design="positiv",
             art="menue"
         )
@@ -26092,6 +27185,9 @@ def gasthaus_zimmer():
     if auswahl == 2:
         return
 
+    if not frist_schlafen_erlaubt():
+        return
+
     spieler["gold"] -= preis
 
     schlafen_bis_morgen(
@@ -26156,8 +27252,22 @@ def bjorn_herstellungsmenue():
         ("Geweihspeer", 35, "1x Blasses Geweih + 2x Hirschgeweih + 2x Holz",
          "Schaden: 15–22 | Wendigkeit: 1 | Parade: 1 | Reichweite: 3",
          "Blasser Hirsch am Pfad des Vergessens (selten), Echohirsche, Holzsuche.",
-         "Der stärkste Speer.", lambda: bjorn_revierwaffe_herstellen("geweihspeer"))
+         "Der stärkste Speer.", lambda: bjorn_revierwaffe_herstellen("geweihspeer")),
+        ("Schieferklinge", 35, "1x Uraltschiefer + 2x Schieferplatte + 1x Holz",
+         "Schaden: 14–18 | Wendigkeit: 3 | Parade: 2 | Reichweite: 1",
+         "Steinvater auf den Felsterrassen (selten); wo er gefallen ist, liegt noch "
+         "eine Platte im Geröll. Schieferpanzer, Holzsuche.",
+         "Das stärkste Messer.", lambda: bjorn_revierwaffe_herstellen("schieferklinge"))
     ]
+    # Der Stab bleibt unsichtbar, bis Schwarzgeweih im Jagdbuch steht (Kapitel 9).
+    if "Schwarzgeweih" in spieler.get("jagdbuch", {}):
+        waffen.append(
+            ("Schwarzgeweihstab", 35, "1x Schwarze Geweihschaufel + 2x Schlickhaut + 2x Holz",
+             "Schaden: 11–15 | Wendigkeit: 2 | Parade: 5 | Reichweite: 3",
+             "Schwarzgeweih im Ried (selten), Schlickbeißer, Holzsuche.",
+             "Der Stab mit der besten Parade.",
+             lambda: bjorn_revierwaffe_herstellen("schwarzgeweihstab"))
+        )
     ruestungen = [
         ("Verstärkte Wolfslederweste", 15, "3x Wolfsfell", "Schutz: 3",
          "Wölfe auf der Wildspur; Felle sind nicht garantiert.",
@@ -26409,6 +27519,11 @@ def schmiede():
     print("7. Schmiedeausbildung / Beruf")
     print("8. Schmiede verlassen")
 
+    klammern = brunnfeld_klammern_offen()
+
+    if klammern:
+        print("9. Klammern für den Steg schmieden lassen [!]")
+
     print()
     print("[S] Status")
     print("[I] Inventar")
@@ -26418,7 +27533,7 @@ def schmiede():
 
     schmied_auswahl = eingabe_menu(
         1,
-        8,
+        9 if klammern else 8,
         sonder_tasten=("s", "i", "j", "t", "q")
     )
 
@@ -26436,6 +27551,9 @@ def schmiede():
         return
     if schmied_auswahl == "q":
         spielmenue()
+        return
+    if schmied_auswahl == 9:
+        brunnfeld_klammern_bei_bjorn()
         return
     bjorn_daten = npc_status(
         "bjorn"
@@ -26637,8 +27755,13 @@ def brandschneise_jagd():
             )
         )
 
+        # WM-D2: Fährtenlesen erkennt die Spuren immer.
+        faehrten_gelesen = not spuren_erkannt and faehrtensteller_aktiv(spieler)
+        spuren_erkannt = spuren_erkannt or faehrten_gelesen
+
         if spuren_erkannt:
-            print("Du kannst die Spuren in der Asche unterscheiden.")
+            print(faehrten_vorsatz(faehrten_gelesen) + "Du kannst die Spuren in der Asche unterscheiden.")
+            faehrten_revierhinweis("brandschneise")
             print()
             print("1. Der schleifenden Aschespur folgen - Glutsalamander [1 Schritt]")
             print("2. Den Stiefelabdrücken folgen - Kohlenschmuggler [1 Schritt]")
@@ -28166,6 +29289,10 @@ def alte_schmiede():
         warte_auf_taste()
 
 def verlassenes_dorf():
+    if archiv_dorf_aktiv():
+        archiv_dorf()
+        return
+
     ort_titel("Verlassenes Dorf")
 
     ort_nachricht_anzeigen()
@@ -28224,11 +29351,18 @@ def verlassenes_dorf():
 
     pfad_jagd_offen = weg_status("pfad_des_vergessens") == "entdeckt"
     zurueck_nummer = 4 if pfad_jagd_offen else 3
+    strasse_nummer = None
+
+    if chronik_strasse_offen():
+        strasse_nummer = zurueck_nummer
+        zurueck_nummer += 1
 
     print(schmiede_text)
     print("2. Das Dorf durchsuchen")
     if pfad_jagd_offen:
         print("3. Am Pfad des Vergessens jagen - Jagdgebiet")
+    if strasse_nummer is not None:
+        print(f"{strasse_nummer}. {chronik_strasse_text()}")
     print(f"{zurueck_nummer}. Zurück nach Eichenruh")
 
     print()
@@ -28275,6 +29409,9 @@ def verlassenes_dorf():
 
     elif dorf_auswahl == 3 and pfad_jagd_offen:
         pfad_des_vergessens_jagd()
+
+    elif dorf_auswahl == strasse_nummer:
+        chronik_kante()
 
     elif dorf_auswahl == zurueck_nummer:
 
@@ -28643,6 +29780,30 @@ def faden_der_erinnerung_entdecken():
         "Zurück nach Eichenruh"
     )
 
+def felsterrassen_fundstelle():
+    # Einmalige zweite Quelle für Uraltschiefer: Wer die Steinhautweste schon
+    # gebaut hat, kommt so trotzdem an die Schieferklinge (Beschluss WM-A).
+    if not status_schritte_abschliessen():
+        return
+
+    spieler["uraltschiefer_fundstelle_geleert"] = True
+    item_hinzufuegen("uraltschiefer", 1)
+
+    ort_titel("Universität von Oros - Felsterrassen")
+    text_ausgeben(
+        "An der Stelle, an der der Steinvater lag, ist der Hang noch "
+        "aufgerissen. Zwischen dem Geröll liegt eine Platte, die von seinem "
+        "Rücken abgebrochen ist. Sie ist dunkel, schwer und kühler als die "
+        "Steine daneben."
+    )
+    print()
+    text_ausgeben("Du hebst sie auf. Bjorn wird wissen, was man daraus macht.")
+    print()
+    design_text("Uraltschiefer gefunden", design="positiv", art="menue")
+    print(f"Uraltschiefer: {item_anzahl('uraltschiefer')}")
+    warte_auf_taste("Weiter")
+
+
 def felsterrassen_jagd():
     if akt1_reisesperre():
         akt1_reisesperre_meldung()
@@ -28690,8 +29851,13 @@ def felsterrassen_jagd():
             )
         )
 
+        # WM-D2: Fährtenlesen erkennt die Spuren immer.
+        faehrten_gelesen = not spuren_erkannt and faehrtensteller_aktiv(spieler)
+        spuren_erkannt = spuren_erkannt or faehrten_gelesen
+
         if spuren_erkannt:
-            print("Du kannst die Spuren zwischen den Felsen unterscheiden.")
+            print(faehrten_vorsatz(faehrten_gelesen) + "Du kannst die Spuren zwischen den Felsen unterscheiden.")
+            faehrten_revierhinweis("felsterrassen")
             print()
             print("1. Den Kratzspuren im Geröll folgen - Schieferpanzer [1 Schritt]")
             print("2. Unter dem Kreisen am Himmel warten - Kreischer [1 Schritt]")
@@ -28703,13 +29869,23 @@ def felsterrassen_jagd():
 
         print("3. Inventar öffnen")
         print("4. Zurück zum Vorplatz")
+        fundstelle = (
+            spieler.get("jagdbuch", {}).get("Steinvater", {}).get("beute") is True
+            and not spieler.get("uraltschiefer_fundstelle_geleert", False)
+        )
+        if fundstelle:
+            print("5. Zur Stelle gehen, an der der Steinvater lag [1 Schritt]")
         print()
         print("[Schritt]: Blutung, Gift und Mahlzeit-Wirkungen laufen dabei einen Schritt weiter.")
 
-        auswahl = eingabe_menu(1, 4, sonder_tasten=())
+        auswahl = eingabe_menu(1, 5 if fundstelle else 4, sonder_tasten=())
 
         if auswahl == 4:
             return
+
+        if auswahl == 5:
+            felsterrassen_fundstelle()
+            continue
 
         if auswahl == 3:
             inventar()
@@ -37406,7 +38582,7 @@ def tiefen_haller_start():
     )
 
     text_ausgeben(
-        "[Finch] Wenn du mehr brauchst: Raban hat Öl und Seil im "
+        "[Finch] Wenn Sie mehr brauchen: Raban hat Öl und Seil im "
         "Versorgungshof."
     )
 
@@ -44058,6 +45234,14 @@ def dialog_tomas():
                 )
             )
 
+        if chronik_quelle_offen():
+            optionen.append(
+                (
+                    "tiefer_ring",
+                    "Was weißt du über den Tiefen Ring? [!]"
+                )
+            )
+
         wegmarke_zeigen = (
             item_besitzt(
                 "alte_wegmarke"
@@ -44582,6 +45766,9 @@ def dialog_tomas():
             warte_auf_taste(
                 "Weiter"
             )
+
+        elif aktion == "tiefer_ring":
+            chronik_tomas()
 
         elif aktion == "suedweg":
             if weg_status("pfad_des_vergessens") == "entdeckt":
@@ -46303,17 +47490,36 @@ def wegstation_verbindungen(raum_id):
 def wegstation_gebietskarte_anzeigen():
     daten = wegstation_status()
 
-    aktueller_raum = daten.get(
-        "aktueller_raum",
-        "vorhof"
+    raumkarte_anzeigen(
+        "Gebietskarte - Alte Wegstation",
+        WEGSTATION_RAEUME,
+        WEGSTATION_KARTENNAMEN,
+        WEGSTATION_KARTENPOSITIONEN,
+        daten.get(
+            "aktueller_raum",
+            "vorhof"
+        ),
+        set(
+            daten.get(
+                "besuchte_raeume",
+                []
+            )
+        ),
+        wegstation_verbindungen
     )
 
-    besuchte_raeume = set(
-        daten.get(
-            "besuchte_raeume",
-            []
-        )
-    )
+
+def raumkarte_anzeigen(
+    titel,
+    raeume,
+    kartennamen,
+    positionen,
+    aktueller_raum,
+    besuchte_raeume,
+    verbindungen
+):
+    # Gemeinsame Gebietskarte für Orte mit Räumen
+    # (Alte Wegstation, Versunkene Chronik).
 
     # -------------------------
     # SICHTBARKEIT
@@ -46324,7 +47530,7 @@ def wegstation_gebietskarte_anzeigen():
             return True
 
         for besucht_id in besuchte_raeume:
-            if raum_id in wegstation_verbindungen(
+            if raum_id in verbindungen(
                 besucht_id
             ):
                 return True
@@ -46344,7 +47550,7 @@ def wegstation_gebietskarte_anzeigen():
         if raum_id not in besuchte_raeume:
             return "[?]"
 
-        name = WEGSTATION_KARTENNAMEN[
+        name = kartennamen[
             raum_id
         ]
 
@@ -46378,7 +47584,7 @@ def wegstation_gebietskarte_anzeigen():
             return None
 
         zeile, spalte = (
-            WEGSTATION_KARTENPOSITIONEN[
+            positionen[
                 raum_id
             ]
         )
@@ -46513,14 +47719,14 @@ def wegstation_gebietskarte_anzeigen():
     gezeichnete_verbindungen = set()
 
     for start_id in besuchte_raeume:
-        for ziel_id in wegstation_verbindungen(
+        for ziel_id in verbindungen(
             start_id
         ):
             if (
                 start_id
-                not in WEGSTATION_KARTENPOSITIONEN
+                not in positionen
                 or ziel_id
-                not in WEGSTATION_KARTENPOSITIONEN
+                not in positionen
             ):
                 continue
 
@@ -46555,7 +47761,7 @@ def wegstation_gebietskarte_anzeigen():
     for (
         raum_id,
         position
-    ) in WEGSTATION_KARTENPOSITIONEN.items():
+    ) in positionen.items():
 
         text = feld(
             raum_id
@@ -46584,7 +47790,7 @@ def wegstation_gebietskarte_anzeigen():
     # -------------------------
 
     ort_titel(
-        "Gebietskarte - Alte Wegstation"
+        titel
     )
 
     sichtbare_zeilen = [
@@ -46650,7 +47856,7 @@ def wegstation_gebietskarte_anzeigen():
 
     print(
         "Standort: "
-        + WEGSTATION_RAEUME[
+        + raeume[
             aktueller_raum
         ]["name"]
     )
@@ -47885,7 +49091,14 @@ def riss_halle():
         "über die Wand bis zu den Wegweisern."
     )
 
+    offene_tore_aufenthalt("hedda", "ilka")
+    offene_tore_ilka_kapitel9(
+        "aufgenommen",
+        "[Ilka] Das Blatt hab ich noch. Rolfs Name steht drauf, und bei Ihnen "
+        "steht meiner."
+    )
     zurueckgelassene_halle()
+    archiv_rationen_zeile()
     optionen = [
         ("Zu den Lehrhallen gehen", riss_lehrhallen),
         ("Zu den Forschungsräumen gehen", riss_forschungsraeume),
@@ -47897,6 +49110,30 @@ def riss_halle():
         optionen.insert(0, ("Mit Ahrens sprechen [!]", offene_tore_lagebericht))
     if zurueckgelassene_nachricht_offen():
         optionen.insert(0, ("Zu Ahrens ans Haupttor gehen [!]", zurueckgelassene_nachricht))
+    if kiran_status() == "lehrhallen":
+        optionen.insert(0, (
+            "Mit Kiran durch die Lehrhallen gehen [!]",
+            kiran_lehrhallen
+        ))
+    if archiv_haller_offen():
+        if riss_einmal("archiv_schreiber"):
+            text_ausgeben(
+                "Ein Schreiber der Schutzverwaltung wartet bei den Säulen. "
+                "Haller will dich sprechen, sagt er. In der Amtsstube."
+            )
+        optionen.insert(0, ("Zu Haller in die Amtsstube [!]", archiv_haller))
+    if archiv_marit_offen():
+        optionen.append((
+            "Mit der alten Frau bei den Steinen sprechen",
+            archiv_marit
+        ))
+    if befreiung_stein_offen():
+        optionen.append(("Bei Marits Steinen nachsehen [!]", befreiung_stein))
+    if archiv_status() == "haller_vorschlag":
+        optionen.insert(0, (
+            "Zu Haller in die Amtsstube [!]",
+            archiv_haller_vorschlag
+        ))
 
     if spieler.get("quest_oros_listen") in (
         "lieferung_pruefen", "belege_vergleichen",
@@ -47912,6 +49149,9 @@ def riss_halle():
         lambda: spieler.__setitem__("ort", "oros_haupttor")
     ))
 
+    if brunnfeld_laeufer_offen("tarek"):
+        optionen.append(("Mit Tarek im Notlager sprechen [!]", brunnfeld_tarek_laeufer))
+
     riss_ort_menue(optionen)
 
 
@@ -47920,6 +49160,8 @@ def riss_haupttor():
         "Universität von Oros - Haupttor",
         "Das Haupttor steht offen. Davor halten zwei von Ahrens' Leuten Wache."
     )
+
+    offene_tore_aufenthalt("bruno")
 
     optionen = []
     if zurueckgelassene_nachricht_offen():
@@ -47963,6 +49205,19 @@ def riss_vorplatz():
     ):
         zeilen.append("Am Tor steht der Tisch der Schutzverwaltung.")
 
+    if brunnfeld_lager_offen():
+        # Kapitel 9: Die Brunnfelder sind zurück; der Vorplatz ist nicht mehr leer.
+        zeilen = [
+            (
+                "Am Tor ist Bewegung. Jemand schiebt einen Karren ohne "
+                "Zugtier herein."
+                if brunnfeld_status() == "nicht_entdeckt"
+                else "Neben dem Tor lagern wieder Menschen aus Brunnfeld, um "
+                "einen Karren ohne Zugtier."
+            ),
+            "Pfähle mit Kreidezeichen führen in einem Bogen vom Tor weg."
+        ]
+
     riss_ort("Universität von Oros", *zeilen)
 
     optionen = []
@@ -47986,6 +49241,11 @@ def riss_vorplatz():
 
     if szene:
         optionen.append(szene)
+    if offene_tore_lager_streit_offen():
+        optionen.append((
+            "Nachsehen, was im Lager los ist [!]",
+            offene_tore_lager_streit
+        ))
     if (
         zurueckgelassene_status() == "rueckkehr"
         and zurueckgelassene_ausgang() == "gerettet"
@@ -47994,6 +49254,21 @@ def riss_vorplatz():
             "Die Geretteten zum Tisch der Schutzverwaltung bringen [!]",
             zurueckgelassene_aufnahme
         ))
+
+    if kiran_offen("liste"):
+        optionen.append((
+            "Zu Haller am Tisch der Schutzverwaltung gehen [!]",
+            kiran_fundsache
+        ))
+
+    if kiran_status() == "wegweiser":
+        if offene_tore_kiran() == "buergschaft":
+            optionen.append(("Mit Kiran den Faden gehen [!]", kiran_faden))
+        else:
+            optionen.append((
+                "Zum alten Wegweiser gehen [!]",
+                kiran_wegweiser_liste
+            ))
 
     optionen.append((
         "Zum Haupttor gehen",
@@ -48009,7 +49284,3673 @@ def riss_vorplatz():
         ))
         optionen.append(("Zurück nach Eichenruh", riss_nach_eichenruh))
 
+        if chronik_status() == "abgeschlossen" and strassen_offen():
+            optionen.append((
+                "Nordstraße – Versunkene Chronik",
+                chronik_reise_von_oros
+            ))
+
+        if archiv_status() not in ("nicht_entdeckt", "finch"):
+            optionen.append((
+                "Bleicher Pfad – Archiv der Schatten"
+                + (" [!]" if archiv_status() == "pfad" else ""),
+                archiv_reise_von_oros
+            ))
+
+    if brunnfeld_lager_offen():
+        optionen.append((
+            "Zum Vorplatzlager"
+            + (" [!]" if brunnfeld_status() in ("nicht_entdeckt", "nachricht") else ""),
+            brunnfeld_vorplatzlager
+        ))
+
+    if brunnfeld_status() == "pfad" and not kapitel9_wert("erkundet", False):
+        optionen.append((
+            "Mit dem alten Mann den Läuferpfad suchen [!]",
+            brunnfeld_reise_von_oros
+        ))
+    elif kapitel9_wert("erkundet", False):
+        optionen.append(("Läuferpfad – Brunnfeld", brunnfeld_reise_von_oros))
+
     riss_ort_menue(optionen)
+
+
+# =========================
+# KAPITEL 9: DER WEG NACH HAUSE
+# =========================
+
+def kapitel9_daten():
+    daten = spieler.get("kapitel9")
+
+    if not isinstance(daten, dict):
+        daten = {}
+        spieler["kapitel9"] = daten
+
+    return daten
+
+
+def kapitel9_wert(schluessel, standard=None):
+    # Nur lesen: legt bei alten Spielständen keine leeren Kapitel-9-Daten an.
+    daten = spieler.get("kapitel9")
+
+    if not isinstance(daten, dict):
+        return standard
+
+    return daten.get(schluessel, standard)
+
+
+def brunnfeld_status():
+    return spieler.get("quest_brunnfeld", "nicht_entdeckt")
+
+
+def brunnfeld_lager_offen():
+    # Kapitel 9 beginnt erst nach dem Abschluss von Kapitel 8.
+    return (
+        archiv_status() == "abgeschlossen"
+        and (
+            brunnfeld_status() in (
+                "nicht_entdeckt", "spuren", "pfad", "brunnfeld", "nachricht",
+                "haller", "ahrens", "aufgaben"
+            )
+            # Ohne vorbereitete Rückkehr wartet der Rest in Oros (N1).
+            or (brunnfeld_status() == "abgeschlossen" and not kapitel9_wert("rueckkehr"))
+        )
+    )
+
+
+BRUNNFELD_SPUREN = (
+    ("haller", "Haller fragen"),
+    ("finch", "Finch fragen"),
+    ("heft", "Kirans Heft"),
+    ("levin", "Levins Kladde"),
+    ("raban", "Rabans Lieferlisten")
+)
+
+
+def brunnfeld_spuren_moeglich():
+    moeglich = ["haller", "finch"]
+
+    if (spieler.get("entscheidungen") or {}).get("kiran_kapitel8") == "gebunden_zwang":
+        moeglich.append("heft")
+    if offene_tore_levin_da():
+        moeglich.append("levin")
+
+    moeglich.append("raban")
+    return moeglich
+
+
+def brunnfeld_spur_offen(spur):
+    return (
+        brunnfeld_status() == "spuren"
+        and spur in brunnfeld_spuren_moeglich()
+        and spur not in kapitel9_wert("spuren", [])
+    )
+
+
+def brunnfeld_spur_gefunden(spur):
+    spuren = kapitel9_daten().setdefault("spuren", [])
+
+    if spur not in spuren:
+        spuren.append(spur)
+
+
+def brunnfeld_ziel():
+    return {
+        "spuren": (
+            "Finde Spuren der Läuferstrecke nach Brunnfeld. Wenn du "
+            "aufbrechen willst, sag es dem alten Mann im Vorplatzlager."
+        ),
+        "pfad": (
+            "Geh mit dem alten Mann zum alten Wegweiser am Faden der "
+            "Erinnerung."
+        ),
+        "brunnfeld": "Sieh dich in Brunnfeld um.",
+        "nachricht": "Bring den Brunnfeldern im Vorplatzlager die Nachricht.",
+        "haller": "Geh zu Haller in die Amtsstube.",
+        "ahrens": "Geh mit Ahrens nach Brunnfeld.",
+        "aufgaben": (
+            "Hilf Brunnfeld, den Weg zu halten: Steg, Läufer, Versorgung. "
+            "Danach ruft Sanna die Versammlung ein."
+        )
+    }.get(brunnfeld_status(), "")
+
+
+def brunnfeld_ziel_setzen(status, neu=False):
+    spieler["quest_brunnfeld"] = status
+
+    quest_meldung(
+        "neu" if neu else "update",
+        "Der Weg nach Hause",
+        brunnfeld_ziel()
+    )
+
+    warte_auf_taste("Weiter")
+
+
+def brunnfeld_questlog():
+    if brunnfeld_status() == "nicht_entdeckt":
+        return False
+
+    menue_trenner()
+    design_text("Der Weg nach Hause", design="wichtig", art="menue")
+
+    if brunnfeld_status() == "abgeschlossen":
+        design_text("[ABGESCHLOSSEN]", design="quest_abgeschlossen", art="menue")
+        print(brunnfeld_abschluss_text())
+        return True
+
+    print(f"Ziel: {brunnfeld_ziel()}")
+
+    if brunnfeld_status() == "spuren":
+        gefunden = kapitel9_wert("spuren", [])
+        namen = dict(BRUNNFELD_SPUREN)
+        print("Spuren (keine ist Pflicht):")
+
+        for spur in brunnfeld_spuren_moeglich():
+            zeichen = "x" if spur in gefunden else " "
+            print(f"  [{zeichen}] {namen[spur]}")
+
+    if brunnfeld_status() == "aufgaben":
+        print("Vollmacht: " + ("angenommen" if kapitel9_wert("vollmacht") else "nicht angenommen"))
+        print(f"  [{'x' if kapitel9_wert('steg_fertig') else ' '}] Steg")
+        print(f"  [{'x' if kapitel9_wert('marken') else ' '}] Marken")
+        freiwillig = len(kapitel9_wert("laeufer", []))
+        verpflichtet = len((kapitel9_wert("macht") or {}).get("laeufer", []))
+        zeile = f"{freiwillig} von 2 Freiwilligen"
+        if verpflichtet:
+            zeile += f", {verpflichtet} verpflichtet"
+        print(f"  [{'x' if kapitel9_wert('laeufer_fertig') else ' '}] Läufer ({zeile})")
+        print(f"  [{'x' if kapitel9_wert('versorgung_fertig') else ' '}] Versorgung")
+        print(f"  [{'x' if kapitel9_wert('rueckkehr') else ' '}] Rückkehr (keine Pflicht)")
+        print(f"  [{'x' if kapitel9_wert('anerkennung') else ' '}] Anerkennung (keine Pflicht)")
+
+    return True
+
+
+def brunnfeld_vorplatzlager():
+    titel = "Universität von Oros - Vorplatzlager"
+    ort_titel(titel)
+
+    if brunnfeld_status() == "nicht_entdeckt":
+        brunnfeld_rueckkehr(titel)
+        return
+
+    if brunnfeld_status() == "pfad":
+        text_ausgeben(
+            "Der alte Mann sitzt auf dem Rand des Karrens, das Bündel neben "
+            "sich. Er wartet."
+        )
+        warte_auf_taste("Zurück")
+        return
+
+    if brunnfeld_status() == "brunnfeld":
+        text_ausgeben("Der Platz des alten Mannes auf dem Karren ist leer.")
+        warte_auf_taste("Zurück")
+        return
+
+    if brunnfeld_status() == "nachricht":
+        brunnfeld_nachricht(titel)
+        return
+
+    if brunnfeld_status() == "aufgaben" and not kapitel9_wert("rueckkehr"):
+        brunnfeld_berit_rueckkehr()
+        return
+
+    if brunnfeld_status() == "abgeschlossen" and not kapitel9_wert("rueckkehr"):
+        brunnfeld_rueckkehr_nachtraeglich()
+        return
+
+    if brunnfeld_status() in ("haller", "ahrens", "aufgaben", "abgeschlossen"):
+        text_ausgeben("Berit flickt eine Decke. Mila schläft neben ihr.")
+        warte_auf_taste("Zurück")
+        return
+
+    text_ausgeben(
+        "Der alte Mann sitzt auf dem Rand des Karrens. Berit zieht Mila "
+        "trockene Strümpfe an."
+    )
+    menue_trenner()
+    print()
+    print("1. Dem alten Mann sagen, dass du aufbrechen willst")
+    print("2. Zurück")
+
+    if eingabe_menu(1, 2, sonder_tasten=()) == 2:
+        return
+
+    print()
+    text_ausgeben("[Alter Mann] Dann hol ich mein Bündel. Es war die ganze Zeit gepackt.")
+    brunnfeld_ziel_setzen("pfad")
+
+
+def brunnfeld_rueckkehr(titel):
+    # B1 und B2: Die Brunnfelder kommen zurück, der alte Mann bittet um Hilfe.
+    text_ausgeben(
+        "Am Tor stehen Menschen mit Bündeln, und zuerst denkst du, es sind "
+        "neue. Dann erkennst du den Karren ohne Zugtier."
+    )
+    text_ausgeben(
+        "Sie kommen herein, nicht hinaus. Die Schuhe sind nass bis über die "
+        "Knöchel. Ein Mann trägt ein Kind, das zu groß ist, um getragen zu "
+        "werden, und zu müde, um selbst zu gehen."
+    )
+    text_ausgeben(
+        "Der alte Mann aus Brunnfeld geht als Letzter. Er setzt sich auf den "
+        "Rand des Karrens, bevor jemand ihm einen Platz anbieten kann."
+    )
+    text_ausgeben("[Alter Mann] Wir sind gegangen, wie wir immer gegangen sind.")
+    text_ausgeben(
+        "[Alter Mann] Bis zum Mittag ging es. Dann war da Gras, wo der Weg "
+        "sein sollte. Wir sind weiter. Am Abend standen wir wieder vor einem "
+        "Baum, an dem wir am Morgen vorbeigekommen waren."
+    )
+
+    brunnfeld_auswahl([
+        ("berit", "Mit der Frau mit dem Kind sprechen", [
+            "Die Frau sitzt auf einer Decke und zieht dem Kind die nassen "
+            "Strümpfe aus. Das Kind ist wach und sieht dich an.",
+            "[Frau] Ich hab gesagt, wir warten. Bis jemand weiß, wo der Weg ist.",
+            "[Frau] Hier gibt es halbe Rationen. Da draußen gibt es gar nichts. "
+            "Ich hab gerechnet.",
+            "[Frau] Berit. Und die hier heißt Mila. Sie hat Ihnen vorhin "
+            "zugewinkt, falls Sie das nicht gemerkt haben."
+        ]),
+        ("karren", "Den Karren ansehen", [
+            "Decken, der Kochtopf, ein Sack, der leerer ist als beim letzten "
+            "Mal. Die gerahmte Zeichnung liegt obenauf, mit dem Glas nach "
+            "unten, damit es nicht bricht.",
+            "Ein Haus mit zwei Fenstern und einem Baum davor. Am Rand der "
+            "Zeichnung steht kein Name."
+        ]),
+        ("jonte", "„Wer ist hiergeblieben?“", [
+            "[Alter Mann] Der Junge. Jonte. Arbeitet jetzt bei dem mit den Nummern.",
+            "[Alter Mann] Er hat gesagt, er kommt nach. Ich glaub ihm das "
+            "nicht, und er weiß das."
+        ])
+    ], "Weiter", "b1")
+
+    text_ausgeben(
+        "Der alte Mann sieht zum Tor, durch das sie gerade hereingekommen sind."
+    )
+    text_ausgeben(
+        "[Alter Mann] Ich hab den Weg sechzig Jahre lang gekannt. Ich hab ihn "
+        "nie gelernt. Man geht ihn einfach."
+    )
+    text_ausgeben("[Alter Mann] Jetzt muss ihn wohl einer lernen.")
+
+    seite_wechseln(titel)
+
+    text_ausgeben("[Alter Mann] Die Wachen sagen, Sie haben schon Wege wiedergefunden.")
+    text_ausgeben("[Alter Mann] Ich weiß nicht mehr viel. Aber ich weiß noch Stücke.")
+    text_ausgeben(
+        "Er zählt sie auf, nicht der Reihe nach, sondern so, wie sie ihm "
+        "einfallen:"
+    )
+    text_ausgeben(
+        "[Alter Mann] Vom Steg bis zum Brunnen dreihundertzwölf. Das wissen "
+        "Sie schon."
+    )
+    text_ausgeben(
+        "[Alter Mann] Es gibt einen Unterstand. Da haben die Läufer "
+        "geschlafen. Holzhütte, das Dach mit Rinde gedeckt. Ich war einmal "
+        "drin, als es gehagelt hat."
+    )
+    text_ausgeben(
+        "[Alter Mann] Unterwegs sind Kerben. An Steinen, an Bäumen. Die "
+        "Läufer haben sie geschnitten. Ich hab nie drauf geachtet. Wer achtet "
+        "auf so was, wenn er den Weg kennt."
+    )
+    text_ausgeben(
+        "[Alter Mann] Und am Anfang der alte Wegweiser. Bei dem biegt man ab. "
+        "Nach links, glaube ich. Ins Gras."
+    )
+
+    if kiran_zustand() == "verloren":
+        text_ausgeben(
+            "Ins Gras. Du kennst diesen Satz. An der Biegung beim alten "
+            "Wegweiser ist Kiran geradeaus ins Gras gegangen und nicht "
+            "zurückgekommen."
+        )
+
+    text_ausgeben("[Alter Mann] Ich geh mit. Ich bin langsam, aber ich geh mit.")
+    brunnfeld_ziel_setzen("spuren", neu=True)
+
+
+def brunnfeld_haller():
+    # B3: ohne Strecke keine Wachen.
+    ort_titel("Universität von Oros - Amtsstube der Schutzverwaltung")
+    text_ausgeben(
+        "Haller hat die Rückkehr vom Fenster aus gesehen. Auf seinem Tisch "
+        "liegt die Liste der Ungeklärten. Er hat bei Brunnfeld nichts "
+        "geändert."
+    )
+    text_ausgeben(
+        "[Haller] Ich weiß, was Sie fragen wollen. Die Antwort ist nein, "
+        "vorläufig."
+    )
+    text_ausgeben(
+        "[Haller] Ich schicke keine Wachen und keinen Karren auf einen Weg, "
+        "den niemand beschreiben kann. Nicht, weil mir diese Leute "
+        "gleichgültig sind. Wenn ich zwei Wachen verliere, weil sie im Gras "
+        "im Kreis laufen, fehlen sie mir am Tor."
+    )
+    text_ausgeben(
+        "[Haller] Bringen Sie mir eine Strecke. Eine, die man nachgehen kann. "
+        "Dann reden wir weiter."
+    )
+
+    lernen = (
+        "[Haller] Ich habe an der Kante gelernt, dass meine Verfahren nicht "
+        "die einzigen sind. Ich habe noch nicht gelernt, welches man wann "
+        "nimmt."
+    )
+    satz = {
+        "zwang": (
+            "[Haller] An der Kante hat sich gezeigt, dass man einen Weg halten "
+            "kann, wenn man bereit ist, den Preis festzulegen. Daran denke "
+            "ich, wenn ich Brunnfeld höre."
+        ),
+        "freiwillig": lernen,
+        "eigene_loesung": lernen,
+        "abtrennung": (
+            "[Haller] Wir haben eine Straße zurückgenommen, weil wir nicht "
+            "wussten, was über sie kommt. Für Brunnfeld gilt dasselbe, bis "
+            "wir es wissen."
+        )
+    }.get(kapitel8_wert("ausgang"))
+
+    if satz:
+        text_ausgeben(satz)
+
+    brunnfeld_spur_gefunden("haller")
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_finch():
+    # B4: Finch kann keinen Weg zeichnen.
+    ort_titel("Universität von Oros - Forschungsräume")
+    text_ausgeben("Finch hört zu, ohne die Feder abzulegen.")
+    text_ausgeben(
+        "[Finch] Ich kann Ihnen zeigen, wie man eine Strecke prüft. Aber ich "
+        "kann Ihnen keinen Weg nach Brunnfeld zeichnen. In meinen Unterlagen "
+        "gibt es keinen Gegenpunkt dafür."
+    )
+    text_ausgeben(
+        "[Finch] Meine Peilungen brauchen etwas, das verzeichnet ist. "
+        "Brunnfeld ist es nicht. Das war vor dem Riss genauso; es hat damals "
+        "nur niemanden gestört."
+    )
+    text_ausgeben(
+        "Er schreibt etwas auf einen Zettel und schiebt ihn dir hin. Drei "
+        "Wörter: „Zählen. Vergleichen. Aufschreiben.“"
+    )
+    text_ausgeben(
+        "[Finch] Mehr kann ich nicht beitragen. Die Leute, die den Weg "
+        "gegangen sind, wissen mehr als meine Mappen."
+    )
+    brunnfeld_spur_gefunden("finch")
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_heft():
+    # B4: Kirans Heft, nur wenn Kiran gegen seinen Willen gebunden wurde.
+    ort_titel("Universität von Oros - Forschungsräume")
+    text_ausgeben(
+        "Kirans Platz an Valeries Tisch ist leer. Sein Heft liegt noch so "
+        "aufgeschlagen da wie an dem Tag, an dem er an der Kante blieb. "
+        "Jemand hat einen Stein daraufgelegt, damit die Seiten nicht "
+        "umschlagen."
+    )
+    text_ausgeben("[Valerie] Ich habe es nicht angerührt. Es kam mir falsch vor.")
+    menue_trenner()
+    print()
+    print("1. „Ich nehme es mit. Ich bringe es zurück.“")
+    print("2. „Ich schreibe die Strecken ab.“")
+    print("3. Das Heft liegen lassen")
+    auswahl = eingabe_menu(1, 3, sonder_tasten=())
+    print()
+
+    if auswahl == 3:
+        return
+
+    if auswahl == 1:
+        text_ausgeben(
+            "Valerie nimmt den Stein herunter und reicht dir das Heft. Sie "
+            "hält es einen Augenblick länger fest als nötig."
+        )
+        text_ausgeben("[Valerie] Es gehört ihm. Nicht dir und nicht mir.")
+        kapitel9_daten()["heft"] = "mitgenommen"
+    else:
+        text_ausgeben(
+            "Du schreibst die vier Zeilen ab, auch die durchgestrichenen. "
+            "Valerie sieht dir dabei zu und legt den Stein danach wieder auf "
+            "genau dieselbe Stelle."
+        )
+        kapitel9_daten()["heft"] = "abgeschrieben"
+
+    brunnfeld_spur_gefunden("heft")
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_levin():
+    # B4: Levins Kladde, nur wenn Levin geschützt wurde.
+    ort_titel("Universität von Oros - Amtsstube der Schutzverwaltung")
+    text_ausgeben(
+        "Levin sieht sich um, bevor er die kleine Kladde aus der Innentasche "
+        "zieht."
+    )
+    text_ausgeben(
+        "[Levin] Ich hab das damals aufgeschrieben, weil es sonst keiner tut. "
+        "Den Namen. Den Ort."
+    )
+    text_ausgeben(
+        "Auf der Seite steht in Levins enger Schrift: „Oswin. Brunnfeld. "
+        "Ungeklärt (?)“. Das Fragezeichen ist später dazugekommen, mit "
+        "anderer Tinte."
+    )
+    text_ausgeben(
+        "[Levin] Oswin. Er hat ihn mir buchstabiert. Danach hat ihn niemand "
+        "mehr so genannt, hier ist er nur noch „der Alte aus dem Lager“."
+    )
+    brunnfeld_spur_gefunden("levin")
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_raban():
+    # B4: Rabans alte Lieferlisten.
+    ort_titel("Universität von Oros - Versorgungshof")
+    text_ausgeben("[Raban] Brunnfeld. Warte.")
+    text_ausgeben(
+        "Er zieht einen Kasten unter dem Tisch hervor. Alte Listen, noch aus "
+        "der Zeit vor den Nummern."
+    )
+    text_ausgeben(
+        "[Raban] Hier. Alle zwei Monate. Hanfseil, Ruten, Weidenkörbe. "
+        "Bezahlt in Salz. Geliefert von „Hannes“. Kein Ort."
+    )
+    text_ausgeben(
+        "[Raban] Damals hat keiner gefragt, woher einer kommt, solange das "
+        "Seil hält. Das Seil hat gehalten."
+    )
+
+    if kapitel8_wert("karren_gewarnt") is False:
+        text_ausgeben(
+            "[Raban] Der letzte Karren hat die Hälfte seiner Vorräte "
+            "verloren. Den nächsten schicke ich nicht los, solange keiner "
+            "weiß, wo der Weg endet."
+        )
+
+    brunnfeld_spur_gefunden("raban")
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_kiran_offen():
+    # Auf der ersten Reise, oder später, wenn Sanna weiß, dass er in Oros lebt (E2).
+    return (
+        (
+            brunnfeld_status() in ("spuren", "pfad")
+            or kapitel9_wert("kiran_sanna") == "in_oros"
+        )
+        and (spieler.get("entscheidungen") or {}).get("kiran_kapitel8") == "frei"
+        and kiran_zustand() in ("gehalten", "spaet_gehalten")
+        and not kapitel9_wert("kiran_dabei", False)
+    )
+
+
+def brunnfeld_kiran():
+    # B4: Ein freier Kiran schließt sich an.
+    ort_titel("Universität von Oros - Forschungsräume")
+
+    if kapitel9_wert("kiran_sanna") == "in_oros":
+        text_ausgeben(
+            "Du sagst ihm, dass in Brunnfeld jemand seinen Namen im Läuferbuch "
+            "stehen hat. Und dass daneben jetzt „Oros“ steht."
+        )
+
+    if kiran_zustand() == "gehalten":
+        text_ausgeben(
+            "Kiran steht auf, als du „Brunnfeld“ sagst. Er hat das Heft schon "
+            "in der Hand."
+        )
+        text_ausgeben("[Kiran] Ich geh vorne. Und ich zähle.")
+        satz = {
+            "mensch": (
+                "[Kiran] Wenn ich mich verzähle, sagst du es mir. Du warst "
+                "beim letzten Mal auch dabei."
+            ),
+            "ort": (
+                "[Kiran] Wegweiser. Dann ins Gras. Das steht hier. Den Rest "
+                "finden wir."
+            ),
+            "selbst": (
+                "Er tippt auf seinen Satz im Heft. Dann steckt er den "
+                "Bleistift hinters Ohr. Es sieht aus wie eine alte "
+                "Gewohnheit."
+            )
+        }.get((spieler.get("entscheidungen") or {}).get("kiran_anker"))
+
+        if satz:
+            text_ausgeben(satz)
+    else:
+        text_ausgeben(
+            "Kiran sieht von seinem Heft auf. Es dauert, bis er das Wort "
+            "einordnet."
+        )
+        text_ausgeben("[Kiran] Brunnfeld. Das steht bei mir. Mit Fragezeichen.")
+        text_ausgeben(
+            "[Kiran] Ich komm mit. Aber ich weiß nicht, ob ich helfe oder nur "
+            "mitgehe."
+        )
+
+    kapitel9_daten()["kiran_dabei"] = True
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_reise_von_oros():
+    reise(
+        "brunnfeld",
+        "Du bist in Brunnfeld.",
+        gebiet_modus=True
+    )
+
+
+def brunnfeld_reise_nach_oros():
+    reise(
+        "universitaet_oros",
+        "Über den Faden der Erinnerung kommst du zurück nach Oros.",
+        gebiet_modus=True
+    )
+
+
+def brunnfeld_auswahl(punkte, schluss, merken=None):
+    # Jeder Punkt einmal, in beliebiger Reihenfolge; der letzte beendet. Mit
+    # "merken" bleibt die Wahl in kapitel9 gespeichert und gilt über Besuche.
+    gewaehlt = list(kapitel9_wert(merken, [])) if merken else []
+
+    while True:
+        offen = [punkt for punkt in punkte if punkt[0] not in gewaehlt]
+        menue_trenner()
+        print()
+
+        for nummer, (_, text, _) in enumerate(offen, start=1):
+            print(f"{nummer}. {text}")
+
+        print(f"{len(offen) + 1}. {schluss}")
+
+        auswahl = eingabe_menu(1, len(offen) + 1, sonder_tasten=())
+        print()
+
+        if auswahl == len(offen) + 1:
+            return
+
+        punkt_id, _, zeilen = offen[auswahl - 1]
+        gewaehlt.append(punkt_id)
+
+        if merken:
+            kapitel9_daten().setdefault(merken, []).append(punkt_id)
+
+        for zeile in zeilen:
+            text_ausgeben(zeile)
+
+
+def brunnfeld():
+    titel = "Brunnfeld"
+    ort_titel(titel)
+    ort_nachricht_anzeigen()
+
+    if not kapitel9_wert("erkundet", False):
+        kapitel9_daten()["erkundet"] = True
+        weg_entdecken("laeuferpfad")
+        brunnfeld_ziel_setzen("brunnfeld")
+        ort_titel(titel)
+
+    if not kapitel9_wert("angekommen", False):
+        brunnfeld_ankunft(titel)
+        ort_titel(titel)
+
+    if brunnfeld_status() == "ahrens":
+        brunnfeld_angebot(titel)
+        ort_titel(titel)
+
+    if kapitel9_wert("jungen") == "umgekehrt":
+        brunnfeld_jungen_zurueck(titel)
+        ort_titel(titel)
+
+    if kapitel9_wert("lieferung") == "unterwegs":
+        brunnfeld_lieferung_angekommen()
+        ort_titel(titel)
+
+    text_ausgeben(
+        "Rund um den Brunnen führen Wege in alle Richtungen, gut ausgetreten. "
+        "Nur der Weg hinaus, zum Steg, ist schmaler als die anderen."
+    )
+
+    if kapitel9_wert("ordnung") == "zentral":
+        text_ausgeben("Ahrens' Tisch steht am Brunnen. Die Bewohner antworten dir, aber kurz.")
+
+    optionen = [
+        (
+            "Zum Brunnen" + (" [!]" if brunnfeld_kerbe_offen() else ""),
+            brunnfeld_brunnen
+        ),
+        (
+            "Zum Läuferhaus"
+            + (
+                "" if kapitel9_wert("laeuferhaus", False)
+                and not befreiung_sanna_ruft()
+                and not brunnfeld_kiran_spaet_offen() else " [!]"
+            ),
+            brunnfeld_laeuferhaus
+        ),
+        ("Zum Steg", brunnfeld_steg),
+        ("Zu den Feldern", brunnfeld_felder)
+    ]
+
+    if kapitel9_wert("felder", False):
+        optionen.append(("Zum leeren Haus", brunnfeld_leeres_haus))
+
+    optionen.extend(brunnfeld_aufgaben_optionen())
+    optionen.extend(brunnfeld_nachspiel_optionen())
+
+    if "ried" in kapitel9_wert("hannes", []):
+        # Hannes hat vom Ried erzählt: Spur im Jagdbuch und Jagdgebiet.
+        if "Schwarzgeweih" not in spieler.get("jagdbuch", {}):
+            jagdbuch_eintragen("Schwarzgeweih")
+
+        optionen.append(("Ins Ried – Jagdgebiet", brunnfeld_ried_jagd))
+
+    optionen.append(("Über den Läuferpfad nach Oros", brunnfeld_reise_nach_oros))
+    riss_ort_menue(optionen)
+
+
+def brunnfeld_ankunft(titel):
+    # F1, F2 und bei gut gehaltenem Kiran der Anfang von K1.
+    kapitel9_daten()["angekommen"] = True
+    text_ausgeben(
+        "Brunnfeld ist kein Ort, an dem etwas passiert ist. Das ist das Erste, "
+        "was dir auffällt. Die Häuser stehen. Die Gärten sind bestellt. Vor "
+        "einer Tür hängt Wäsche."
+    )
+    text_ausgeben(
+        "Rund um den Brunnen führen Wege in alle Richtungen, gut ausgetreten, "
+        "zwischen den Häusern, zu den Feldern, zu einem langen Holzhaus am "
+        "Rand des Platzes. Die Wege im Ort stimmen, weil man sie jeden Tag geht."
+    )
+    text_ausgeben(
+        "Nur der Weg hinaus, zum Steg, ist schmaler als die anderen. An seinem "
+        "Rand wächst schon das Gras herein."
+    )
+
+    if (spieler.get("kapitel6") or {}).get("verzeichnis_steg"):
+        text_ausgeben("Zum Steg. So stand es auch in Hallers Wegeliste.")
+    text_ausgeben("Das größte der Kinder stellt den Eimer ab.")
+    text_ausgeben("[Kind] Seid ihr aus Oros? Kommt meine Tante mit? Die heißt Berit.")
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Eine Frau kommt aus einem der Häuser, die Hände noch voller Mehl. Sie "
+        "bleibt stehen. Dann wischt sie die Hände an der Schürze ab, sehr "
+        "gründlich, als müsste sie erst damit fertig sein."
+    )
+    text_ausgeben("[Frau am Brunnen] Oswin.")
+    text_ausgeben("Der alte Mann dreht sich um.")
+    text_ausgeben("[Frau am Brunnen] Oswin, du alter Esel. Wir dachten, du bist tot.")
+    text_ausgeben("[Oswin] Nur in Oros.")
+    text_ausgeben(
+        "Er lacht und hört dann auf zu lachen. Er setzt sich auf den "
+        "Brunnenrand. Die Frau setzt sich neben ihn, und keiner von beiden "
+        "sagt eine Weile etwas."
+    )
+    text_ausgeben("Später, als du an ihm vorbeigehst, hält er dich am Ärmel fest.")
+    text_ausgeben(
+        "[Oswin] Im Lager haben sie mich „der Alte“ genannt. Ich hab mich dran "
+        "gewöhnt. Das hätte ich nicht gedacht."
+    )
+
+    if offene_tore_levin_da():
+        text_ausgeben(
+            "[Oswin] Der junge Schreiber hat mich mal nach meinem Namen gefragt. "
+            "Der Einzige. Sagen Sie ihm, dass er stimmt."
+        )
+
+    if laeuferpfad_kiran() == "gehalten":
+        seite_wechseln(titel)
+        text_ausgeben(
+            "Sanna kommt über den Platz, weil die Kinder sie geholt haben. Kiran "
+            "steht noch am Brunnen und zählt die Steine der Einfassung. Dabei "
+            "tippt er mit dem Daumen gegen den Zeigefinger, genau wie unterwegs."
+        )
+        text_ausgeben("Sanna bleibt stehen, mitten auf dem Platz.")
+        text_ausgeben("Sie sagt nichts. Sie sieht auf seine Hand.")
+
+    warte_auf_taste("Weiter")
+
+
+BRUNNFELD_KERBE = (
+    "[Sanna] Als ich klein war, durfte ich einmal mit meinem Bruder bis zum "
+    "Wegweiser gehen. Den ganzen Weg. Weiter nicht, da hat er mich mit einem "
+    "anderen Läufer zurückgeschickt. Er hat die ganze Zeit gezählt, und ich "
+    "hab mitgezählt und mich verzählt.",
+    "[Sanna] Am Wegweiser hat er mich eine Kerbe machen lassen. Mit seinem "
+    "Messer, unter seine, damit man sieht, wer größer ist. Das Messer hat "
+    "schief geschnitten. Meine Kerbe ist hässlich geworden, und ich hab ihm "
+    "das lange übel genommen."
+)
+
+
+def brunnfeld_kerbe_erzaehlen():
+    for zeile in BRUNNFELD_KERBE:
+        text_ausgeben(zeile)
+
+    kapitel9_daten()["kerbe_erzaehlt"] = True
+
+
+def brunnfeld_kerbe_offen():
+    # K3, K4, K5: Sanna erzählt die Kerbe später am Brunnen.
+    return (
+        kapitel9_wert("kiran_sanna") in ("weiss_von_der_kante", "unterwegs", "erzaehlt")
+        and not kapitel9_wert("kerbe_erzaehlt", False)
+        and not kapitel9_wert("kiran_befreit", False)
+    )
+
+
+def brunnfeld_brunnen():
+    titel = "Brunnfeld - Am Brunnen"
+    ort_titel(titel)
+
+    if not brunnfeld_kerbe_offen():
+        text_ausgeben("Kinder holen Wasser. Oswin sitzt auf dem Brunnenrand.")
+        warte_auf_taste("Zurück")
+        return
+
+    sanna = kapitel9_wert("kiran_sanna")
+
+    if sanna == "weiss_von_der_kante":
+        text_ausgeben("Sanna sitzt auf dem Brunnenrand. Du fragst sie, warum sie zu ihm will.")
+    elif sanna == "unterwegs":
+        text_ausgeben("Am Abend sitzt Sanna am Brunnen. Du setzt dich dazu.")
+    else:
+        text_ausgeben("Du fragst Sanna, warum sie jeden Morgen zum Steg geht.")
+
+    brunnfeld_kerbe_erzaehlen()
+
+    if sanna == "weiss_von_der_kante":
+        text_ausgeben("[Sanna] Wenn er mich nicht kennt, kennt er vielleicht noch die Kerbe.")
+    elif sanna == "unterwegs":
+        text_ausgeben(
+            "[Sanna] Wenn Sie wieder zum Wegweiser kommen, sehen Sie nach, ob "
+            "meine noch da ist. Ich hab sie nicht mehr gesehen, seit ich klein war."
+        )
+
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_laeuferhaus():
+    titel = "Brunnfeld - Läuferhaus"
+    ort_titel(titel)
+
+    if kapitel9_wert("laeuferhaus", False):
+        if befreiung_sanna_offen():
+            # L3: Sanna will zu Kiran an die Kante (K3).
+            wahl = chronik_auswahl([
+                ("mit", "Sanna zu Kiran an die Kante mitnehmen"),
+                ("zurueck", "Zurück")
+            ])
+
+            if wahl == "mit":
+                befreiung_sanna()
+
+            return
+
+        if brunnfeld_kiran_spaet_offen():
+            # E3: Kiran ist später mitgekommen.
+            brunnfeld_kiran_sanna(titel)
+            return
+
+        text_ausgeben("Sanna schreibt im Läuferbuch. Sie sieht auf, nickt und schreibt weiter.")
+
+        if not brunnfeld_kiran_gespraech_offen():
+            warte_auf_taste("Zurück")
+            return
+
+        wahl = chronik_auswahl([
+            ("kiran", "Mit Kiran sprechen"),
+            ("zurueck", "Zurück")
+        ])
+
+        if wahl == "kiran":
+            brunnfeld_kiran_gespraech()
+
+        return
+
+    # F3: Sanna im Läuferhaus.
+    text_ausgeben(
+        "Das Läuferhaus ist das lange Holzhaus am Platz. Drinnen ist es hell. "
+        "An den Wänden hängen Bretter mit Strecken, sauberer geschrieben als im "
+        "Unterstand. Auf einem Tisch liegt ein dickes Buch, in dem jeder Läufer "
+        "eingetragen ist, der losging, und daneben, ob er zurückkam."
+    )
+    text_ausgeben(
+        "Eine Frau steht am Tisch und schreibt. Sie sieht nicht auf, bis sie den "
+        "Satz zu Ende hat."
+    )
+    text_ausgeben(
+        "[Sanna] Sie sind über den Steg gekommen. Hannes hat es mir gesagt. Er "
+        "sagt sonst nichts, also war es ihm wichtig."
+    )
+    text_ausgeben("[Sanna] Sanna. Ich führe das hier.")
+
+    morgens = [
+        "[Sanna] Bis zum Steg. Jeden Morgen. Ein Weg, den keiner geht, wächst "
+        "zu. Das weiß hier jedes Kind.",
+        "[Sanna] Weiter bin ich seit der Nacht nicht gekommen. Ich hab es versucht."
+    ]
+    punkte = [
+        ("buch", "„Was ist das für ein Buch?“", [
+            "[Sanna] Wer losgeht, wann, wohin. Wer zurückkommt. Seit meine "
+            "Großmutter das Haus geführt hat.",
+            "[Sanna] Seit der Nacht ist keiner mehr zurückgekommen. Drei haben "
+            "versucht, den Weg hinaus zu finden. Am Abend standen sie wieder am Steg."
+        ]),
+        ("leben", "„Wie lebt ihr hier, seit der Weg weg ist?“", [
+            "[Sanna] Wir haben Felder, Wasser und Häuser. Uns fehlt Salz, Eisen "
+            "und alles, was wir früher in Oros getauscht haben.",
+            "[Sanna] Und die Hälfte der Leute. Die sitzen bei Ihnen in einer "
+            "Halle und bekommen halbe Rationen, hat Oswin gesagt.",
+            "Sie sagt „bei Ihnen“, obwohl du nicht aus Oros bist. Du "
+            "korrigierst sie nicht."
+        ])
+    ]
+
+    if kapitel9_wert("hannes_gesehen", False):
+        punkte.append(("morgens", "„Ihr geht jeden Morgen hinaus?“", morgens))
+
+    brunnfeld_auswahl(punkte, "Weiter", "laeuferhaus_fragen")
+
+    if "morgens" not in kapitel9_wert("laeuferhaus_fragen", []):
+        for zeile in morgens:
+            text_ausgeben(zeile)
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Sanna geht an ein Regal und nimmt aus einer Schale eine flache Scheibe "
+        "aus Holz, an einer Lederschnur. In das Holz ist das Zeichen des "
+        "Läuferhauses gebrannt: ein Brunnen mit einem Strich darunter."
+    )
+    text_ausgeben(
+        "[Sanna] Die bekommt, wer den Weg nach Brunnfeld gefunden hat. Früher "
+        "hat man sie nach dem ersten Lauf bekommen. Jetzt gibt es keinen, der "
+        "sie Ihnen nach einem Lauf geben könnte, also gebe ich sie Ihnen jetzt."
+    )
+    text_ausgeben(
+        "[Sanna] Sie ist nichts wert. Verkaufen Sie sie nicht, dann merkt das "
+        "auch keiner."
+    )
+    item_hinzufuegen("laeufermarke", 1)
+    design_text("Läufermarke aus Brunnfeld erhalten", design="positiv", art="menue")
+
+    seite_wechseln(titel)
+    brunnfeld_kiran_sanna(titel)
+
+    kapitel9_daten()["laeuferhaus"] = True
+    brunnfeld_ziel_setzen("nachricht")
+
+
+def brunnfeld_kiran_sanna(titel):
+    # K1–K5: Kiran und Sanna je nach Kirans Zustand.
+    daten = kapitel9_daten()
+    kiran = laeuferpfad_kiran()
+    entscheidungen = spieler.get("entscheidungen") or {}
+    buch = (
+        "Sie schlägt das Läuferbuch weit vorn auf. Ein Eintrag, die Tinte "
+        "älter als die auf den Seiten danach: „Kiran. Wegweiser – Steg 36, "
+        "weiter nach Oros.“ Daneben, in der Spalte für die Rückkehr, steht nichts."
+    )
+
+    spaet = daten.get("kiran_sanna") == "in_oros"
+
+    if kiran == "gehalten":
+        if spaet:
+            brunnfeld_kiran_tuer()
+            text_ausgeben("Sanna sieht auf seine Hand.")
+
+        text_ausgeben("[Sanna] Er zählt wie mein Bruder.")
+        text_ausgeben(
+            "[Sanna] Das heißt nichts. Die Hälfte der Läufer hat sich irgendwas "
+            "angewöhnt. Einer hat die Zahlen gesungen."
+        )
+
+        if spaet:
+            brunnfeld_kiran_buch_spaet()
+        else:
+            text_ausgeben(buch)
+            text_ausgeben("Kiran legt sein Heft daneben, aufgeschlagen bei „Wegweiser – Steg: 3…“.")
+
+        text_ausgeben("Eine Weile sehen alle drei auf die beiden Seiten.")
+        seite_wechseln(titel)
+        brunnfeld_kerbe_erzaehlen()
+        text_ausgeben("Kiran sieht auf.")
+        text_ausgeben("[Kiran] Die kleine. Unten. Die hab ich gesehen.")
+        text_ausgeben("[Kiran] Ich hab gesagt, die ist nicht von mir.")
+        text_ausgeben("[Sanna] Ist sie auch nicht.")
+
+        anker = entscheidungen.get("kiran_anker")
+
+        if anker == "mensch":
+            text_ausgeben("Kiran sieht dich an, nicht sie.")
+            text_ausgeben("[Kiran] Darf ich das glauben?")
+            text_ausgeben("Du musst nicht antworten. Er wartet trotzdem, bis du nickst.")
+        elif anker == "ort":
+            text_ausgeben(
+                "[Kiran] Ich will zum Wegweiser. Nicht heute. Aber ich will die "
+                "Kerbe noch mal sehen, jetzt, wo ich weiß, wessen sie ist."
+            )
+        elif anker == "selbst":
+            text_ausgeben(
+                "Kiran schlägt das Heft auf. Er schreibt unter seinen einen Satz, "
+                "langsam, Buchstabe für Buchstabe: „Sanna.“ Dahinter setzt er "
+                "kein Fragezeichen."
+            )
+
+        text_ausgeben(
+            "Er erinnert sich nicht an sie. Das sagt er nicht, aber es ist zu "
+            "sehen, wenn er sie ansieht, freundlich und suchend zugleich."
+        )
+        text_ausgeben(
+            "[Sanna] Ich weiß, dass du mich nicht kennst. Ich kenn dich ja auch "
+            "kaum noch. Du bist dünn geworden."
+        )
+        text_ausgeben("[Kiran] Du bist größer geworden.")
+        text_ausgeben("Sie lacht, zum ersten Mal, seit du hier bist. Kiran bleibt in Brunnfeld.")
+        daten["kiran_sanna"] = "erkannt"
+    elif kiran == "spaet_gehalten":
+        if spaet:
+            brunnfeld_kiran_tuer()
+
+        text_ausgeben(
+            "Sanna sieht Kiran lange an, bevor sie etwas sagt. Kiran hält dem "
+            "Blick stand, höflich, wie man einem Fremden gegenüber höflich ist."
+        )
+
+        if spaet:
+            text_ausgeben("[Sanna] Du zählst. Mit dem Daumen.")
+        else:
+            text_ausgeben("[Sanna] Oswin sagt, du hast am Brunnen gezählt. Mit dem Daumen.")
+
+        text_ausgeben("[Kiran] Das mach ich, glaub ich. Ich weiß nicht, seit wann.")
+
+        if spaet:
+            brunnfeld_kiran_buch_spaet()
+        else:
+            text_ausgeben(buch)
+            text_ausgeben("Kiran legt die Abschrift aus dem Unterstand daneben, nicht das Heft.")
+            text_ausgeben("[Kiran] Das ist dieselbe Zahl. Das stimmt.")
+
+        text_ausgeben("[Kiran] Ob das ich bin, weiß ich trotzdem nicht. Tut mir leid.")
+        seite_wechseln(titel)
+        text_ausgeben("Draußen, als ihr allein seid, bleibt Sanna stehen.")
+        brunnfeld_kerbe_erzaehlen()
+        text_ausgeben(
+            "[Sanna] Er hat mich angesehen wie einen Gast. Das ist schlimmer, als "
+            "wenn er weggeblieben wäre. Glaube ich. Ich bin mir noch nicht sicher."
+        )
+        text_ausgeben(
+            "[Sanna] Er kann bleiben. Er muss nicht. Ich gehe morgen trotzdem zum "
+            "Steg, wie jeden Morgen."
+        )
+        daten["kiran_sanna"] = "fremd"
+    elif (
+        entscheidungen.get("kiran_kapitel8") == "frei"
+        and kiran_zustand() in ("gehalten", "spaet_gehalten")
+    ):
+        # E1: Kiran lebt frei in Oros, ist aber nicht mitgekommen.
+        text_ausgeben(buch)
+        text_ausgeben(
+            "[Sanna] Mein Bruder ist kurz vor der Nacht losgelaufen und nicht "
+            "zurückgekommen. Kiran."
+        )
+        text_ausgeben(
+            "Du sagst ihr, dass du einen Kiran kennst. Dass er in Oros lebt, in "
+            "den Forschungsräumen der Universität, und ein Heft mit Zahlen führt."
+        )
+
+        if kiran_zustand() == "gehalten":
+            text_ausgeben("Dass er sich an vieles nicht erinnert, aber gehen kann, wohin er will.")
+        else:
+            text_ausgeben(
+                "Dass er das meiste vergessen hat, auch, woher er kommt. Dass er "
+                "trotzdem gehen kann, wohin er will."
+            )
+
+        text_ausgeben("[Sanna] Er lebt.")
+        text_ausgeben("Sie sagt es noch einmal, leiser, als müsste sie hören, wie es klingt.")
+        text_ausgeben(
+            "[Sanna] Bringen Sie ihn nicht her, weil ich es will. Fragen Sie ihn. "
+            "Wenn er kommen will, weiß er, wo das Buch liegt."
+        )
+        text_ausgeben(
+            "Sie taucht die Feder ein und schreibt etwas in die leere Spalte neben "
+            "seinem Namen. Als sie das Buch umdreht, steht dort: „Oros.“"
+        )
+        daten["kiran_sanna"] = "in_oros"
+    elif entscheidungen.get("kiran_kapitel8") == "gebunden_zwang":
+        text_ausgeben(buch)
+        text_ausgeben(
+            "[Sanna] Mein Bruder ist kurz vor der Nacht losgelaufen und nicht "
+            "zurückgekommen. Kiran."
+        )
+        text_ausgeben("Du sagst ihr, dass du einen Kiran kennst.")
+
+        if kapitel9_wert("heft") in ("mitgenommen", "abgeschrieben"):
+            text_ausgeben(
+                "Du legst das Heft oder deine Abschrift auf den Tisch, "
+                "aufgeschlagen bei „Wegweiser – Steg: 3…“. Sanna liest die vier "
+                "Zeilen. Bei der durchgestrichenen 312 hält sie inne."
+            )
+            text_ausgeben("[Sanna] Das ist seine Schrift. Die schiefen Dreien.")
+        else:
+            text_ausgeben(
+                "Du erzählst von den Zahlen in seinem Heft, so gut du sie weißt. "
+                "Sanna hört zu und sagt nichts dazu."
+            )
+
+        text_ausgeben("[Sanna] Wo ist er?")
+        text_ausgeben(
+            "Du erzählst ihr von der Kante. Von dem Verzeichnis und dem Namen, "
+            "den ein Schreiber eingetragen hat, ohne Datum. Davon, dass Kiran "
+            "Nein gesagt hat. Davon, wer dabei war."
+        )
+        text_ausgeben("Sanna sieht dich an, und du weißt nicht, was sie denkt.")
+        text_ausgeben("[Sanna] Sie waren dabei.")
+        text_ausgeben("[Sanna] Wie lange hält ihn das dort?")
+        text_ausgeben("[Sanna] Ich will zu ihm.")
+        daten["kiran_sanna"] = "weiss_von_der_kante"
+    elif kiran_zustand() == "verloren":
+        text_ausgeben(
+            "[Sanna] Ein Läufer von uns ist nicht zurückgekommen. Kurz vor der "
+            "Nacht ist er los. Mein Bruder."
+        )
+        text_ausgeben(
+            "Sie schlägt das Buch auf. „Kiran. Wegweiser – Steg 36, weiter nach "
+            "Oros.“ Die Spalte daneben ist leer."
+        )
+        text_ausgeben("Oswin hat sich an den Türrahmen gelehnt.")
+        text_ausgeben(
+            "[Oswin] Kiran. Sannas Bruder. Der hat sich immer verzählt, wenn man "
+            "ihn angesprochen hat, und dann ist er von vorn losgelaufen. Den "
+            "ganzen Weg zurück zum letzten Stein."
+        )
+        text_ausgeben(
+            "[Oswin] In Oros war einer, der hat bis dreihundertzwölf gezählt. "
+            "Mitten in der Nacht. Ich hab ihn nicht erkannt. Ich hab gefragt, ob "
+            "ich ihn kenne."
+        )
+        text_ausgeben(
+            "Du erzählst Sanna, was du weißt: von dem Blatt, vom Wegweiser, von "
+            "„ins Gras“."
+            + (" Und von der frischen Kerbe an der Tür des Unterstands."
+               if kapitel9_wert("inschrift_36", False) else "")
+        )
+        text_ausgeben(
+            "Sanna hört zu, ohne dich zu unterbrechen. Als du fertig bist, "
+            "schreibt sie etwas in die leere Spalte neben seinem Namen. Du siehst "
+            "es, als sie das Buch umdreht: „Unterwegs.“"
+        )
+        text_ausgeben(
+            "[Sanna] Tot ist, wer nicht mehr geht. Das hat meine Großmutter "
+            "gesagt, und sie hat das Buch länger geführt als ich."
+        )
+        text_ausgeben("[Sanna] Er geht noch. Irgendwo. Das reicht mir für heute.")
+        daten["kiran_sanna"] = "unterwegs"
+    else:
+        text_ausgeben(
+            "[Sanna] Mein Bruder war Läufer. Kiran. Er ist kurz vor der Nacht "
+            "losgelaufen, nach Oros, und nicht zurückgekommen."
+        )
+        text_ausgeben(
+            "[Sanna] Ich frage nicht, ob Sie ihn gesehen haben. In Oros sind "
+            "viele Leute, und Sie hätten ihn nicht erkannt."
+        )
+        text_ausgeben("Sie zeigt dir den Eintrag im Buch, die leere Spalte. Dann klappt sie das Buch zu.")
+        text_ausgeben("[Sanna] Ich hab hier zu tun. Mit ihm oder ohne ihn.")
+        daten["kiran_sanna"] = "erzaehlt"
+
+    warte_auf_taste("Weiter")
+
+
+def brunnfeld_steg():
+    # F4: Hannes am Steg. Die Fragen bleiben über Besuche offen.
+    ort_titel("Brunnfeld - Am Steg")
+
+    if not kapitel9_wert("hannes_gesehen", False):
+        kapitel9_daten()["hannes_gesehen"] = True
+        text_ausgeben(
+            "Hannes steht bis zu den Waden im Wasser und prüft mit beiden Händen "
+            "den schiefen Pfahl. Er sieht dich kommen und arbeitet weiter."
+        )
+    else:
+        text_ausgeben("Hannes arbeitet am schiefen Pfahl.")
+
+    punkte = [
+        ("steg", "„Kann man den Steg reparieren?“", [
+            "[Hannes] Kann man. Mit drei Leuten, Eisen für die Klammern und "
+            "einer Woche ohne Hochwasser.",
+            "[Hannes] Ich bin einer. Eisen hab ich keins. Das mit dem Wasser "
+            "weiß man vorher nie."
+        ])
+    ]
+
+    if "raban" in kapitel9_wert("spuren", []):
+        punkte.append(("seil", "„Du hast früher Seil nach Oros geliefert.“", [
+            "Er hört auf zu arbeiten.",
+            "[Hannes] Zu einem, der alles in Listen schreibt. Hat nie gehandelt. "
+            "Hat aber auch nie was zu viel bezahlt.",
+            "[Hannes] Lebt der noch?",
+            "Du sagst ja. Hannes nickt und arbeitet weiter."
+        ]))
+
+    punkte.append(("ried", "„Was ist im Ried?“", [
+        "[Hannes] Schlickbeißer. Liegen im Wasser und warten. Wenn du einen "
+        "siehst, ist er schon zu nah.",
+        "[Hannes] Und oben, wo das Ried in den Wald geht, der Schwarze. Ein "
+        "Elch, so hoch wie die Hütte. Hat ein Geweih wie verbrannte Äste. Die "
+        "Läufer sind nie allein an seinem Teil vorbei.",
+        "[Hannes] Die Alten sagen Schwarzgeweih zu ihm. Ich sag: Lass ihn in "
+        "Ruhe, dann lässt er dich."
+    ]))
+    if all(punkt[0] in kapitel9_wert("hannes", []) for punkt in punkte):
+        warte_auf_taste("Zurück")
+        return
+
+    brunnfeld_auswahl(punkte, "Zurück", "hannes")
+
+
+def brunnfeld_felder():
+    titel = "Brunnfeld - Die Felder am Rand"
+    ort_titel(titel)
+
+    if kapitel9_wert("felder", False):
+        text_ausgeben("Die Bäuerin und ihre Jungen hacken Unkraut. Am Rand zum Ried steht der Weidenzaun.")
+        warte_auf_taste("Zurück")
+        return
+
+    # F5: Die Felder am Rand.
+    text_ausgeben(
+        "Hinter den letzten Häusern beginnen die Felder. Gerste, Rüben, ein "
+        "Streifen Flachs. Alles ist bestellt, aber in der Mitte eines Feldes "
+        "steht ein Pflug, ohne Pferd, mit einer abgebrochenen Schar."
+    )
+    text_ausgeben(
+        "Eine Frau und zwei halbwüchsige Jungen hacken Unkraut. Die Frau richtet "
+        "sich auf, als du kommst, und bleibt so stehen, die Hand im Kreuz."
+    )
+    text_ausgeben(
+        "[Bäuerin] Die Schar ist kurz nach der Nacht gebrochen. Den Schmied haben "
+        "wir in Oros. Hatten."
+    )
+    text_ausgeben(
+        "[Bäuerin] Wir hacken jetzt. Das geht auch. Es geht nur langsamer, und "
+        "bei der Ernte merkt man es."
+    )
+    text_ausgeben("Am Rand zum Ried steht ein Zaun aus Weidenruten, frisch geflochten.")
+    text_ausgeben(
+        "[Bäuerin] Gegen die Schlickbeißer. Die holen die Hühner, wenn man sie "
+        "lässt. Früher hat einer der Läufer die Jungen mitgenommen und ihnen "
+        "gezeigt, wie man sie vertreibt. Jetzt flechten wir eben Zäune."
+    )
+    kapitel9_daten()["felder"] = True
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_nachricht(titel):
+    # H1, Teil 1: Die Nachricht im Vorplatzlager.
+    text_ausgeben(
+        "Du musst nicht viel sagen. Es reicht, dass du von Süden gekommen bist "
+        "und dass Oswin nicht bei dir ist."
+    )
+    text_ausgeben("Berit steht als Erste auf.")
+    text_ausgeben("[Berit] Er ist dort geblieben? Dann gibt es ein Dort.")
+    brunnfeld_auswahl([
+        ("nichte", "„Ihre Nichte hat nach Ihnen gefragt.“", [
+            "Berit setzt sich wieder hin. Mila klettert auf ihren Schoß, und "
+            "Berit lässt sie, obwohl sie dafür eigentlich zu groß ist.",
+            "[Berit] Die Kleine von meiner Schwester. Die hat immer nach mir "
+            "gefragt. Auch als sie mich noch jeden Tag gesehen hat."
+        ]),
+        ("weiter", "„Wie geht es jetzt weiter?“", [
+            "[Berit] Jetzt will jeder sofort los. Und dann sitzen wir in drei "
+            "Tagen wieder im Gras.",
+            "[Berit] Ich gehe, wenn einer den Weg geht, der ihn kennt. Und wenn "
+            "danach jemand für uns sorgt. Wer das ist, ist mir fast egal."
+        ]),
+        ("jonte", "Nach Jonte fragen", [
+            "[Berit] Bei Raban. Er hat es schon gehört. Er hat nichts gesagt."
+        ])
+    ], "Weiter")
+    brunnfeld_ziel_setzen("haller")
+
+
+def brunnfeld_haller_angebot():
+    # H1, Teil 2: Haller schickt Ahrens.
+    ort_titel("Universität von Oros - Amtsstube der Schutzverwaltung")
+    text_ausgeben(
+        "Haller hat schon davon gehört. Auf seinem Tisch liegt ein neues Blatt: "
+        "„Brunnfeld. Strecke über den alten Wegweiser, Läuferpfad, Steg.“ "
+        "Darunter hat ein Schreiber die Zahl 36 notiert, mit einem Fragezeichen."
+    )
+    text_ausgeben(
+        "[Haller] Sie haben mir eine Strecke gebracht. Ich habe gesagt, dann "
+        "reden wir weiter. Also reden wir."
+    )
+    text_ausgeben(
+        "[Haller] Ein Ort, den es in keinem Verzeichnis gibt, ist seit der "
+        "Nacht wieder erreichbar. Über einen Steg, den ein einzelner Mann "
+        "zusammenhält. Mit einem Läuferhaus, das keine Läufer mehr hat."
+    )
+    text_ausgeben(
+        "[Haller] Wenn morgen dort etwas geschieht, erfahre ich es in drei "
+        "Tagen. Wenn überhaupt."
+    )
+    text_ausgeben(
+        "[Haller] Ich schicke Ahrens. Mit Vorräten, mit zwei Wachen und mit "
+        "einem Angebot. Sie gehen mit."
+    )
+    satz = {
+        "zwang": (
+            "[Haller] Und ich gebe Ihnen eine Vollmacht mit. An der Kante haben "
+            "Sie gezeigt, dass Sie entscheiden können, wenn es nötig ist."
+        ),
+        "abtrennung": (
+            "[Haller] Ich gebe Ihnen eine Vollmacht mit. Vorläufig. Wie alles, "
+            "was wir seit der Nacht tun."
+        )
+    }.get(
+        kapitel8_wert("ausgang"),
+        "[Haller] Ich gebe Ihnen eine Vollmacht mit. Sie gilt bis zur "
+        "Versammlung, nicht länger. Darauf bestehe ich, und ich bestehe nicht "
+        "oft auf Grenzen meiner eigenen Befugnisse."
+    )
+    text_ausgeben(satz)
+    brunnfeld_ziel_setzen("ahrens")
+
+
+def brunnfeld_vollmacht_annehmen():
+    kapitel9_daten()["vollmacht"] = True
+    text_ausgeben("Du nimmst das Blatt. Ahrens nickt, als hätte er nichts anderes erwartet.")
+
+
+def brunnfeld_angebot(titel):
+    # H2: Ahrens in Brunnfeld, das Angebot und die Vollmacht.
+    text_ausgeben(
+        "Am Brunnen. Sanna, Oswin und Hannes sind da, einige Bewohner stehen am "
+        "Rand."
+    )
+    text_ausgeben(
+        "Ahrens sieht sich den Platz an, wie er sich alles ansieht: die Häuser, "
+        "die Wege, wer wo steht. Die beiden Wachen stellen die Kisten ab, die "
+        "sie getragen haben."
+    )
+    text_ausgeben("[Ahrens] Die Schutzverwaltung bietet Brunnfeld drei Dinge an.")
+    text_ausgeben("[Ahrens] Vorräte. Sofort, und danach jeden Monat, solange der Weg hält.")
+    text_ausgeben("[Ahrens] Einen festen Übergang am Steg, mit einem Posten. Und einen Posten am Wegweiser.")
+    text_ausgeben(
+        "[Ahrens] Und Läufer. Wenn Brunnfeld keine stellt, stellen wir welche. "
+        "Wer das ist, legt fest, wer die Vollmacht hat."
+    )
+    seite_wechseln(titel)
+    text_ausgeben("Er hält ein gesiegeltes Blatt hoch und reicht es dann dir, nicht Sanna.")
+    text_ausgeben(
+        "[Ahrens] Vorläufige Vollmacht der Schutzverwaltung für Brunnfeld. "
+        "Zuteilung der Vorräte, Regelung der Zugänge, Verpflichtung zu Diensten "
+        "auf der Strecke. Gültig bis zur Versammlung. Dann entscheidet sich, "
+        "welche Ordnung bleibt."
+    )
+    text_ausgeben("Sanna sieht auf das Blatt in deiner Hand.")
+    text_ausgeben("[Sanna] Uns hat keiner gefragt, ob wir ein Angebot wollen.")
+    text_ausgeben("[Ahrens] Deshalb gibt es eine Versammlung.")
+    text_ausgeben("[Sanna] Die gibt es, weil wir sie machen. Nicht, weil Sie sie erlauben.")
+    menue_trenner()
+    print()
+    print("1. Die Vollmacht annehmen")
+    print("2. „Ich helfe. Aber ohne das.“")
+    auswahl = eingabe_menu(1, 2, sonder_tasten=())
+    print()
+
+    if auswahl == 1:
+        brunnfeld_vollmacht_annehmen()
+        text_ausgeben("Sanna sagt nichts dazu. Hannes geht zurück zum Steg.")
+        text_ausgeben("[Oswin] Na. Jetzt weiß jedenfalls jeder, wen er fragen muss.")
+    else:
+        kapitel9_daten()["vollmacht"] = False
+        text_ausgeben("Du gibst Ahrens das Blatt zurück.")
+        text_ausgeben("[Ahrens] Es bleibt bei mir. Bis zur Versammlung können Sie es sich noch holen.")
+        text_ausgeben(
+            "[Ahrens] Die Vorräte lasse ich trotzdem hier. Die sind nicht an "
+            "Bedingungen geknüpft. Das wird sich ändern, aber heute sind sie das nicht."
+        )
+        text_ausgeben("Sanna sieht dich an, länger als vorher.")
+
+    brunnfeld_ziel_setzen("aufgaben")
+
+
+def brunnfeld_kiran_in_brunnfeld():
+    return kapitel9_wert("kiran_sanna") in ("erkannt", "fremd")
+
+
+def brunnfeld_kiran_spaet_offen():
+    # E3: Kiran ist nach Sannas Eintrag „Oros“ doch mitgekommen.
+    return (
+        kapitel9_wert("kiran_sanna") == "in_oros"
+        and kapitel9_wert("kiran_dabei", False)
+    )
+
+
+def brunnfeld_kiran_tuer():
+    text_ausgeben(
+        "Kiran bleibt in der Tür stehen und zählt die Bretter an der Wand. "
+        "Dabei tippt er mit dem Daumen gegen den Zeigefinger."
+    )
+
+
+def brunnfeld_kiran_buch_spaet():
+    text_ausgeben(
+        "Das Läuferbuch liegt aufgeschlagen auf dem Tisch. Neben Kirans Namen "
+        "steht die alte Strecke: „Wegweiser – Steg 36, weiter nach Oros.“ In "
+        "der Spalte für die Rückkehr hat Sanna inzwischen „Oros“ eingetragen."
+    )
+    text_ausgeben("Kiran legt sein Heft daneben, aufgeschlagen bei „Wegweiser – Steg: 3…“.")
+    text_ausgeben("[Kiran] Da fehlt etwas. Die Zahl ist nie fertig geworden.")
+    text_ausgeben("[Sanna] Sechsunddreißig Marken. So haben wir das gezählt.")
+
+
+def brunnfeld_kiran_gespraech_offen():
+    return kapitel9_wert("kiran_befreit", False) or brunnfeld_kiran_in_brunnfeld()
+
+
+def brunnfeld_kiran_gespraech():
+    # E8, E9: Kiran spricht nur, wenn man ihn anspricht.
+    ort_titel("Brunnfeld - Läuferhaus")
+    daten = kapitel9_daten()
+
+    if not kapitel9_wert("kiran_befreit", False):
+        if kapitel9_wert("kiran_sanna") == "erkannt":
+            text_ausgeben(
+                "[Kiran] Ich kenne nicht alles wieder. Aber Sanna zeigt mir jeden "
+                "Tag etwas, das ich früher gewusst haben muss."
+            )
+        else:
+            text_ausgeben(
+                "[Kiran] Ich weiß noch nicht, ob ich hierhergehöre. Heute bleibe "
+                "ich. Morgen seh ich weiter."
+            )
+    elif daten.get("kiran_gespraech"):
+        text_ausgeben(
+            "Kiran sieht auf, als du näherkommst. Er nickt dir zu, sagt aber "
+            "nichts. Diesmal wartet er nicht darauf, dass du etwas fragst."
+        )
+    else:
+        daten["kiran_gespraech"] = True
+        text_ausgeben(
+            "Kiran sitzt auf der Bank vor dem Läuferhaus und flickt einen Schuh. "
+            "Als du kommst, sieht er auf und wartet, dass du anfängst."
+        )
+        text_ausgeben("[Kiran] Bis zum Steg. Jeden Morgen. Mit Sanna.")
+
+        if "kiran" in kapitel9_wert("laeufer", []):
+            text_ausgeben("[Kiran] Bis zum Unterstand. Weiter nicht. Dort nimmt einer ab.")
+        else:
+            text_ausgeben(
+                "[Kiran] Weiter … noch nicht. Die Beine wollen. Der Kopf … zählt "
+                "nicht mit."
+            )
+
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_laeufer_offen(name):
+    # Freiwillige Läufer: erst nach Sannas Gespräch, nicht doppelt, nicht verpflichtet.
+    if (
+        brunnfeld_status() != "aufgaben"
+        or not kapitel9_wert("laeufer_gespraech", False)
+        or name in kapitel9_wert("laeufer", [])
+        or name in (kapitel9_wert("macht") or {}).get("laeufer", [])
+    ):
+        return False
+
+    if name == "tarek":
+        return riss_wahl() == "menschen"
+    if name == "kiran":
+        return (
+            kapitel9_wert("kiran_sanna") in ("erkannt", "fremd")
+            or kapitel9_wert("kiran_befreit", False)
+        )
+    if name == "jungen":
+        return kapitel9_wert("jungen") is None
+
+    return True
+
+
+def brunnfeld_laeufer_eintragen(name):
+    daten = kapitel9_daten()
+    laeufer = daten.setdefault("laeufer", [])
+
+    if name not in laeufer:
+        laeufer.append(name)
+
+    if len(laeufer) >= 2:
+        daten["laeufer_fertig"] = True
+
+
+def brunnfeld_aufgaben_optionen():
+    if brunnfeld_status() != "aufgaben":
+        return []
+
+    optionen = [("Mit Ahrens am Brunnen sprechen", brunnfeld_ahrens)]
+
+    if not kapitel9_wert("steg_fertig", False):
+        optionen.append(("Mit Hannes über den Steg sprechen [!]", brunnfeld_steg_aufgabe))
+    if kapitel9_wert("steg_weg") == "duebel" and not kapitel9_wert("steg_fertig", False):
+        optionen.append(("Am Steg mitarbeiten [!]", brunnfeld_steg_arbeiten))
+    if not kapitel9_wert("marken", False):
+        optionen.append(("Mit Sanna die Marken richten [!]", brunnfeld_marken))
+    if not kapitel9_wert("laeufer_gespraech", False):
+        optionen.append(("Mit Sanna über Läufer sprechen [!]", brunnfeld_laeufer_gespraech))
+    if brunnfeld_laeufer_offen("kiran"):
+        optionen.append(("Kiran fragen, ob er läuft [!]", brunnfeld_kiran_laeufer))
+    if brunnfeld_laeufer_offen("jungen"):
+        optionen.append(("Mit den Jungen der Bäuerin sprechen [!]", brunnfeld_jungen))
+    if not kapitel9_wert("versorgung_gespraech", False):
+        optionen.append(("Mit Sanna über die Versorgung sprechen [!]", brunnfeld_versorgung_gespraech))
+    if item_anzahl("salzsack") > 0:
+        optionen.append(("Hannes das Salz bringen [!]", brunnfeld_salz_bringen))
+    if kapitel9_wert("anerkennung") == "liste_noetig" and item_anzahl("laeuferliste") == 0:
+        optionen.append(("Sanna um eine Liste der Bewohner bitten [!]", brunnfeld_laeuferliste))
+
+    optionen.append(("Sanna sagen: „Wir sind so weit.“ [!]", brunnfeld_versammlung))
+    return optionen
+
+
+def brunnfeld_steg_fertig(weg):
+    daten = kapitel9_daten()
+    daten["steg"] = weg
+    daten["steg_fertig"] = True
+
+
+def brunnfeld_steg_aufgabe():
+    # A1: Der Steg, gemeinsam mit Klammern aus Eichenruh oder mit Dübeln.
+    ort_titel("Brunnfeld - Am Steg")
+    text_ausgeben("[Hannes] Drei Leute, Eisen, eine Woche ohne Hochwasser. Hab ich dir schon gesagt.")
+    text_ausgeben("[Hannes] Die Leute finde ich. Das Eisen nicht.")
+
+    optionen = []
+
+    if item_anzahl("eisenklammern") > 0:
+        optionen.append(("klammern", "Hannes die Eisenklammern geben"))
+    elif not kapitel9_wert("klammern_auftrag", False):
+        optionen.append(("bjorn", "„Ich frage Bjorn in Eichenruh nach Klammern.“"))
+
+    if kapitel9_wert("steg_weg") != "duebel":
+        optionen.append(("duebel", "„Geht es auch ohne Eisen?“"))
+
+    optionen.append(("zurueck", "Zurück"))
+    menue_trenner()
+    print()
+
+    for nummer, (_, text) in enumerate(optionen, start=1):
+        print(f"{nummer}. {text}")
+
+    wahl = optionen[eingabe_menu(1, len(optionen), sonder_tasten=()) - 1][0]
+    print()
+
+    if wahl == "klammern":
+        item_entfernen("eisenklammern", 1)
+        brunnfeld_steg_fertig("klammern")
+        text_ausgeben("Hannes dreht eine der Klammern in der Hand und nickt.")
+        brunnfeld_steg_haelt()
+    elif wahl == "bjorn":
+        kapitel9_daten()["klammern_auftrag"] = True
+        text_ausgeben("[Hannes] Wenn er das macht, sag ihm, ich zahl in Seil.")
+        warte_auf_taste("Zurück")
+    elif wahl == "duebel":
+        text_ausgeben("[Hannes] Geht auch. Hält nicht so lange. Dann muss eben öfter einer nachsehen.")
+
+        if item_anzahl("holz") < 4:
+            text_ausgeben("Für die Dübel braucht Hannes 4 Holz. Du hast nicht genug.")
+            warte_auf_taste("Zurück")
+            return
+
+        item_entfernen("holz", 4)
+        kapitel9_daten()["steg_weg"] = "duebel"
+        text_ausgeben("Du gibst Hannes das Holz. Jetzt fehlen noch drei Arbeitstage am Steg.")
+        warte_auf_taste("Zurück")
+
+
+def brunnfeld_steg_haelt():
+    text_ausgeben("Hannes tritt auf das neue Brett in der Mitte, wippt einmal und tritt wieder herunter.")
+    text_ausgeben("[Hannes] Hält.")
+    warte_auf_taste("Weiter")
+
+
+def brunnfeld_steg_arbeiten():
+    # Drei Arbeitstage mit Dübeln; jeder rückt die Zeit vor.
+    ort_titel("Brunnfeld - Am Steg")
+    daten = kapitel9_daten()
+    daten["steg_arbeitstage"] = daten.get("steg_arbeitstage", 0) + 1
+    zeit_vorruecken(int(TAG_DAUER * 0.25))
+    text_ausgeben(
+        "Du bohrst mit Hannes vor und treibst die Dübel ein, bis die Hände "
+        f"brennen. ({daten['steg_arbeitstage']} von 3 Arbeitstagen)"
+    )
+
+    if daten["steg_arbeitstage"] >= 3:
+        brunnfeld_steg_fertig("duebel")
+        brunnfeld_steg_haelt()
+        return
+
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_klammern_offen():
+    return (
+        brunnfeld_status() == "aufgaben"
+        and kapitel9_wert("klammern_auftrag", False)
+        and not kapitel9_wert("steg_fertig", False)
+        and item_anzahl("eisenklammern") == 0
+    )
+
+
+def brunnfeld_klammern_bei_bjorn():
+    ort_titel("Bjorns Schmiede - Klammern für den Steg")
+    kosten = bjorn_arbeitskosten(15)
+    text_ausgeben("[Bjorn] Klammern für einen Steg. Zwölf Stück, fingerdick.")
+    text_ausgeben(
+        "[Bjorn] Ich mach dir die. Aber du sagst dem Mann, er soll sie nicht mit "
+        "dem Hammer reinprügeln, sondern vorbohren. Die Leute denken immer, "
+        "Eisen hält alles aus."
+    )
+    print()
+    print(f"Arbeitskosten: {kosten} Gold | Gold vorhanden: {spieler['gold']}")
+
+    if spieler["gold"] < kosten:
+        design_text("Dir fehlt Gold.", design="warnung", art="menue")
+        warte_auf_taste("Zurück")
+        return
+
+    menue_trenner()
+    print()
+    print("1. Klammern schmieden lassen")
+    print("2. Zurück")
+
+    if eingabe_menu(1, 2, sonder_tasten=()) == 2:
+        return
+
+    spieler["gold"] -= kosten
+    item_hinzufuegen("eisenklammern", 1)
+    hilfe = kapitel9_daten().setdefault("eichenruh", [])
+
+    if "bjorn" not in hilfe:
+        hilfe.append("bjorn")
+
+    design_text("Eisenklammern erhalten", design="positiv", art="menue")
+    warte_auf_taste("Weiter")
+
+
+def brunnfeld_marken():
+    # A1, Teil 2: Sanna und der Spieler richten die verdrehte Marke an der Gabelung.
+    ort_titel("Läuferpfad - Die Gabelung")
+    text_ausgeben("Sanna geht mit dir den Läuferpfad zurück bis zur Gabelung am Fuß des Hangs.")
+
+    for _ in range(4):
+        if not status_schritte_abschliessen():
+            return
+
+    text_ausgeben(
+        "Sanna stemmt sich mit der Schulter gegen den Stein, du ziehst. Er "
+        "dreht sich schwerer, als er aussieht. Als die Kerben wieder zum "
+        "flachen Weg zeigen, schneidet Sanna eine neue darunter, frisch und gerade."
+    )
+    text_ausgeben("[Sanna] Damit der Nächste nicht den Berg hochläuft.")
+    kapitel9_daten()["marken"] = True
+    warte_auf_taste("Zurück nach Brunnfeld")
+
+
+def brunnfeld_laeufer_gespraech():
+    # A2: Sanna über Läufer.
+    ort_titel("Brunnfeld - Läuferhaus")
+    text_ausgeben(
+        "[Sanna] Ein Weg braucht Leute, die ihn gehen. Regelmäßig, nicht einmal "
+        "im Jahr. Drei, mindestens. Mich mitgezählt."
+    )
+    text_ausgeben("[Sanna] Ich frage keinen, der nicht will. Das hat hier nie einer getan.")
+    text_ausgeben(
+        "[Sanna] Keiner läuft jeden Tag drei Tage. Die Strecke wird geteilt. Ich "
+        "nehme das Stück vom Dorf bis zum Unterstand. Am Unterstand wird "
+        "übergeben. Und auf der Seite von Oros braucht es einen, der dort wohnt."
+    )
+    kapitel9_daten()["laeufer_gespraech"] = True
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_kiran_laeufer():
+    ort_titel("Brunnfeld")
+
+    if kapitel9_wert("kiran_sanna") == "fremd":
+        # E4: Er läuft mit Begleitung. Sanna bleibt für ihn eine Fremde.
+        text_ausgeben("[Kiran] Die Zahlen hab ich nicht mehr. Die Marken kann ich lesen.")
+        text_ausgeben(
+            "[Kiran] Ich geh das Stück bis zum Unterstand, mit einem, der weiter "
+            "weiß. Den Rest lern ich. Oder nicht."
+        )
+        text_ausgeben(
+            "Sanna beginnt einen neuen Eintrag. Sie schreibt seinen Namen, die "
+            "Strecke bis zum Unterstand und dahinter: „Mit Begleitung. Freiwillig.“"
+        )
+    else:
+        text_ausgeben("[Kiran] Ich weiß nicht, ob ich mich verzähle. Aber ich weiß, wie man geht.")
+
+    brunnfeld_laeufer_eintragen("kiran")
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_jungen():
+    # A2: Die beiden Jungen gehen bei der nächsten Reise bis zum Unterstand mit.
+    ort_titel("Brunnfeld - Die Felder am Rand")
+    text_ausgeben(
+        "Die beiden Jungen wollen laufen. Die Bäuerin will nicht. Am Ende "
+        "einigt ihr euch: Sie gehen bei deiner nächsten Reise nach Oros bis "
+        "zum Unterstand mit und kommen zu zweit zurück."
+    )
+    kapitel9_daten()["jungen"] = "unterwegs"
+    warte_auf_taste("Zurück")
+
+
+def laeuferpfad_jungen_ried():
+    # Begegnung vor dem Unterstand. Der Weg über die Kuppe prüft keine Begegnungen.
+    daten = kapitel9_daten()
+    kampf = "Die Aufmerksamkeit des Tiers auf dich ziehen [Kampf]"
+    faehrte = faehrtensteller_aktiv(spieler)
+    kuppe = (
+        "Die Jungen über die Kuppe führen [Fährtensteller]"
+        if faehrte
+        else "Die Jungen über die Kuppe führen [Wahrnehmung]"
+    )
+    ort_titel("Läuferpfad - Am Rand des Rieds")
+
+    text_ausgeben(
+        "Kurz vor dem Unterstand senkt sich der Pfad noch einmal an den Rand "
+        "des Rieds. Die Jungen gehen voraus, der Ältere prüft den Weg mit "
+        "einem Stock."
+    )
+    text_ausgeben(
+        "Links vom Pfad hebt sich das Wasser. Ein Schlickbeißer schiebt sich "
+        "aus dem Schlamm, flach und schwer, zwischen dich und die beiden."
+    )
+    text_ausgeben("[Der Ältere] Nicht rennen. Hannes sagt, nicht rennen.")
+
+    while True:
+        if laeuferpfad_wahl([kampf, kuppe]) == kuppe:
+            break
+
+        ausgang = nachriss_kampf("Schlickbeißer", "Wald", "Offener Weg", (
+            "Der Schlickbeißer sinkt halb ins Wasser zurück und bleibt so "
+            "liegen. Der Jüngere sieht hin, bis der Ältere ihn am Ärmel "
+            "weiterzieht. Dann steigt ihr zum Unterstand hinauf.",
+        ))
+
+        if ausgang == "ohne_waffe":
+            continue
+
+        if ausgang == "niederlage":
+            ort_titel("Läuferpfad - Am Rand des Rieds")
+            text_ausgeben(
+                "Du bekommst noch mit, wie der Stock des Älteren das Tier "
+                "seitlich am Kopf trifft und es von dir ablässt. Dann ziehen "
+                "dich vier Hände ein paar Schritte weit auf festen Boden."
+            )
+            text_ausgeben(
+                "Ihr sitzt eine Weile, bis du aufstehen kannst. Dann steigt "
+                "ihr langsam hinauf."
+            )
+
+        elif ausgang == "flucht":
+            text_ausgeben(
+                "Du weichst auf festen Boden zurück. Das Tier folgt dir nicht "
+                "aufs Trockene. Die Jungen sind schon auf dem Weg nach oben."
+            )
+
+        daten["jungen_ried"] = {"weg": "kampf", "ausgang": ausgang}
+        warte_auf_taste("Weiter")
+        return
+
+    if faehrte:
+        schritte = 1
+        text_ausgeben(
+            "Am Hang ist eine schmale Trittspur zu erkennen. Du setzt den Fuß "
+            "jedes Mal zuerst vorsichtig auf und prüfst, ob der Boden nachgibt. "
+            "Die Jungen treten, wo du trittst. Keiner sagt etwas, bis ihr oben "
+            "seid."
+        )
+    elif untersuchung_pruefung("wahrnehmung", 2):
+        schritte = 1
+        text_ausgeben(
+            "Du siehst, wo das Gras dunkler steht, und zeigst auf die hellen "
+            "Stellen. Die Jungen treten, wo du zeigst. Keiner sagt etwas, bis "
+            "ihr oben seid."
+        )
+    else:
+        schritte = 2
+        text_ausgeben(
+            "Zweimal sinkt ihr bis zum Knie ein und müsst zurück. Es dauert. "
+            "Das Tier bleibt am Wasser."
+        )
+
+    daten["jungen_ried"] = {"weg": "umweg", "ausgang": "kuppe"}
+    warte_auf_taste("Weiter")
+
+    for _ in range(schritte):
+        ressourcen_vorkommen_regenerieren("wald_holz")
+        stollen_regenerieren()
+        frist_handlung(1)
+
+        if not status_schritte_abschliessen():
+            return
+
+
+def laeuferpfad_jungen(reise_daten):
+    laeuferpfad_jungen_ried()
+
+    if not spieler["spiel_laeuft"]:
+        return
+
+    ort_titel("Läuferpfad - Der Unterstand der Läufer")
+
+    if (kapitel9_wert("jungen_ried") or {}).get("ausgang") == "sieg":
+        text_ausgeben(
+            "Am Unterstand bleiben die beiden Jungen stehen. Der Ältere hebt die "
+            "Hand, dann gehen sie zurück ins Ried, ohne sich umzudrehen."
+        )
+    else:
+        text_ausgeben(
+            "Am Unterstand bleiben die beiden Jungen stehen. Der Ältere hebt die "
+            "Hand, dann gehen sie über die Kuppe zurück, ohne sich umzudrehen."
+        )
+    kapitel9_daten()["jungen"] = "umgekehrt"
+    warte_auf_taste("Weiterreisen")
+
+
+def brunnfeld_jungen_zurueck(titel):
+    ausgang = (kapitel9_wert("jungen_ried") or {}).get("ausgang")
+
+    if ausgang == "sieg":
+        text_ausgeben("[Bäuerin] Der Kleine erzählt es jedem. Der Große gar nicht.")
+    elif ausgang in ("kuppe", "flucht"):
+        text_ausgeben("[Bäuerin] Über die Kuppe, sagt der Große. Da geht sonst keiner.")
+    elif ausgang == "niederlage":
+        text_ausgeben("[Bäuerin] Die beiden sagen, sie hätten Sie aus dem Schlamm gezogen.")
+
+    text_ausgeben("[Bäuerin] Sie sind zurückgekommen. Beide. Gut. Dann sollen sie eben.")
+    kapitel9_daten()["jungen"] = "zurueck"
+    brunnfeld_laeufer_eintragen("jungen")
+    warte_auf_taste("Weiter")
+
+
+def brunnfeld_jonte_laeufer():
+    ort_titel("Universität von Oros - Versorgungshof")
+    text_ausgeben("[Jonte] Ich lauf euch die Post. Einmal im Monat. Aber ich wohn hier.")
+    brunnfeld_laeufer_eintragen("jonte")
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_tarek_laeufer():
+    ort_titel("Universität von Oros - Zentrale Halle")
+    text_ausgeben(
+        "[Tarek] Ich hab da unten gesessen und gewartet, dass einer kommt. Ich "
+        "kann auch mal derjenige sein, der kommt."
+    )
+    brunnfeld_laeufer_eintragen("tarek")
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_ahrens():
+    # Ahrens am Brunnen: Vollmacht nachholen und Anordnungen (nur mit Vollmacht).
+    ort_titel("Brunnfeld - Am Brunnen")
+    text_ausgeben("Ahrens sitzt an einem Tisch neben dem Brunnen und schreibt.")
+    optionen = []
+
+    if not kapitel9_wert("vollmacht"):
+        optionen.append(("vollmacht", "Die Vollmacht doch annehmen"))
+    else:
+        if not kapitel9_wert("steg_fertig", False):
+            optionen.append(("steg", "„Ahrens, Ihre Leute sollen den Übergang bauen.“"))
+        if not (kapitel9_wert("macht") or {}).get("laeufer"):
+            optionen.append(("laeufer", "Läufer verpflichten"))
+        if not kapitel9_wert("versorgung_fertig"):
+            optionen.append(("liste", "Die Versorgungsliste festlegen"))
+        if not (kapitel9_wert("macht") or {}).get("zugaenge"):
+            optionen.append(("zugaenge", "Die Zugänge regeln"))
+        if not kapitel9_wert("jonte_gezwungen"):
+            optionen.append(("jonte", "„Jonte auf die Liste der Rückkehrer setzen, ob er will oder nicht.“"))
+
+    optionen.append(("zurueck", "Zurück"))
+    menue_trenner()
+    print()
+
+    for nummer, (_, text) in enumerate(optionen, start=1):
+        print(f"{nummer}. {text}")
+
+    wahl = optionen[eingabe_menu(1, len(optionen), sonder_tasten=()) - 1][0]
+    print()
+
+    if wahl == "vollmacht":
+        brunnfeld_vollmacht_annehmen()
+        warte_auf_taste("Zurück")
+    elif wahl == "steg":
+        text_ausgeben(
+            "Zwei Tage später steht über der Lücke ein fester Übergang aus Bohlen, "
+            "mit einer Schranke am Brunnfelder Ende. Hannes sieht sich die Arbeit "
+            "an und findet nichts daran auszusetzen. Das scheint ihn mehr zu "
+            "ärgern als alles andere."
+        )
+        text_ausgeben("[Hannes] Gute Arbeit. Mit Schranke.")
+        brunnfeld_steg_fertig("ahrens")
+        warte_auf_taste("Zurück")
+    elif wahl == "laeufer":
+        brunnfeld_laeufer_verpflichten()
+    elif wahl == "liste":
+        brunnfeld_versorgungsliste()
+    elif wahl == "zugaenge":
+        brunnfeld_zugaenge()
+    elif wahl == "jonte":
+        brunnfeld_jonte_zwingen()
+
+
+def brunnfeld_laeufer_verpflichten():
+    # Machtentscheidung „Läufer verpflichten“: zwei Einträge aus der Liste.
+    text_ausgeben("[Ahrens] Die Frau aus dem Läuferhaus nicht. Die würde laufen und dabei jedem erzählen, warum.")
+    liste = [("jungen", "Die beiden Jungen der Bäuerin"), ("jonte", "Jonte")]
+
+    if riss_wahl() == "menschen":
+        liste.append(("tarek", "Tarek"))
+    if brunnfeld_kiran_in_brunnfeld():
+        liste.append(("kiran", "Kiran"))
+
+    folgen = {
+        "jungen": [
+            "Die Bäuerin steht am Abend vor dem Läuferhaus. Sie schreit nicht. Sie "
+            "fragt dich nur, wann sie zurückkommen, und du weißt es nicht."
+        ],
+        "jonte": [
+            "[Jonte] Ich hab gesagt, ich lauf euch die Post. Freiwillig. Jetzt ist "
+            "es keine Post mehr, jetzt ist es ein Dienst. Ist dir das eigentlich "
+            "aufgefallen?"
+        ],
+        "kiran": [
+            "Kiran nimmt das Blatt mit seinem Namen, liest es zweimal und steckt es ins Heft.",
+            "[Kiran] Ich wär auch so gelaufen.",
+            "Sanna, die daneben steht, dreht sich um und geht ins Läuferhaus."
+        ],
+        "tarek": ["Tarek liest seinen Namen. Er faltet das Blatt zusammen und steckt es ein. Er sagt nichts."]
+    }
+    gewaehlt = []
+
+    while len(gewaehlt) < 2:
+        offen = [eintrag for eintrag in liste if eintrag[0] not in gewaehlt]
+        menue_trenner()
+        print()
+        print(f"Wen verpflichtest du? ({len(gewaehlt) + 1} von 2)")
+
+        for nummer, (_, name) in enumerate(offen, start=1):
+            print(f"{nummer}. {name}")
+
+        # Nach der ersten Wahl gibt es kein Zurück mehr: Zwei Einträge sind angeordnet.
+        if not gewaehlt:
+            print(f"{len(offen) + 1}. Doch nicht")
+
+        auswahl = eingabe_menu(1, len(offen) + (0 if gewaehlt else 1), sonder_tasten=())
+        print()
+
+        if auswahl == len(offen) + 1:
+            return
+
+        gewaehlt.append(offen[auswahl - 1][0])
+
+    daten = kapitel9_daten()
+    daten.setdefault("macht", {})["laeufer"] = gewaehlt
+    daten["laeufer_fertig"] = True
+
+    for name in gewaehlt:
+        for zeile in folgen[name]:
+            text_ausgeben(zeile)
+
+    text_ausgeben("Der Weg ist sofort gesichert.")
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_sperre_aktiv():
+    # Gesperrte Zugänge wirken, solange keine gemeinsame Ordnung gilt (Wechsel in B-E).
+    return (
+        (kapitel9_wert("macht") or {}).get("zugaenge") == "sperren"
+        and kapitel9_wert("ordnung") != "gemeinsam"
+    )
+
+
+def brunnfeld_versorgung_fertig(weg):
+    daten = kapitel9_daten()
+    daten["versorgung"] = weg
+    daten["versorgung_fertig"] = True
+
+
+def brunnfeld_versorgung_gespraech():
+    # A3: Sanna sagt, was fehlt; Hannes gibt sein Seil als Tauschware.
+    ort_titel("Brunnfeld - Läuferhaus")
+    text_ausgeben("[Sanna] Salz. Eisen für die Pflugschar. Und für die Alten etwas, was nicht nach Rüben schmeckt.")
+    text_ausgeben(
+        "Hannes kommt herein und legt ein Bündel Hanfseil auf den Tisch, ohne "
+        "etwas zu sagen. Sanna schiebt es zu dir."
+    )
+    text_ausgeben("[Sanna] Damit hat er früher bezahlt. In Oros und in Eichenruh.")
+    item_hinzufuegen("seilbuendel", 1)
+    kapitel9_daten()["versorgung_gespraech"] = True
+    design_text("Hannes' Seilbündel erhalten", design="positiv", art="menue")
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_hilda_offen():
+    return (
+        brunnfeld_status() == "aufgaben"
+        and item_anzahl("seilbuendel") > 0
+        and not kapitel9_wert("versorgung_fertig")
+        and not kapitel9_wert("lieferung")
+    )
+
+
+def brunnfeld_hilda_lieferung():
+    # A3 mit Eichenruh: Hilda liefert selbst, Mara kommt einmal mit.
+    ort_titel("Marktplatz von Eichenruh")
+    text_ausgeben(
+        "[Hilda] Eine Lieferung in einen Ort, den keiner kennt, über einen Steg, "
+        "den einer mit Dübeln flickt. Und bezahlt wird in Seil."
+    )
+    text_ausgeben("[Hilda] Ich mach's. Aber ich schreib es nicht ins Buch, bis es angekommen ist.")
+    item_entfernen("seilbuendel", 1)
+    daten = kapitel9_daten()
+    daten["lieferung"] = "unterwegs"
+    hilfe = daten.setdefault("eichenruh", [])
+
+    if "hilda" not in hilfe:
+        hilfe.append("hilda")
+
+    text_ausgeben("Hildas Karren fährt mit Salz, Öl und einer neuen Pflugschar von Bjorn. Mara will mitkommen.")
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_lieferung_angekommen():
+    text_ausgeben("Hildas Lieferung ist angekommen. Am Brunnen stehen Kisten mit Salz und Öl, daneben eine neue Pflugschar.")
+    text_ausgeben(
+        "[Mara] Der alte Mann am Brunnen braucht Wärme, keine Salbe. Und die "
+        "Frau am Brunnen schläft nicht, das sieht man. Ich lass dir was da."
+    )
+    daten = kapitel9_daten()
+    daten["lieferung"] = "angekommen"
+    hilfe = daten.setdefault("eichenruh", [])
+
+    if "mara" not in hilfe:
+        hilfe.append("mara")
+
+    if not daten.get("versorgung_fertig"):
+        brunnfeld_versorgung_fertig("eichenruh")
+
+    warte_auf_taste("Weiter")
+
+
+def brunnfeld_raban_tausch():
+    # A3 aus eigener Kraft: Hannes' Seil gegen Rabans Salz.
+    ort_titel("Universität von Oros - Versorgungshof")
+    text_ausgeben("[Raban] Hanfseil gegen Salz. Wie früher.")
+    text_ausgeben("[Raban] Aber diesmal bekommt der Mann eine Nummer. Nichts für ungut.")
+    item_entfernen("seilbuendel", 1)
+    item_hinzufuegen("salzsack", 1)
+    design_text("Salzsack für Brunnfeld erhalten", design="positiv", art="menue")
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_salz_bringen():
+    ort_titel("Brunnfeld - Am Steg")
+    item_entfernen("salzsack", 1)
+    text_ausgeben("Hannes hebt den Sack an, wiegt ihn in der Hand und stellt ihn ab.")
+    text_ausgeben("[Hannes] Wie früher. Nur mit Nummer.")
+
+    if not kapitel9_wert("versorgung_fertig"):
+        brunnfeld_versorgung_fertig("tausch")
+
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_versorgungsliste():
+    # Machtentscheidung „Versorgungsliste“: Hallers Vorräte kommen sofort.
+    menue_trenner()
+    print()
+    print("Wer bekommt zuerst?")
+    print("1. „Wer sich in Oros eintragen lässt, zuerst.“")
+    print("2. „Familien mit Kindern zuerst.“")
+    print("3. „Wer am Steg und auf den Feldern arbeitet, zuerst.“")
+    print("4. Doch nicht")
+    auswahl = eingabe_menu(1, 4, sonder_tasten=())
+    print()
+
+    if auswahl == 4:
+        return
+
+    liste, zeile = (
+        ("eintrag", "Am Abend stehen vor Ahrens' Tisch mehr Menschen als am Brunnen. Oswin ist nicht dabei."),
+        ("kinder", "Die Bäuerin bekommt zwei Rationen für die Jungen. Oswin bekommt eine halbe. Er sagt, er habe ohnehin keinen Hunger."),
+        ("arbeit", "Hannes bekommt mehr als alle anderen. Er teilt es heimlich mit der Frau am Brunnen und tut, als sei das ein Versehen.")
+    )[auswahl - 1]
+    kapitel9_daten().setdefault("macht", {})["liste"] = liste
+    brunnfeld_versorgung_fertig("liste")
+    text_ausgeben(zeile)
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_zugaenge():
+    # Machtentscheidung „Zugänge“.
+    menue_trenner()
+    print()
+    print("1. „Rückkehr nur über den Posten am Wegweiser, mit Eintrag.“")
+    print("2. „Der Weg bleibt offen. Der Posten zählt nur.“")
+    print("3. Doch nicht")
+    auswahl = eingabe_menu(1, 3, sonder_tasten=())
+    print()
+
+    if auswahl == 3:
+        return
+
+    if auswahl == 1:
+        kapitel9_daten().setdefault("macht", {})["zugaenge"] = "sperren"
+        text_ausgeben(
+            "Am Wegweiser steht jetzt ein Tisch mit einem Schreiber. Wer nach "
+            "Brunnfeld will, nennt seinen Namen und seinen Grund. Wer keinen Grund "
+            "hat, der dem Schreiber genügt, wird zurückgeschickt."
+        )
+    else:
+        kapitel9_daten().setdefault("macht", {})["zugaenge"] = "oeffnen"
+        text_ausgeben("Am Wegweiser steht ein Wachmann mit einer Strichliste. Er hält keinen auf.")
+
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_jonte_zwingen():
+    # Ausdrücklich und als solche erkennbar (Beschluss Runde 3).
+    text_ausgeben("[Jonte] Das kannst du nicht machen.")
+    text_ausgeben("Ahrens sieht dich an. Du kannst es.")
+    menue_trenner()
+    print()
+    print("1. Jonte auf die Liste setzen")
+    print("2. Es lassen")
+
+    if eingabe_menu(1, 2, sonder_tasten=()) == 2:
+        return
+
+    kapitel9_daten()["jonte_gezwungen"] = True
+    text_ausgeben("Ahrens schreibt Jontes Namen auf die Liste der Rückkehrer.")
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_hat_laeufer():
+    return bool(kapitel9_wert("laeufer") or (kapitel9_wert("macht") or {}).get("laeufer"))
+
+
+def brunnfeld_berit_rueckkehr():
+    # A4: Berit entscheidet selbst, sobald ein Läufer die Gruppe führen kann.
+    text_ausgeben("[Berit] Ich gehe, wenn einer den Weg geht, der ihn kennt. Ich hab's gesagt.")
+
+    if not brunnfeld_hat_laeufer():
+        warte_auf_taste("Zurück")
+        return
+
+    daten = kapitel9_daten()
+    daten["rueckkehr"] = "vorbereitet"
+    brunnfeld_berit_entscheidet(daten)
+    text_ausgeben("Die anderen packen ihre Bündel. Die erste Gruppe wartet nur noch auf einen Läufer vorn.")
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_berit_entscheidet(daten):
+    if daten.get("versorgung_fertig"):
+        daten["berit"] = "mit"
+        text_ausgeben("[Berit] Dann geh ich mit. Ich will meine Schwester sehen. Ob ich bleibe, sag ich dort.")
+    else:
+        daten["berit"] = "oros"
+        text_ausgeben(
+            "[Berit] Ich bleib erst mal hier, mit Mila. Wenn es dort genug zu "
+            "essen gibt, komm ich nach."
+        )
+
+
+def brunnfeld_rueckkehr_nachtraeglich():
+    # E5 (A8): Die Rückkehr nach der Versammlung. Keine EP, kein N1. Wer in
+    # Oros bleibt, steht weiter in „berit“; „nachtraeglich“ schließt das Lager.
+    daten = kapitel9_daten()
+    text_ausgeben("[Berit] Ich gehe, wenn einer den Weg geht, der ihn kennt. Ich hab's gesagt.")
+
+    if not brunnfeld_hat_laeufer():
+        if daten.get("ordnung") == "zentral":
+            text_ausgeben(
+                "[Berit] Zwei Wachen von Ahrens begleiten uns. Die gehen den "
+                "Läuferpfad inzwischen regelmäßig. Am Wegweiser werden die Namen "
+                "eingetragen."
+            )
+        else:
+            text_ausgeben(
+                "Neben Berit steht Sanna, ein Bündel über der Schulter, den "
+                "Wegstaub noch an den Schuhen."
+            )
+            text_ausgeben(
+                "[Sanna] Ich bin gekommen, um die Leute abzuholen. Wer zurückwill, "
+                "kann mit mir gehen."
+            )
+
+    daten["rueckkehr"] = "nachtraeglich"
+    brunnfeld_berit_entscheidet(daten)
+
+    if daten.get("berit") == "oros":
+        text_ausgeben("Berit und Mila ziehen in die Zentrale Halle, zu denen, die in Oros bleiben.")
+
+    text_ausgeben(
+        "Am nächsten Morgen bricht der Rest des Lagers auf. Auf dem Vorplatz "
+        "bleiben die kalten Feuerstellen und eine Leine zwischen zwei Pfosten, "
+        "an der nichts mehr hängt."
+    )
+
+    if daten.get("ordnung") == "zentral" and daten.get("jonte_gezwungen"):
+        text_ausgeben("Jonte geht ganz hinten. Er sieht dich nicht an, als er an dir vorbeikommt.")
+
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_jonte_rueckkehr():
+    ort_titel("Universität von Oros - Versorgungshof")
+    text_ausgeben(
+        "[Jonte] Ich geh nicht zurück. Ich hab hier Arbeit, ich hab hier ein "
+        "Bett, und ich weiß, wo der Weg ist, weil ich ihn nicht jeden Morgen "
+        "suchen muss."
+    )
+    text_ausgeben(
+        "[Jonte] Sag Sanna, dass ich nicht weggelaufen bin. Ich bin nur nicht "
+        "zurückgegangen. Das ist ein Unterschied."
+    )
+    kapitel9_daten()["jonte_rueckkehr"] = True
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_anerkennung():
+    # A5: Anerkennung bei Haller, mit Levins Namen oder Sannas Liste.
+    ort_titel("Universität von Oros - Amtsstube der Schutzverwaltung")
+    daten = kapitel9_daten()
+
+    if daten.get("anerkennung") != "liste_noetig":
+        text_ausgeben("[Haller] Sie wollen Brunnfeld ins Verzeichnis. Ohne Aufsicht, ohne Abgaben, ohne Posten.")
+        text_ausgeben("[Haller] Was bekomme ich dafür?")
+        text_ausgeben("„Eine Strecke, die jemand geht. Und eine Liste derer, die dort wohnen.“")
+
+    if offene_tore_levin_da():
+        text_ausgeben(
+            "[Levin] Ich hab die Namen schon. Seit dem ersten Tag im Lager. Ich "
+            "hab nur nie gewusst, unter welchem Ort ich sie eintragen soll."
+        )
+    elif item_anzahl("laeuferliste") > 0:
+        item_entfernen("laeuferliste", 1)
+        text_ausgeben("Du legst Sannas Liste auf den Tisch.")
+    else:
+        daten["anerkennung"] = "liste_noetig"
+        text_ausgeben("[Haller] Dann bringen Sie mir die Liste.")
+        warte_auf_taste("Zurück")
+        return
+
+    text_ausgeben("Haller liest die Liste. Bei Oswins Namen hält er inne.")
+    text_ausgeben(
+        "[Haller] Verzeichnet. Eigenständig. Ich schreibe dazu „vorläufig“, und "
+        "Sie werden mich nicht davon abbringen."
+    )
+    daten["anerkennung"] = "eigenstaendig"
+    text_ausgeben("Die Brunnfelder in Oros bekommen ab jetzt volle Rationen.")
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_laeuferliste():
+    ort_titel("Brunnfeld - Läuferhaus")
+    text_ausgeben(
+        "Sanna nimmt ein leeres Blatt und beginnt aufzuschreiben, wer heute in "
+        "Brunnfeld lebt. Sie geht Haus für Haus durch. Bei manchen Namen zögert sie."
+    )
+    text_ausgeben("[Sanna] Für Haller. Dann soll er wenigstens richtig schreiben, wer hier wohnt.")
+    item_hinzufuegen("laeuferliste", 1)
+    design_text("Sannas Liste der Bewohner erhalten", design="positiv", art="menue")
+    warte_auf_taste("Zurück")
+
+
+def brunnfeld_staerke():
+    # Drei Bereiche gemeinsam gelöst: tragfähig. Angeordnetes zählt nicht,
+    # außer dem gebauten Steg („ein Steg ist ein Steg“).
+    tragfaehig = (
+        kapitel9_wert("steg_fertig", False)
+        and kapitel9_wert("marken", False)
+        and len(kapitel9_wert("laeufer", [])) >= 2
+        and kapitel9_wert("versorgung") in ("eichenruh", "tausch")
+    )
+    return "tragfaehig" if tragfaehig else "bruechig"
+
+
+def brunnfeld_tier_chance(chance):
+    # Wachschutz bei zentraler Ordnung, mehr Tiere bei brüchiger gemeinsamer Ordnung.
+    if kapitel9_wert("ordnung") == "zentral":
+        return chance * 0.5
+    if kapitel9_wert("ordnung") == "gemeinsam" and kapitel9_wert("staerke") == "bruechig":
+        return chance * 1.2
+    return chance
+
+
+def brunnfeld_abschluss_text():
+    if kapitel9_wert("ordnung") == "zentral":
+        return "Brunnfeld steht unter Hallers Ordnung. Der Posten meldet jeden Tag."
+    if kapitel9_wert("staerke") == "tragfaehig":
+        return "Brunnfeld hält seinen Weg selbst. Die Läufer gehen wieder."
+    return "Brunnfeld hält seinen Weg selbst. Nicht alles ist fertig."
+
+
+def brunnfeld_versammlung():
+    # V1 und V2: Die Versammlung am Brunnen, am Abend.
+    titel = "Brunnfeld - Die Versammlung am Brunnen"
+    zeit_bis_abend()
+    ort_titel(titel)
+    daten = kapitel9_daten()
+    macht = daten.get("macht") or {}
+
+    text_ausgeben(
+        "Um den Brunnen stehen mehr Menschen, als du in Brunnfeld je zusammen "
+        "gesehen hast. Die Kinder sitzen auf dem Holzdach, bis jemand sie "
+        "herunterscheucht. Ahrens steht am Rand, die Hände auf dem Rücken."
+    )
+    text_ausgeben(
+        "[Sanna] Wir haben den Weg nicht verloren, weil wir ihn schlecht "
+        "gepflegt haben. Er ist uns in einer Nacht genommen worden. Das gibt "
+        "keinem das Recht, ihn uns jetzt zu verwalten."
+    )
+    text_ausgeben("[Sanna] Und ich weiß, was in den Kisten war. Ich hab davon gegessen. Ich bin nicht dumm.")
+    text_ausgeben(
+        "[Oswin] Ich bin alt. Ich will an meinem Brunnen sitzen. Wer mir den Weg "
+        "dahin offen hält, ist mir gleich, solange er offen bleibt."
+    )
+    text_ausgeben("[Oswin] Nur eins. Ich will hier nicht noch mal „ungeklärt“ heißen.")
+
+    if daten.get("berit") == "mit":
+        text_ausgeben(
+            "[Berit] Ich hab in Oros halbe Rationen bekommen, weil ich aus einem "
+            "Ort komme, den es nicht gibt. Ich will, dass es uns gibt. Auf "
+            "Papier. Ich will, dass einer kommt, wenn was passiert."
+        )
+        text_ausgeben("[Berit] Aber ich will nicht, dass einer bestimmt, wer laufen muss. Das war nie die Frage.")
+    else:
+        text_ausgeben(
+            "[Oswin] „Ich bleibe vorerst in Oros, mit Mila. Ich will, dass es "
+            "Brunnfeld auf Papier gibt. Wer laufen muss, soll keiner bestimmen. "
+            "Grüßt meine Schwester.“"
+        )
+        text_ausgeben("[Oswin] Den letzten Satz hat sie dreimal unterstrichen.")
+
+    seite_wechseln(titel)
+    text_ausgeben({
+        None: "[Hannes] Der Steg steht noch. Aber ich schick keinen Karren drüber.",
+        "klammern": "[Hannes] Hält. Die Klammern sitzen ordentlich.",
+        "duebel": "[Hannes] Hält. Aber einer muss regelmäßig nach den Dübeln sehen.",
+        "ahrens": "[Hannes] Gute Arbeit. Mit Schranke."
+    }.get(daten.get("steg")))
+    text_ausgeben("[Hannes] Wer ihn gebaut hat, ist mir egal. Ob er in einem Jahr noch hält, nicht.")
+    text_ausgeben(
+        "[Ahrens] Die Schutzverwaltung bietet, was sie angeboten hat. Vorräte, "
+        "Posten, Läufer. Die Bedingungen liegen auf dem Tisch. Ich muss sie nicht "
+        "schöner machen, als sie sind."
+    )
+
+    if not daten.get("jonte_gezwungen"):
+        text_ausgeben("Sanna liest einen Zettel vor, den ihr ein Läufer gebracht hat: „Ich bin nicht weggelaufen. Jonte.“")
+
+    if macht.get("liste") == "eintrag":
+        text_ausgeben("[Oswin] Ich hab mich nicht eingetragen. Ich hab gehungert, damit ich das sagen kann.")
+    elif macht.get("liste") == "kinder":
+        text_ausgeben("[Bäuerin] Meine Jungen haben gegessen. Danke. Oswin nicht. Das wissen hier alle.")
+
+    if "kiran" in macht.get("laeufer", []):
+        text_ausgeben(
+            "[Sanna] Mein Bruder läuft, weil sein Name auf einem Blatt steht. Er "
+            "wäre auch so gelaufen. Das hat keiner abgewartet."
+        )
+    elif "jungen" in macht.get("laeufer", []):
+        text_ausgeben("[Bäuerin] Fragen Sie meine Jungen, wie freiwillig das war.")
+
+    if macht.get("zugaenge") == "sperren":
+        text_ausgeben("[Hannes] Am Wegweiser hat einer meine Schwägerin zurückgeschickt. Sie hatte Brot dabei.")
+
+    while True:
+        menue_trenner()
+        print()
+        optionen = [("gemeinsam", "Die Versammlung entscheiden lassen")]
+
+        if daten.get("vollmacht"):
+            optionen.append(("zentral", "Die Vollmacht auf den Brunnenrand legen"))
+
+        optionen.append(("vertagen", "„Noch nicht.“"))
+
+        for nummer, (_, text) in enumerate(optionen, start=1):
+            print(f"{nummer}. {text}")
+
+        wahl = optionen[eingabe_menu(1, len(optionen), sonder_tasten=()) - 1][0]
+        print()
+
+        if wahl == "vertagen":
+            text_ausgeben("Sanna nickt. Die Versammlung geht auseinander. Sie kann jederzeit neu einberufen werden.")
+            warte_auf_taste("Zurück")
+            return
+
+        if wahl == "zentral":
+            text_ausgeben("Bevor du es tust, sagt Ahrens leise, sodass nur du es hörst:")
+            text_ausgeben(
+                "[Ahrens] Wenn Sie das hinlegen, gilt Hallers Ordnung, egal, was "
+                "die hier sagen. Sanna wird nicht still sein. Einige werden gehen. "
+                "Ein paar werden Ihnen das nie verzeihen. Sie werden trotzdem satt."
+            )
+            menue_trenner()
+            print()
+            print("1. Die Vollmacht hinlegen")
+            print("2. Noch nicht")
+
+            if eingabe_menu(1, 2, sonder_tasten=()) == 2:
+                continue
+
+            print()
+            text_ausgeben("Du legst das Blatt auf den Rand. Das Siegel ist nach oben.")
+            text_ausgeben("Eine Weile sieht niemand hin.")
+            text_ausgeben("[Sanna] Dann ist das jetzt Ihr Brunnen.")
+            text_ausgeben(
+                "Sie geht. Ein paar folgen ihr ins Läuferhaus. Die meisten bleiben "
+                "stehen, weil sie nicht wissen, wohin sonst."
+            )
+            text_ausgeben("[Ahrens] Ab morgen gilt die Zuteilung. Der Posten am Steg ist besetzt.")
+            daten["ordnung"] = "zentral"
+            daten["staerke"] = None
+            daten["sanna_haltung"] = "bruch"
+            break
+
+        text_ausgeben("Sanna fragt nicht nach Händen. Sie fragt jeden einzeln, und wer antwortet, sagt es laut.")
+        text_ausgeben("Es dauert bis in die Nacht.")
+        daten["ordnung"] = "gemeinsam"
+        daten["staerke"] = brunnfeld_staerke()
+
+        if daten["staerke"] == "tragfaehig":
+            text_ausgeben(
+                "[Sanna] Brunnfeld hält seinen Weg selbst. Wer hilft, ist willkommen. "
+                "Wer bestimmen will, kann zu Hause bleiben."
+            )
+            text_ausgeben("Ahrens nickt. Er packt das gesiegelte Blatt in seine Mappe und schließt sie.")
+            text_ausgeben("[Ahrens] Ich richte es aus. Er wird „vorläufig“ dazuschreiben.")
+        else:
+            text_ausgeben(
+                "[Sanna] Brunnfeld hält seinen Weg selbst. Nicht alles ist fertig. Wir "
+                "haben noch nicht genug Menschen, nicht genug Vorräte, und manches "
+                "hält nur, solange einer danach sieht."
+            )
+            text_ausgeben("[Sanna] Wir wissen, was uns fehlt. Wir machen es trotzdem.")
+            text_ausgeben("[Oswin] Na. Das ist ehrlich.")
+
+        if daten.get("vollmacht"):
+            # Wechsel: Sperren und Verpflichtungen enden, Anordnungen bleiben gespeichert.
+            daten["wechsel"] = True
+            text_ausgeben("Du legst das gesiegelte Blatt Ahrens in die Hand, nicht auf den Brunnenrand.")
+
+        daten["sanna_haltung"] = "vertrauen"
+        break
+
+    daten["versammlung"] = True
+    seite_wechseln(titel)
+    brunnfeld_rueckkehr_n1()
+    spieler["quest_brunnfeld"] = "abgeschlossen"
+    quest_meldung("abgeschlossen", "Der Weg nach Hause", brunnfeld_abschluss_text())
+    warte_auf_taste("Weiter")
+
+
+def brunnfeld_rueckkehr_n1():
+    # N1: Die Rückkehr der Brunnfelder.
+    daten = kapitel9_daten()
+
+    if not daten.get("rueckkehr"):
+        text_ausgeben(
+            "Nur ein paar aus dem Lager kommen, später als die anderen, ohne "
+            "Läufer. Sie haben sich den Weg von denen beschreiben lassen, die "
+            "schon dort waren, und zweimal an der Gabelung gestanden. Der Rest "
+            "wartet in Oros, bis jemand die Rückkehr ordnet."
+        )
+        return
+
+    if daten.get("ordnung") == "zentral":
+        text_ausgeben(
+            "Die Rückkehrer stehen am Wegweiser Schlange. Der Schreiber trägt "
+            "jeden ein. Es geht schneller als früher, weil nicht mehr gezählt "
+            "wird, sondern geschrieben."
+        )
+
+        if daten.get("jonte_gezwungen"):
+            text_ausgeben("Jonte geht ganz hinten. Er sieht dich nicht an, als er an dir vorbeikommt.")
+        return
+
+    text_ausgeben(
+        "Die zweite Gruppe aus dem Lager kommt mit einem Läufer vorn und einem "
+        "hinten. Der Karren hat jetzt ein Zugtier, das Raban gegen zwei Rollen "
+        "Seil geliehen hat."
+    )
+
+    if daten.get("berit") == "oros":
+        text_ausgeben("Berit, die in Oros geblieben ist, ist nicht dabei. Die Zeichnung schon. Sie hat sie ihrer Schwester mitgeschickt.")
+
+
+def brunnfeld_nachspiel_optionen():
+    if brunnfeld_status() != "abgeschlossen" or kapitel9_wert("ordnung") != "gemeinsam":
+        return []
+
+    return [("Bei Sanna im Läuferhaus handeln", brunnfeld_handel)]
+
+
+def brunnfeld_handel():
+    haendler_kaufen(
+        "Brunnfeld - Läuferhaus",
+        "[Sanna] Seil, Brot. Mehr haben wir nicht übrig. Aber was wir haben, ist gut.",
+        {"brot": {"preis": 5}, "seil": {"preis": 7}}
+    )
+
+
+def laeuferpfad_rast(reise_daten):
+    # Gemeinsame Ordnung: Rast im Unterstand und Proviant, einmal je Reise.
+    if reise_daten.get("unterstand_rast"):
+        return
+
+    reise_daten["unterstand_rast"] = True
+    ort_titel("Läuferpfad - Der Unterstand der Läufer")
+    text_ausgeben("Im Unterstand brennt ein kleines Feuer. Jemand hat Holz nachgelegt.")
+
+    if kapitel9_wert("staerke") == "tragfaehig":
+        text_ausgeben("Ein Läufer hält kurz am Unterstand. Er drückt dir ein Brot in die Hand und geht weiter.")
+        item_hinzufuegen("brot", 1)
+
+    menue_trenner()
+    print()
+    print("1. Im Unterstand rasten (volle Erholung)")
+    print("2. Weitergehen")
+
+    if eingabe_menu(1, 2, sonder_tasten=()) == 1:
+        spieler["lebenspunkte"] = 100
+        text_ausgeben("Du ruhst dich am Feuer aus, bis die Glieder nicht mehr schwer sind.")
+
+    warte_auf_taste("Weiterreisen")
+
+
+def brunnfeld_haller_danach():
+    # N3: Haller nach der Versammlung.
+    ort_titel("Universität von Oros - Amtsstube der Schutzverwaltung")
+    daten = kapitel9_daten()
+    daten["haller_danach"] = True
+
+    if daten.get("ordnung") == "zentral":
+        text_ausgeben("[Haller] Brunnfeld ist versorgt, die Strecke ist gesichert, der Posten meldet jeden Tag.")
+
+        if not daten.get("gold_erhalten"):
+            daten["gold_erhalten"] = True
+            spieler["gold"] += 60
+            text_ausgeben("Er schiebt dir einen Beutel über den Tisch.")
+            text_ausgeben(
+                "[Haller] Für Ihre Auslagen. Ich weiß, dass Sie es nicht dafür "
+                "getan haben. Nehmen Sie es trotzdem, dann muss ich es nicht wieder "
+                "eintragen."
+            )
+            design_text("60 Gold erhalten", design="positiv", art="menue")
+
+        if daten.get("anerkennung") == "eigenstaendig":
+            daten["anerkennung"] = "mit_aufsicht"
+            text_ausgeben(
+                "[Haller] Der eigenständige Eintrag ist damit hinfällig. Ich habe "
+                "„Aufsicht“ dazugeschrieben. Die Rationen bleiben."
+            )
+
+        warte_auf_taste("Zurück")
+        return
+
+    if daten.get("anerkennung") == "eigenstaendig":
+        text_ausgeben("[Haller] Brunnfeld. Verzeichnet, eigenständig, vorläufig.")
+    else:
+        text_ausgeben(
+            "[Haller] Brunnfeld hat sich entschieden, ohne die Schutzverwaltung. "
+            "Gut. Dann steht es weiter nicht in meinem Verzeichnis, und die Leute "
+            "aus Brunnfeld in Oros bleiben ungeklärt."
+        )
+        text_ausgeben(
+            "[Haller] Ich sage das nicht als Drohung. Ich habe keine Spalte für "
+            "einen Ort, der sich selbst verwaltet und mir keine Liste gibt. "
+            "Bringen Sie mir eine, und ich finde eine."
+        )
+
+    text_ausgeben(
+        "[Haller] Ich hätte es anders gemacht. Ich hätte es schneller gemacht. Ob "
+        "ich es besser gemacht hätte, werden wir sehen."
+    )
+    warte_auf_taste("Zurück")
+
+
+BRUNNFELD_EICHENRUH_SAETZE = {
+    "bjorn": "[Bjorn] Der Mann vom Steg hat mir ein Seil geschickt. Ohne Brief. Ich nehm an, das heißt danke.",
+    "hilda": "[Hilda] Die Lieferung ist angekommen. Ich hab's jetzt ins Buch geschrieben.",
+    "mara": "[Mara] Der alte Mann sitzt wieder jeden Morgen am Brunnen. Hat mir eine der Frauen ausrichten lassen."
+}
+
+
+def brunnfeld_eichenruh_satz(npc):
+    # N4: je ein Satz in Eichenruh, wenn die Person geholfen hat.
+    daten = spieler.get("kapitel9")
+
+    if (
+        not isinstance(daten, dict)
+        or brunnfeld_status() != "abgeschlossen"
+        or npc not in daten.get("eichenruh", [])
+        or npc in daten.get("eichenruh_dank", [])
+        or npc not in BRUNNFELD_EICHENRUH_SAETZE
+    ):
+        return
+
+    daten.setdefault("eichenruh_dank", []).append(npc)
+    text_ausgeben(BRUNNFELD_EICHENRUH_SAETZE[npc])
+
+
+def brunnfeld_ried_jagd():
+    # Jagdgebiet im Ried nach dem Muster der Felsterrassen. Hier jagt man
+    # Schlickbeißer gezielt; nach mehr als zwei Jagden kann Schwarzgeweih kommen.
+    titel = "Brunnfeld - Das Ried"
+
+    if not kapitel9_wert("ried_eingefuehrt", False):
+        ort_titel(titel)
+        text_ausgeben(
+            "Hinter den Feldern beginnt das Ried. Zwischen den Halmen steht "
+            "braunes Wasser, und an manchen Stellen bewegt es sich, ohne dass "
+            "Wind geht."
+        )
+        kapitel9_daten()["ried_eingefuehrt"] = True
+        warte_auf_taste("Weiter")
+
+    while spieler.get("spiel_laeuft", True):
+        ort_titel(titel)
+        lebenspunkte = spieler["lebenspunkte"]
+        print(f"Lebenspunkte: {lebenspunkte}/100")
+
+        if lebenspunkte <= 35:
+            design_text(
+                "Du bist schwer verletzt. Eine Jagd ist jetzt besonders "
+                "gefährlich. Öffne das Inventar, um dich zu versorgen, "
+                "oder kehre nach Brunnfeld zurück.",
+                design="warnung",
+                art="menue"
+            )
+
+        faehrten_revierhinweis("ried")
+        print()
+        print("1. Den Spuren im Schlamm folgen - Schlickbeißer [1 Schritt]")
+        print("2. Inventar öffnen")
+        print("3. Zurück nach Brunnfeld")
+        print()
+        print("[Schritt]: Blutung, Gift und Mahlzeit-Wirkungen laufen dabei einen Schritt weiter.")
+
+        auswahl = eingabe_menu(1, 3, sonder_tasten=())
+
+        if auswahl == 3:
+            return
+
+        if auswahl == 2:
+            inventar()
+            continue
+
+        if not spieler.get("waffe"):
+            design_text(
+                "Rüste im Inventar eine Waffe aus, bevor du jagst.",
+                design="warnung",
+                art="menue"
+            )
+            warte_auf_taste("Zurück")
+            continue
+
+        if not status_schritte_abschliessen():
+            return
+
+        gegner_typ = revierherr_pruefen("ried", "Schlickbeißer")
+
+        if gegner_typ is None:
+            continue
+
+        print()
+
+        if gegner_typ == "Schwarzgeweih":
+            text_ausgeben(
+                "Schwarzgeweih tritt aus den Bäumen. Der Boden unter ihm gibt "
+                "nach, und es kümmert ihn nicht."
+            )
+        else:
+            text_ausgeben(
+                "Das Wasser vor dir hebt sich. Ein Schlickbeißer schiebt sich "
+                "aus dem Schlamm, flach und schwer."
+            )
+
+        print()
+
+        kampf_ergebnis = kampf_starten(
+            lebenspunkte=spieler["lebenspunkte"],
+            heiltraenke=spieler["heiltränke"],
+            waffe=spieler["waffe"],
+            gegner_typ=gegner_typ,
+            kampf_situation={
+                "gebiet": "Wald",
+                "umgebung": "Offener Weg",
+                "tageszeit": spieler.get("tageszeit", "Tag"),
+                "wetter": spieler.get("wetter", "Klar")
+            }
+        )
+
+        spieler["lebenspunkte"] = kampf_ergebnis["lebenspunkte"]
+        spieler["heiltränke"] = kampf_ergebnis["heiltraenke"]
+
+        if kampf_ergebnis.get("gewonnen", False):
+            spieler["besiegte_gegner"] += 1
+            print()
+            print("-" * 34)
+            design_text(
+                "JAGD ERFOLGREICH",
+                design="positiv",
+                art="ereignis"
+            )
+            spieler["gold"] = kampf_beute_vergeben(
+                gegner_typ,
+                spieler["gold"],
+                jaeger_jagd=True
+            )
+            print()
+            print(f"Lebenspunkte: {spieler['lebenspunkte']}")
+            print("-" * 34)
+            warte_auf_taste("Ins Ried")
+
+        elif kampf_ergebnis.get("besiegt", False):
+            print()
+            design_text(
+                "Game Over",
+                design="gefahr",
+                art="menue"
+            )
+            spieler["spiel_laeuft"] = False
+            return
+
+        elif kampf_ergebnis.get("geflohen", False):
+            print()
+            text_ausgeben(
+                "Du brichst die Jagd ab und gehst zurück nach Brunnfeld.",
+                art="menue"
+            )
+            warte_auf_taste("Nach Brunnfeld")
+            return
+
+
+def brunnfeld_leeres_haus():
+    titel = "Brunnfeld - Das leere Haus"
+    ort_titel(titel)
+
+    if kapitel9_wert("leeres_haus_gesehen", False):
+        text_ausgeben(
+            "Staub liegt auf allem, gleichmäßig. Nichts scheint sich seit deinem "
+            "letzten Besuch verändert zu haben."
+        )
+        warte_auf_taste("Zurück")
+        return
+
+    # F6: Das leere Haus, ohne Auflösung in Kapitel 9.
+    text_ausgeben(
+        "Am Weg zu den Feldern steht ein Haus mit zwei Fenstern und einem Baum "
+        "davor. Die Tür ist nicht verschlossen. Drinnen ist alles da: Tisch, "
+        "Bank, ein Bett mit Decke, ein Kessel über der kalten Feuerstelle. Staub "
+        "liegt auf allem, gleichmäßig."
+    )
+
+    if "karren" in kapitel9_wert("b1", []):
+        text_ausgeben(
+            "Du kennst das Haus. Zwei Fenster, ein Baum davor. Die Zeichnung auf "
+            "Berits Karren."
+        )
+
+    text_ausgeben("Du fragst die Kinder am Brunnen, wem es gehört.")
+    text_ausgeben("[Kind] Das ist doch …")
+    text_ausgeben(
+        "Das Kind hört mitten im Satz auf und sieht das größere an. Das größere "
+        "zuckt die Schultern."
+    )
+    text_ausgeben("[Kind] Das war schon immer leer.")
+    text_ausgeben(
+        "Oswin, den du später fragst, sagt dasselbe und runzelt dabei die Stirn, "
+        "als hätte er beim Sprechen etwas verschluckt."
+    )
+    kapitel9_daten()["leeres_haus_gesehen"] = True
+    warte_auf_taste("Zurück")
+
+
+# ---------- L: Die Befreiung (Kapitel 9, optional) ----------
+
+def befreiung_wer():
+    # Nur nach dem Zwangsweg von Kapitel 8: "kiran" oder "marit". Nur lesen.
+    bindung = archiv_bindung()
+
+    if bindung.get("art") != "zwang":
+        return None
+
+    return bindung.get("wer")
+
+
+def befreiung_status():
+    return kapitel9_wert("befreiung")
+
+
+def befreiung_name():
+    return "Kiran" if befreiung_wer() == "kiran" else "Marit"
+
+
+def befreiung_offen():
+    # Noch gebunden: nach K3 (Kiran) bzw. nach H1 (Marit), auch nach der
+    # Versammlung und unabhängig vom Questabschluss.
+    if not archiv_bindung().get("aktiv"):
+        return False
+    if befreiung_wer() == "kiran":
+        return kapitel9_wert("kiran_sanna") == "weiss_von_der_kante"
+    if befreiung_wer() == "marit":
+        return brunnfeld_status() in ("ahrens", "aufgaben", "abgeschlossen")
+
+    return False
+
+
+def befreiung_amboss_aktiv():
+    # L1: öffnet die Amboss-Suche aus Kapitel 8 wieder. Die Frist zählt dabei
+    # nicht, sie läuft nur bei freiwilliger Bindung.
+    return befreiung_status() == "amboss" and not kapitel8_wert("amboss_eingebunden")
+
+
+def befreiung_ziel():
+    status = befreiung_status()
+
+    if status == "amboss":
+        if kapitel8_wert("schmiede_gefunden"):
+            return "Finde den Weg, auf dem der Klang damals zur Kante ging."
+
+        return "Finde den anderen Gegenpunkt im Verlassenen Dorf."
+
+    if status == "person":
+        if befreiung_wer() == "kiran":
+            if kapitel9_wert("sanna_mit"):
+                return "Geh mit Sanna zu Kiran an die Kante."
+
+            return "Hol Sanna im Läuferhaus von Brunnfeld."
+
+        if kapitel9_wert("marit_stein"):
+            return "Bring Marit den Stein an die Kante."
+
+        return "Sieh im Notlager nach, wo Marit ihre Steine hatte."
+
+    return {
+        "finch": "Löse die erzwungene Eintragung (Finch).",
+        "messung": "Geh zur Kante über der Senke. Finch misst dort nach.",
+        "widerspruch": "Schreib an der Kante den Widerspruch neben den Namen."
+    }.get(status, "")
+
+
+def befreiung_ziel_setzen(status):
+    neu = befreiung_status() is None
+    kapitel9_daten()["befreiung"] = status
+
+    quest_meldung(
+        "neu" if neu else "update",
+        "Eigenhändig",
+        befreiung_ziel()
+    )
+
+    warte_auf_taste("Weiter")
+
+
+def befreiung_questlog():
+    status = befreiung_status()
+
+    if status is None:
+        return False
+
+    menue_trenner()
+    design_text("Eigenhändig", design="wichtig", art="menue")
+
+    if status == "frei":
+        design_text("[ABGESCHLOSSEN]", design="quest_abgeschlossen", art="menue")
+
+        if befreiung_wer() == "kiran":
+            print(
+                "Kiran hat seinen Namen im Verzeichnis eigenhändig gestrichen. "
+                "Er lebt in Brunnfeld."
+            )
+        else:
+            print("Marit hat ihren Namen im Verzeichnis eigenhändig gestrichen.")
+
+        return True
+
+    print(f"Ziel: {befreiung_ziel()}")
+    return True
+
+
+def befreiung_abschliessen():
+    # kiran_kapitel8 bzw. kapitel8.marit bleiben als Verlauf "gebunden_zwang".
+    bindung = kapitel8_daten()["bindung"]
+    bindung["aktiv"] = False
+    bindung["freigabe"] = "widerspruch"
+    kapitel9_daten()["befreiung"] = "frei"
+    quest_meldung("abgeschlossen", "Eigenhändig")
+    warte_auf_taste("Weiter")
+
+
+# L1: Finch in den Forschungsräumen, danach die Messung an der Kante.
+
+def befreiung_finch_offen():
+    return befreiung_offen() and befreiung_status() in (None, "finch")
+
+
+def befreiung_finch():
+    ort_titel("Universität von Oros - Forschungsräume")
+
+    if kapitel8_wert("amboss_eingebunden"):
+        befreiung_ziel_setzen("messung")
+        return
+
+    text_ausgeben(
+        "[Finch] Solange der Gegenpunkt an der Kante nur durch "
+        + ("ihn" if befreiung_wer() == "kiran" else "sie")
+        + " hält, ist jedes Streichen ein Loch im Weg. Erst muss der Ort "
+        "selbst tragen."
+    )
+    text_ausgeben(
+        "[Finch] Bertram Kolbs Bericht beschreibt, wo Sie suchen müssen. Die "
+        "Aufzeichnungen liegen im Archiv."
+    )
+    befreiung_ziel_setzen("amboss")
+
+
+def befreiung_messung():
+    titel = "Rand der Senke"
+    ort_titel(titel)
+
+    text_ausgeben(
+        "Finch legt die Peilscheibe auf den Gegenpunkt und misst. Siebzehn."
+    )
+    text_ausgeben(
+        "Er prüft die Ausrichtung, nimmt die Scheibe herunter und setzt sie neu "
+        "an. Wieder siebzehn."
+    )
+    text_ausgeben(
+        "[Finch] Der Amboss trägt. Die Dorfseite hält auch ohne den Menschen, "
+        "der hier eingetragen wurde."
+    )
+    text_ausgeben("[Finch] Jetzt bleibt noch das Verzeichnis.")
+    seite_wechseln(titel)
+    befreiung_schutzordnung(titel)
+
+
+# L2: Die Regel über den Widerspruch, gleich nach der Messung an der Kante (E7).
+
+def befreiung_schutzordnung(titel):
+    kiran = befreiung_wer() == "kiran"
+
+    text_ausgeben(
+        "Finch holt seine Abschrift der Schutzordnung aus der Tasche und schlägt "
+        "sie auf dem Stein neben dem Gegenpunkt auf."
+    )
+    text_ausgeben(
+        "[Finch] Bei Teja Lang steht im Ankerbuch „von fremder Hand "
+        "gestrichen“. Die Bindung blieb ungeklärt. Vielleicht wollte jemand "
+        "Teja Lang befreien. Vielleicht wollte jemand nur den Eintrag "
+        "verschwinden lassen. Die Aufzeichnungen sagen es nicht."
+    )
+    text_ausgeben("[Finch] Aber ich habe gesucht, wie es vorgesehen war. Hier.")
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Er schiebt dir die Seite hin. Ein kurzer Absatz, in der engen Schrift "
+        "der Verwalter:"
+    )
+    text_ausgeben(
+        "„Wer ohne eigene Zustimmung verzeichnet wurde, ist an den Ort "
+        "gebunden, nicht an die Zahl der Wege. Er kann sich nicht entlassen, "
+        "solange nicht neben seinem Namen der Widerspruch steht, gezeichnet von "
+        "dem, der die Verzeichnung veranlasst oder über sie entschieden hat. "
+        "Danach liegt die Entlassung bei ihm selbst.“"
+    )
+
+    if kiran:
+        text_ausgeben(
+            "[Finch] Deshalb biegt der Weg ihn zurück. Er hat keine Zahl. Er "
+            "hat nur einen Namen und kein Ende."
+        )
+    else:
+        text_ausgeben(
+            "[Finch] Deshalb biegt der Weg sie zurück. Sie hat keine Zahl. Sie "
+            "hat nur einen Namen und kein Ende."
+        )
+
+    text_ausgeben(
+        "[Finch] Veranlasst hat es Herr Haller. Entschieden haben Sie. Einer "
+        "von Ihnen beiden reicht."
+    )
+    text_ausgeben(
+        "[Finch] Und dann muss "
+        + ("er" if kiran else "sie")
+        + " es selbst wollen. Die Unterschrift öffnet nur die Tür."
+    )
+    befreiung_ziel_setzen("widerspruch")
+
+
+def befreiung_haller_offen():
+    return (
+        befreiung_offen()
+        and befreiung_status() == "widerspruch"
+        and not kapitel9_wert("haller_widerspruch", False)
+    )
+
+
+def befreiung_haller():
+    ort_titel("Universität von Oros - Amtsstube der Schutzverwaltung")
+    text_ausgeben(
+        "[Haller] Ich unterschreibe nicht, dass mein Verfahren falsch war. Es "
+        "war nicht falsch. Es war teuer."
+    )
+    text_ausgeben(
+        "[Haller] Wenn Sie unterschreiben wollen, halte ich Sie nicht auf."
+    )
+    kapitel9_daten()["haller_widerspruch"] = True
+    warte_auf_taste("Zurück")
+
+
+def befreiung_widerspruch():
+    titel = "Rand der Senke"
+    kiran = befreiung_wer() == "kiran"
+    ort_titel(titel)
+
+    text_ausgeben("Du schlägst das Verzeichnis in der Nische auf.")
+    text_ausgeben(
+        f"Da steht der Name. „{befreiung_name()}. Kein Datum.“ In der Schrift "
+        "von Ahrens' Schreiber, ordentlich und fremd."
+    )
+    text_ausgeben(
+        "Du schreibst daneben: „Ohne "
+        + ("seine" if kiran else "ihre")
+        + " Zustimmung eingetragen. Ich habe die Entscheidung getroffen und "
+        "trage die Verantwortung dafür.“ Darunter deinen Namen."
+    )
+
+    if kiran and kapitel9_wert("sanna_mit", False):
+        text_ausgeben("Sanna sieht dir dabei zu. Sie sagt nichts.")
+
+    kapitel9_daten()["widerspruch"] = True
+    befreiung_ziel_setzen("person")
+
+
+# L3: Kiran, mit Sanna.
+
+def befreiung_sanna_offen():
+    return (
+        befreiung_wer() == "kiran"
+        and befreiung_offen()
+        and not kapitel9_wert("sanna_mit", False)
+    )
+
+
+def befreiung_sanna_ruft():
+    return befreiung_sanna_offen() and befreiung_status() == "person"
+
+
+def befreiung_sanna():
+    ort_titel("Brunnfeld - Läuferhaus")
+    text_ausgeben(
+        "Sanna sieht auf, als du in der Tür stehst, und weiß, warum du kommst."
+    )
+    text_ausgeben(
+        "Sie schreibt den Satz zu Ende, klappt das Läuferbuch zu und nimmt ihre "
+        "Jacke vom Haken."
+    )
+    text_ausgeben("[Sanna] Gehen wir.")
+    kapitel9_daten()["sanna_mit"] = True
+    design_text("Sanna geht mit dir zur Kante.", design="positiv", art="menue")
+
+    if befreiung_status() == "person":
+        befreiung_ziel_setzen("person")
+    else:
+        warte_auf_taste("Weiter")
+
+
+def befreiung_kiran():
+    titel = "Rand der Senke"
+    daten = kapitel9_daten()
+    ort_titel(titel)
+
+    if not daten.get("sanna_gezaehlt"):
+        daten["sanna_gezaehlt"] = True
+        text_ausgeben(
+            "Kiran sitzt auf dem Stein neben dem Gegenpunkt. Er hat abgenommen. "
+            "Als ihr kommt, steht er auf, aus Höflichkeit, wie man für Fremde "
+            "aufsteht."
+        )
+        text_ausgeben("[Kiran] Weg … ist hier. Ich weiß. Ich soll … bleiben.")
+
+        seite_wechseln(titel)
+
+        text_ausgeben(
+            "Sanna setzt sich neben ihn auf den Boden. Sie fängt an zu zählen, "
+            "leise. Vom Steg aus."
+        )
+        text_ausgeben("[Sanna] Eins. Zwei. Drei.")
+        text_ausgeben("Bei hundert tippt sie mit dem Daumen gegen den Zeigefinger.")
+        text_ausgeben("Kiran sieht auf ihre Hand. Bei zweihundert tippt er mit.")
+
+        seite_wechseln(titel)
+
+        text_ausgeben(
+            "[Sanna] Als ich klein war, hast du mich mal mitgenommen. Bis zum "
+            "Wegweiser. Ich durfte eine Kerbe machen. Unter deine."
+        )
+        text_ausgeben(
+            "[Sanna] Dein Messer hat schief geschnitten. Ich war wütend auf "
+            "dich, wochenlang."
+        )
+        text_ausgeben("[Kiran] Klein. Unten.")
+        text_ausgeben("[Kiran] Die ist … nicht von mir.")
+        text_ausgeben("[Sanna] Nein. Von mir.")
+    else:
+        text_ausgeben(
+            "Kiran sitzt auf dem Stein neben dem Gegenpunkt. Sanna setzt sich "
+            "wieder neben ihn auf den Boden. Diesmal zählt sie nicht."
+        )
+
+    if not daten.get("widerspruch"):
+        print()
+        text_ausgeben(
+            "Kiran steht auf. Er geht fünf Schritte, sechs. Dann biegt der Weg "
+            "unter seinen Füßen, sanft, und führt ihn zurück."
+        )
+        text_ausgeben("Sanna sieht dich an.")
+
+        if befreiung_status() is None:
+            befreiung_ziel_setzen("finch")
+        else:
+            warte_auf_taste("Weiter")
+
+        return
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Kiran sieht zur Nische. Neben seinem Namen steht jetzt der Widerspruch, "
+        "darunter dein Name."
+    )
+    text_ausgeben(
+        "[Sanna] Da steht, dass es nicht deine Entscheidung war. Jetzt ist es "
+        "eine."
+    )
+    text_ausgeben("[Kiran] Meine.")
+    text_ausgeben(
+        "Er geht zur Nische, kniet sich hin und nimmt die Feder. Sanna rührt sie "
+        "nicht an. Du auch nicht."
+    )
+    text_ausgeben(
+        "Er braucht lange. Dann ist sein Name durchgestrichen, mit einem "
+        "schiefen Strich, und daneben steht, in Buchstaben, die er sich einzeln "
+        "zusammensucht: „eigenhändig“."
+    )
+    text_ausgeben("Finch misst. Siebzehn.")
+    wm_erlebnis(
+        "wm_anker_name",
+        "Du siehst auf den schiefen Strich. Ein Name lässt sich halten. Auch der eigene."
+    )
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Kiran steht auf. Er geht fünf Schritte, sechs, zehn. Der Weg biegt "
+        "nicht."
+    )
+    text_ausgeben(
+        "Er bleibt stehen und sieht zurück, als müsse er nachzählen, wie weit "
+        "er ist."
+    )
+    text_ausgeben("[Kiran] Ich … kann gehen.")
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Auf dem Rückweg geht Kiran neben Sanna, nicht neben dir. Er zählt "
+        "nicht. Er spricht wenig, und manche Wörter fehlen ihm, wo sie früher "
+        "waren."
+    )
+    text_ausgeben("Am Tor bleibt er kurz bei dir stehen.")
+    text_ausgeben("[Kiran] Du warst … dabei. Damals.")
+    text_ausgeben("[Kiran] Und jetzt auch.")
+    text_ausgeben(
+        "Er sagt nicht, was davon schwerer wiegt. Dann geht er weiter."
+    )
+
+    daten["kiran_befreit"] = True
+    daten.pop("sanna_mit", None)
+    befreiung_abschliessen()
+
+
+# L4: Marit, mit einem Stein aus ihrer Sammlung.
+
+def befreiung_stein_offen():
+    return (
+        befreiung_wer() == "marit"
+        and befreiung_offen()
+        and befreiung_status() is not None
+        and not kapitel9_wert("marit_stein", False)
+    )
+
+
+def befreiung_stein():
+    ort_titel("Universität von Oros - Zentrale Halle")
+    text_ausgeben(
+        "Die Steine liegen noch da, in Reihen, nach Größe. Jemand hat sie nicht "
+        "weggeräumt."
+    )
+    text_ausgeben("Ein Mann auf der Decke daneben sieht dir zu.")
+    text_ausgeben(
+        "[Mann im Notlager] Die hat sie nie in eine Reihe gelegt. Den da. Hat "
+        "ihn immer wieder in die Hand genommen und wieder hingelegt."
+    )
+    text_ausgeben(
+        "Ein flacher, grauer Pflasterstein mit einer runden Delle in der Mitte, "
+        "wie ausgetreten."
+    )
+    text_ausgeben("Du steckst ihn ein.")
+    kapitel9_daten()["marit_stein"] = True
+
+    if befreiung_status() == "person":
+        befreiung_ziel_setzen("person")
+    else:
+        warte_auf_taste("Weiter")
+
+
+def befreiung_marit():
+    titel = "Rand der Senke"
+    ort_titel(titel)
+
+    text_ausgeben(
+        "Marit klopft gegen den Gegenpunkt, immer an dieselbe Stelle. Sie sieht "
+        "auf, als du kommst, und weiß nicht sicher, wer du bist."
+    )
+    text_ausgeben("[Marit] Sie … von der Universität?")
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Du gibst ihr den Stein. Sie wiegt ihn, dreht ihn, klopft mit dem "
+        "Knöchel dagegen."
+    )
+    text_ausgeben("Sie hört lange hin.")
+    text_ausgeben("[Marit] Ein guter Stein klingt nach dem, worauf er liegt.")
+    text_ausgeben("[Marit] Der hier klingt nach Sand. Nach einem Weg am Fluss.")
+    text_ausgeben("[Marit] Da hab ich gearbeitet, als ich jung war.")
+    text_ausgeben("[Marit] Den Weg gibt es nicht mehr. Den Stein schon.")
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Sie steht auf. Sie geht zur Nische, ohne dass jemand es ihr sagt, und "
+        "streicht ihren Namen. Mit t am Ende, auch beim Durchstreichen "
+        "sorgfältig."
+    )
+    text_ausgeben("Finch misst. Siebzehn.")
+    wm_erlebnis(
+        "wm_anker_name",
+        "Du siehst auf den durchgestrichenen Namen. Ein Name lässt sich halten. "
+        "Auch der eigene."
+    )
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "[Marit] Ich hab Wege vergessen, die ich gebaut hab. Ganze Wege. Ich "
+        "weiß, dass es sie gab, weil ich die Steine hab."
+    )
+    text_ausgeben(
+        "[Marit] Und Sie haben dabeigestanden, als der Schreiber meinen Namen "
+        "geschrieben hat. Ohne Datum."
+    )
+    text_ausgeben(
+        "[Marit] Dass Sie jetzt auch dabeistehen, macht das nicht weg. Es macht "
+        "es nur nicht schlimmer."
+    )
+    text_ausgeben(
+        "Sie steckt den Stein in die Schürzentasche und geht, ohne sich "
+        "umzusehen."
+    )
+
+    kapitel9_daten()["marit_befreit"] = True
+    befreiung_abschliessen()
+
+
+def befreiung_kante_punkte():
+    # Szenen der Befreiung an der Kante: (Schlüssel, Text, Funktion). Nur lesen.
+    punkte = []
+    status = befreiung_status()
+
+    if not befreiung_offen():
+        return punkte
+
+    if status == "messung":
+        punkte.append(("b_messung", "Zu Finch an den Gegenpunkt [!]", befreiung_messung))
+    if status == "widerspruch":
+        punkte.append((
+            "b_widerspruch",
+            "Den Widerspruch ins Verzeichnis schreiben [!]",
+            befreiung_widerspruch
+        ))
+    if befreiung_wer() == "kiran" and kapitel9_wert("sanna_mit", False):
+        punkte.append((
+            "b_kiran",
+            "Mit Sanna zu Kiran an den Gegenpunkt"
+            + (" [!]" if status in (None, "person") else ""),
+            befreiung_kiran
+        ))
+    if (
+        befreiung_wer() == "marit"
+        and status == "person"
+        and kapitel9_wert("marit_stein", False)
+    ):
+        punkte.append(("b_marit", "Marit den Stein geben [!]", befreiung_marit))
+
+    return punkte
+
+
+def befreiung_kante_offen():
+    return any(text.endswith("[!]") for _, text, _ in befreiung_kante_punkte())
+
+
+def laeuferpfad_kiran():
+    # Kiran ist nur dabei, wenn er sich in Oros angeschlossen hat.
+    if kapitel9_wert("kiran_dabei", False):
+        return kiran_zustand()
+
+    return None
+
+
+def laeuferpfad_umweg(reise_daten):
+    # Ein Umweg wird an Ort und Stelle gegangen: zwei Schritte mit Status und
+    # Begegnungsprüfung. Der Schrittzähler der Reise bleibt, damit die Etappen
+    # an ihren festen Stellen bleiben (Technikplan Kapitel 9, Beschluss 2).
+    print()
+    text_ausgeben("Du musst ein Stück zurückgehen, bevor du die richtige Spur wiederfindest.")
+    daten = kapitel9_daten()
+    daten["umwege"] = daten.get("umwege", 0) + 1
+
+    for _ in range(2):
+        ressourcen_vorkommen_regenerieren("wald_holz")
+        stollen_regenerieren()
+        frist_handlung(1)
+
+        if not status_schritte_abschliessen():
+            return
+
+        reise_kampfbegegnung_pruefen(reise_daten)
+
+        if not spieler["spiel_laeuft"]:
+            return
+
+
+def laeuferpfad_wahl(optionen):
+    menue_trenner()
+    print()
+
+    for nummer, text in enumerate(optionen, start=1):
+        print(f"{nummer}. {text}")
+
+    auswahl = eingabe_menu(1, len(optionen), sonder_tasten=())
+    print()
+    return optionen[auswahl - 1]
+
+
+def laeuferpfad_etappe(aktion, reise_daten):
+    {
+        "laeuferpfad_wegweiser": laeuferpfad_wegweiser,
+        "laeuferpfad_marken": laeuferpfad_marken,
+        "laeuferpfad_unterstand": laeuferpfad_unterstand,
+        "laeuferpfad_steg": laeuferpfad_steg,
+        "laeuferpfad_jungen": laeuferpfad_jungen,
+        "laeuferpfad_rast": laeuferpfad_rast
+    }[aktion](reise_daten)
+
+
+def laeuferpfad_wegweiser(reise_daten):
+    # P1: Der alte Wegweiser und die Kerben.
+    titel = "Läuferpfad - Der alte Wegweiser"
+    ort_titel(titel)
+    text_ausgeben(
+        "Der Wegweiser steht schief, wie immer. Die Arme zeigen auf Orte, "
+        "deren Namen niemand mehr lesen kann."
+    )
+    text_ausgeben(
+        "Der alte Mann geht einmal um den Pfosten herum, dann noch einmal. Er "
+        "schaut ins Gras, links von der Straße, und schüttelt den Kopf."
+    )
+    text_ausgeben("[Alter Mann] Hier war es. Es sieht nur nicht mehr so aus.")
+    text_ausgeben(
+        "Auf Hüfthöhe sind Kerben im Holz, eine Reihe kurzer, schiefer "
+        "Schnitte, alle von derselben Hand. Darunter, tiefer gesetzt, eine "
+        "einzelne kleinere. Sie ist ungeschickt geschnitten, als hätte jemand "
+        "mit beiden Händen am Messer gedrückt."
+    )
+
+    kiran = laeuferpfad_kiran()
+
+    if kiran == "gehalten":
+        text_ausgeben("Kiran legt den Daumen auf die kleine Kerbe, wie beim letzten Mal.")
+        text_ausgeben("[Kiran] Die ist immer noch nicht von mir.")
+
+    folgen = "Dem alten Mann folgen"
+    zahlen = "Kirans Zahlen nachgehen"
+    boden = "Den Boden absuchen"
+    optionen = [folgen]
+
+    if kiran or kapitel9_wert("heft") in ("mitgenommen", "abgeschrieben"):
+        optionen.append(zahlen)
+
+    optionen.append(boden)
+    wahl = laeuferpfad_wahl(optionen)
+
+    if wahl == zahlen:
+        text_ausgeben(
+            "Die Zeile nach dem Wegweiser beginnt mit „Wegweiser – Steg: 3…“. "
+            "Bei den Läufern fängt eine Strecke immer an einer Marke an, und "
+            "die erste steht in Sichtweite."
+        )
+        text_ausgeben(
+            "Du suchst vom Pfosten aus nach einem Stein, der nicht zufällig "
+            "daliegt. Hinter einem Holunderbusch, links der Straße, findest du "
+            "ihn: kniehoch, mit drei Kerben zur Wiese hin."
+        )
+        warte_auf_taste("Weiterreisen")
+        return
+
+    if wahl == boden:
+        if spieler_pruefung("wahrnehmung", 3):
+            text_ausgeben(
+                "Eine Linie im Gras, die niemand mäht. Das Gras darauf ist "
+                "kürzer und heller als ringsum."
+            )
+            warte_auf_taste("Weiterreisen")
+            return
+
+        text_ausgeben("Das Gras sieht überall gleich aus.")
+
+    text_ausgeben(
+        "Er geht los, bleibt stehen, geht ein Stück zurück und dann schräg ins "
+        "Gras. Nach vierzig Schritten wird der Boden unter dem Gras fester."
+    )
+    text_ausgeben("[Alter Mann] Die Füße wissen es. Der Kopf nicht.")
+    laeuferpfad_umweg(reise_daten)
+    warte_auf_taste("Weiterreisen")
+
+
+def laeuferpfad_marken(reise_daten):
+    # P2: Die Läufermarken.
+    ort_titel("Läuferpfad - Die Läufermarken")
+    text_ausgeben(
+        "Hinter dem Abzweig beginnt ein Pfad, der kaum einer ist. Zwischen "
+        "Birken und Felsbrocken findest du die erste Marke: ein Stein, so hoch "
+        "wie ein Kind, mit Kerben an der Seite, die zum Weg zeigt."
+    )
+    text_ausgeben(
+        "[Alter Mann] Die Läufer haben hier draußen nicht die Schritte gezählt. "
+        "Zu weit. Sie haben die Marken gezählt."
+    )
+    text_ausgeben(
+        "Die nächste Marke steht am Fuß eines Hangs. Ihre Kerben zeigen nach "
+        "rechts, bergauf. Der alte Mann sieht nach links, wo das Gelände "
+        "flacher wird und in Schilf übergeht."
+    )
+
+    kiran = laeuferpfad_kiran()
+    marke = "Der Marke folgen"
+    mann = "Dem alten Mann folgen"
+    fragen = "Kiran fragen"
+    wahl = laeuferpfad_wahl([marke, mann] + ([fragen] if kiran else []))
+
+    if wahl == marke:
+        text_ausgeben(
+            "Der Hang wird steiler, der Pfad hört auf. Oben liegt eine zweite "
+            "Marke umgestürzt im Moos. Die Kerben zeigen in den Himmel."
+        )
+        text_ausgeben("Du gehst zurück zur Gabelung.")
+        laeuferpfad_umweg(reise_daten)
+
+        if not spieler["spiel_laeuft"]:
+            return
+
+    if wahl == fragen and kiran == "gehalten":
+        text_ausgeben("Kiran sieht die Marke lange an. Dann zählt er die Kerben, nicht die Schritte.")
+        text_ausgeben("[Kiran] Die Marke ist richtig. Sie steht falsch. Jemand oder etwas hat sie gedreht.")
+        text_ausgeben("Er geht nach links, ohne zu zögern.")
+    elif wahl == fragen:
+        text_ausgeben("[Kiran] Rechts. Nein. Ich weiß es nicht.")
+        text_ausgeben(
+            "Er sieht den alten Mann an, und der alte Mann zeigt nach links. "
+            "Kiran nickt, als hätte er das auch gesagt."
+        )
+    else:
+        text_ausgeben(
+            "[Alter Mann] Bergauf sind wir nie gegangen. Mit dem Karren nicht "
+            "und ohne auch nicht."
+        )
+        text_ausgeben(
+            "Nach einer Weile steht wieder eine Marke am Weg, diesmal mit "
+            "Kerben, die stimmen."
+        )
+
+    print()
+    text_ausgeben(
+        "Ihr geht von Marke zu Marke und zählt sie. Die erste Nacht schlaft "
+        "ihr unter einem Felsüberhang, der alte Mann in beide Decken "
+        "gewickelt. Am zweiten Tag, bei der zwanzigsten Marke, fängt es an zu "
+        "dämmern. Das Schilf wird höher, der Boden weicher, und irgendwo "
+        "weiter vorn plätschert Wasser."
+    )
+    kapitel9_daten()["marken_gezaehlt"] = True
+    warte_auf_taste("Weiterreisen")
+
+
+def laeuferpfad_unterstand(reise_daten):
+    # P3: Der Unterstand der Läufer, Rast bis zum Morgen.
+    titel = "Läuferpfad - Der Unterstand der Läufer"
+    ort_titel(titel)
+    text_ausgeben(
+        "Die Hütte steht dort, wo der alte Mann sie beschrieben hat, auf einer "
+        "Kuppe über dem Ried. Das Rindendach hat Löcher, die Tür hängt schief, "
+        "aber sie schließt."
+    )
+    text_ausgeben(
+        "Drinnen riecht es nach kaltem Rauch und nassem Holz. An der Wand "
+        "neben der Feuerstelle stehen Strecken, mit Kohle geschrieben oder ins "
+        "Holz geritzt. Darunter Striche, in Fünferbündeln: Nächte, die jemand "
+        "hier geschlafen hat."
+    )
+    text_ausgeben(
+        "[Alter Mann] Hier bleiben wir. Nachts geht keiner durchs Ried. Auch "
+        "die Läufer nicht."
+    )
+    schlafen_bis_morgen("Du machst ein Feuer in der Feuerstelle und legst dich daneben.")
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Am Morgen siehst du die Wand im Tageslicht. Zwischen den Strecken "
+        "steht eine schräge Zeile mit Kohle: „Wegweiser – Steg 36“. Dahinter "
+        "drei Striche."
+    )
+    kapitel9_daten()["inschrift_36"] = True
+
+    kiran = laeuferpfad_kiran()
+    entscheidungen = spieler.get("entscheidungen") or {}
+
+    if kiran == "gehalten":
+        text_ausgeben("Kiran steht schon vor der Wand, den Finger auf der Zeile.")
+        text_ausgeben("[Kiran] Sechsunddreißig. Marken. Nicht Schritte.")
+        text_ausgeben(
+            "Er holt das Heft heraus und schlägt die Seite mit der "
+            "durchgestrichenen Zeile auf: „Wegweiser – Steg: 3…“"
+        )
+        text_ausgeben("[Kiran] Da hab ich aufgehört. Bei der Drei.")
+    elif kiran == "spaet_gehalten":
+        text_ausgeben(
+            "Kiran sitzt vor der Wand und liest die Strecken, eine nach der "
+            "anderen, mit dem Finger. Bei der schrägen Zeile bleibt der Finger "
+            "stehen."
+        )
+        text_ausgeben("[Kiran] Die Schrift ist schief. So schreib ich auch.")
+        text_ausgeben("Er sagt nicht, dass es seine ist. Er schreibt die Zahl ab.")
+    elif (
+        entscheidungen.get("kiran_kapitel8") == "gebunden_zwang"
+        and kapitel9_wert("heft") in ("mitgenommen", "abgeschrieben")
+    ):
+        text_ausgeben(
+            "Du legst Kirans Heft daneben."
+            if kapitel9_wert("heft") == "mitgenommen"
+            else "Du legst deine Abschrift von Kirans Heft daneben."
+        )
+        text_ausgeben(
+            "„Wegweiser – Steg: 3…“, durchgestrichen. Die Schrift an der Wand "
+            "ist genauso schief."
+        )
+    elif kiran_zustand() == "verloren":
+        text_ausgeben(
+            "An der Tür, auf Hüfthöhe, findest du eine frische Kerbe. Das Holz "
+            "darin ist noch hell. Sie ist schief geschnitten."
+        )
+        text_ausgeben("Der alte Mann fährt mit dem Finger darüber.")
+        text_ausgeben(
+            "[Alter Mann] Die ist neu. Ein paar Tage alt. Oder ein paar Wochen. "
+            "Das sieht man nicht so genau."
+        )
+        text_ausgeben(
+            "Ob Kiran hier war, beweist sie nicht. Läufer schneiden alle ein "
+            "bisschen schief."
+        )
+    else:
+        text_ausgeben("Der alte Mann liest die Wand. Bei manchen Strecken nennt er einen Namen.")
+        text_ausgeben(
+            "[Alter Mann] Das ist Gerda. Die ist nach Oros gelaufen, jede Woche, "
+            "bis ihr Knie nicht mehr wollte. Und das hier ist der Junge von der "
+            "Weberin. Läuft jetzt sicher nicht mehr. Ist ja auch nicht mehr jung."
+        )
+        text_ausgeben("Bei der schrägen Zeile sagt er nichts und geht weiter.")
+
+    warte_auf_taste("Weiterreisen")
+
+
+def laeuferpfad_steg(reise_daten):
+    # P4: Der Steg und die 312 Schritte.
+    titel = "Läuferpfad - Der Steg"
+    ort_titel(titel)
+    text_ausgeben(
+        "Am Morgen ist das Ried voller Nebel. Der Pfad führt hinunter ans "
+        "Wasser, ein breiter, langsamer Lauf mit braunem Grund."
+    )
+    text_ausgeben(
+        "Der Steg ist da. Zwei lange Balken auf Pfählen, darüber Bretter. In "
+        "der Mitte fehlen vier davon. Einer der Pfähle hat sich zur Seite "
+        "geneigt, und das Wasser drückt gegen ihn."
+    )
+    text_ausgeben("Auf der anderen Seite steht ein Mann und sieht herüber. Er hebt nicht die Hand.")
+
+    furt = "Am Ufer entlang zur Furt"
+    pfahl = "Den schiefen Pfahl mit der Schulter stützen und hinüberbalancieren"
+    seil = "Ein Seil über die Lücke spannen"
+    wahl = laeuferpfad_wahl([furt, pfahl] + ([seil] if item_anzahl("seil") > 0 else []))
+
+    if wahl == pfahl:
+        if spieler_pruefung("staerke", 2):
+            text_ausgeben(
+                "Der Pfahl gibt nach, dann hält er. Du gehst über die Balken, wo "
+                "die Bretter fehlen, und hörst das Holz unter dir arbeiten."
+            )
+        else:
+            spieler["lebenspunkte"] = max(1, spieler["lebenspunkte"] - 5)
+            text_ausgeben(
+                "Der Pfahl gibt nach und hält nicht. Du rutschst ab und stehst "
+                "bis zu den Knien im Wasser. Mehr als nasse Füße und ein paar "
+                "Schrammen sind es nicht."
+            )
+            wahl = furt
+    elif wahl == seil:
+        text_ausgeben(
+            "Du knotest das Seil an den letzten festen Pfosten. Der Mann auf der "
+            "anderen Seite fängt das Ende auf, ohne dass du ihn darum bitten "
+            "musst, und zieht es straff."
+        )
+
+    if wahl == furt:
+        text_ausgeben(
+            "Ihr geht flussaufwärts, bis das Wasser flacher wird. Der alte Mann "
+            "zieht die Schuhe aus und trägt sie in der Hand. Das Wasser reicht "
+            "bis zu den Knien und ist so kalt, dass du die Zehen danach eine "
+            "Weile nicht spürst."
+        )
+        laeuferpfad_umweg(reise_daten)
+
+        if not spieler["spiel_laeuft"]:
+            return
+
+    seite_wechseln(titel)
+    text_ausgeben(
+        "Der Mann ist kräftig, grauhaarig, in einer Jacke, die mehr Flicken "
+        "hat als Stoff. Er sieht den alten Mann an und dann dich."
+    )
+    text_ausgeben(
+        "[Hannes] Ihr seid über den Steg gekommen. Seit der Nacht ist keiner "
+        "mehr über den Steg gekommen."
+    )
+    text_ausgeben("Mehr sagt er nicht. Er dreht sich um und geht voraus.")
+    text_ausgeben(
+        "Der Weg vom Steg aus ist fest, ausgetreten, an den Rändern mit "
+        "Steinen eingefasst. Du fängst an zu zählen, ohne es dir vorzunehmen."
+    )
+
+    kiran = laeuferpfad_kiran()
+
+    if kiran == "gehalten":
+        text_ausgeben(
+            "Kiran zählt laut. Bei hundert tippt er mit dem Daumen gegen den "
+            "Zeigefinger, bei zweihundert wieder. Du hast das bei ihm noch nie "
+            "gesehen. Vielleicht hat er es nie getan, weil es nie die richtige "
+            "Strecke war."
+        )
+    elif kiran == "spaet_gehalten":
+        text_ausgeben(
+            "Kiran zählt leise. Bei hundertvierzig verliert er die Zahl. Der "
+            "alte Mann zählt für ihn weiter, langsam, und Kiran spricht ihm nach."
+        )
+
+    text_ausgeben("Bei zweihundertachtzig hörst du Stimmen. Bei dreihundert siehst du Dächer.")
+    text_ausgeben(
+        "Dreihundertzwölf. Ein Brunnen aus Feldsteinen, mit einer Kurbel und "
+        "einem Holzdach. Drei Kinder stehen davor, jedes mit einem Eimer, und "
+        "starren euch an."
+    )
+    warte_auf_taste("Weiter")
 
 
 def riss_lehrhallen():
@@ -48024,10 +52965,15 @@ def riss_lehrhallen():
             "Vorplatzlager."
         )
 
+    zeilen.extend(kiran_lehrhallen_zeilen())
     zeilen.append(
         "Finch ist nicht hier. Jemand sagt dir, er sei in den Forschungsräumen."
     )
     riss_ort("Universität von Oros - Lehrhallen", *zeilen)
+    offene_tore_ilka_kapitel9(
+        "ungeklaert",
+        "[Ilka] Sie saßen am Tisch. Der Große weiß das noch."
+    )
     riss_ort_menue([
         ("Mit Dozentin Mira sprechen / Gelehrtenausbildung", riss_mira),
         ("Grundklassen vergleichen", klassenmenue),
@@ -48072,11 +53018,9 @@ def riss_forschungsraeume():
         "alles, was sie noch haben."
     )
 
-    if offene_tore_kiran() == "buergschaft":
-        text_ausgeben(
-            "Kiran sitzt an Valeries Tisch und schreibt. Manchmal hält er inne "
-            "und zählt etwas an den Fingern ab."
-        )
+    if archiv_status() != "finch":
+        # Sonst folgt Kirans eigene Szene (K1) im Gespräch mit Finch.
+        kiran_forschungsraeume_zeile()
 
     if riss_einmal("forschungsraeume"):
         print()
@@ -48086,7 +53030,35 @@ def riss_forschungsraeume():
         )
         text_ausgeben("[Finch] Machen Sie zwei Abschriften.")
 
-    riss_ort_menue([riss_zurueck()])
+    optionen = []
+
+    if chronik_finch_offen():
+        optionen.append(("Mit Finch sprechen [!]", chronik_finch))
+
+    if kiran_offen("buergschaft"):
+        optionen.append(("Mit Kiran sprechen [!]", kiran_gespraech))
+    elif kiran_status() == "vergleichen":
+        optionen.append((
+            "Kirans Heft mit der Messmappe vergleichen [!]",
+            kiran_vergleich
+        ))
+
+    if archiv_status() == "finch":
+        optionen.insert(0, ("Mit Finch sprechen [!]", archiv_finch))
+
+    if brunnfeld_spur_offen("finch"):
+        optionen.append(("Finch nach Brunnfeld fragen [!]", brunnfeld_finch))
+    if brunnfeld_spur_offen("heft"):
+        optionen.append(("Kirans Heft ansehen [!]", brunnfeld_heft))
+    if brunnfeld_kiran_offen():
+        optionen.append(("Mit Kiran über Brunnfeld sprechen [!]", brunnfeld_kiran))
+    if befreiung_finch_offen():
+        optionen.append((
+            f"Finch nach {befreiung_name()} an der Kante fragen [!]",
+            befreiung_finch
+        ))
+
+    riss_ort_menue(optionen + [riss_zurueck()])
 
 
 def riss_archiv():
@@ -48108,7 +53080,15 @@ def riss_archiv():
         )
 
     riss_ort("Universität von Oros - Archiv", text)
-    riss_ort_menue([riss_zurueck()])
+    optionen = []
+
+    if chronik_quelle_offen() and riss_wahl() == "menschen":
+        optionen.append((
+            "Mit Ignaz über den Tiefen Ring sprechen [!]",
+            chronik_ignaz
+        ))
+
+    riss_ort_menue(optionen + [riss_zurueck()])
 
 
 def riss_krankenstube():
@@ -48166,6 +53146,7 @@ def riss_versorgungshof():
     else:
         text_ausgeben("[Raban] Erst Nummer, dann Ware. Auch heute.")
 
+    archiv_raban_zeile()
     optionen = []
 
     if zurueckgelassene_status() == "raban":
@@ -48191,6 +53172,17 @@ def riss_versorgungshof():
         ))
     if tiefen_zukauf_offen():
         optionen.append(("Bei Raban Lampenöl und Seil kaufen", raban_zukauf))
+    if brunnfeld_spur_offen("raban"):
+        optionen.append(("Raban nach Brunnfeld fragen [!]", brunnfeld_raban))
+    if brunnfeld_laeufer_offen("jonte"):
+        optionen.append(("Mit Jonte sprechen [!]", brunnfeld_jonte_laeufer))
+    if brunnfeld_status() == "aufgaben" and item_anzahl("seilbuendel") > 0 and not kapitel9_wert("versorgung_fertig"):
+        optionen.append(("Raban Hannes' Seil anbieten [!]", brunnfeld_raban_tausch))
+    if brunnfeld_status() == "aufgaben" and not kapitel9_wert("jonte_rueckkehr"):
+        optionen.append(("Jonte nach der Rückkehr fragen [!]", brunnfeld_jonte_rueckkehr))
+    if kapitel9_wert("anerkennung") == "eigenstaendig" and not kapitel9_wert("raban_anerkennung"):
+        kapitel9_daten()["raban_anerkennung"] = True
+        text_ausgeben("[Raban] Endlich. Weißt du, wie viele halbe Rationen ich ausgerechnet hab?")
 
     optionen.append(riss_zurueck())
     riss_ort_menue(optionen)
@@ -48220,15 +53212,40 @@ def riss_amtsstube():
             "Hallers Tisch. Hallers Stuhl ist leer."
         )
 
-    if haller_am_tor:
+    if chronik_status() == "abgeschlossen":
+        riss_ort(titel, text, archiv_haller_zeile())
+    elif haller_am_tor:
         riss_ort(titel, text, "Haller ist nicht hier. Er sitzt am Tor.")
     else:
         riss_ort(titel, text)
 
     optionen = []
 
+    if archiv_haller_offen():
+        optionen.append(("Mit Haller sprechen [!]", archiv_haller))
+    if archiv_status() == "haller_vorschlag":
+        optionen.append(("Mit Haller sprechen [!]", archiv_haller_vorschlag))
+    if archiv_haller_danach_offen():
+        optionen.append(("Mit Haller sprechen [!]", archiv_haller_danach))
     if offene_tore_status() == "haller":
         optionen.append(("Zu Haller gehen [!]", offene_tore_haller))
+    if chronik_quelle_offen() and riss_wahl() == "beweise":
+        optionen.append((
+            "Die geretteten Siegelakten durchsehen [!]",
+            chronik_siegelakten
+        ))
+    if brunnfeld_spur_offen("haller"):
+        optionen.append(("Mit Haller über Brunnfeld sprechen [!]", brunnfeld_haller))
+    if brunnfeld_spur_offen("levin"):
+        optionen.append(("Mit Levin sprechen [!]", brunnfeld_levin))
+    if brunnfeld_status() == "haller":
+        optionen.append(("Mit Haller über Brunnfeld sprechen [!]", brunnfeld_haller_angebot))
+    if brunnfeld_status() == "aufgaben" and not kapitel9_wert("anerkennung"):
+        optionen.append(("Mit Haller über die Anerkennung Brunnfelds sprechen [!]", brunnfeld_anerkennung))
+    if brunnfeld_status() == "abgeschlossen" and not kapitel9_wert("haller_danach"):
+        optionen.append(("Mit Haller über Brunnfeld sprechen [!]", brunnfeld_haller_danach))
+    if befreiung_haller_offen():
+        optionen.append(("Haller nach dem Widerspruch fragen", befreiung_haller))
 
     optionen.append(riss_zurueck())
     riss_ort_menue(optionen)
@@ -48588,6 +53605,265 @@ def offene_tore_haller():
     offene_tore_ziel_setzen("register")
 
 
+OFFENE_TORE_AUFNAHME_FAELLE = (
+    {
+        "id": "hedda",
+        "menschen": 1,
+        "auftritt": (
+            "Eine Frau mit breiten Schultern und einem leeren Korb. Sie stellt "
+            "ihn neben den Tisch, als käme sie gleich wieder.",
+        ),
+        "karte": (
+            ("Name", "Hedda Kamp"),
+            ("Herkunft", "Kamphof, am Waldweg bei Eichenruh"),
+            ("Nachweis", "keiner"),
+            ("Im Verzeichnis", "Kamphof, Pächterin H. Kamp, Zins bezahlt")
+        ),
+        "aussage": (
+            "[Hedda] Das Blatt liegt in der Truhe. Die Truhe steht noch dort, "
+            "nehme ich an. Ich bin nicht zurückgegangen, um nachzusehen.",
+            "[Haller] Das Verzeichnis nennt einen Hof. Ob sie die Pächterin "
+            "ist, sagt es nicht."
+        ),
+        "aufgenommen": (
+            "Der Schreiber trägt es ein. Raban macht einen Haken.",
+            "[Hedda] Zins bezahlt. Sehen Sie."
+        ),
+        "ungeklaert": (
+            "Der Schreiber trägt es ein. Hedda sieht auf die Zeile, die sie "
+            "verkehrt herum lesen muss.",
+            "[Hedda] Da steht doch mein Hof.",
+            "Sie nimmt den Korb."
+        )
+    },
+    {
+        "id": "ilka",
+        "menschen": 3,
+        "auftritt": (
+            "Eine Frau mit zwei Kindern. Das größere trägt das kleinere. Sie "
+            "legt ein gesiegeltes Pachtblatt auf den Tisch und streicht es "
+            "glatt.",
+        ),
+        "karte": (
+            ("Name", "Ilka Sandt"),
+            ("Herkunft", "Hof Sandt, Eichenruher Feldmark"),
+            ("Nachweis", "Pachtblatt auf Rolf Sandt, Siegel gültig"),
+            ("Im Verzeichnis", "Rolf Sandt, Pächter")
+        ),
+        "aussage": (
+            "[Ilka] Mein Mann ist auf dem Weg hierher am Hang gestürzt, als "
+            "der Weg auf einmal woanders war. Das Blatt habe ich ihm aus der "
+            "Jacke genommen.",
+            "Sie sagt es leise und sieht dabei nicht zu den Kindern.",
+            "[Haller] Das Siegel ist echt. Rolf Sandt wäre aufgenommen."
+        ),
+        "aufgenommen": (
+            "Der Schreiber schreibt drei Namen. In die Spalte Nachweis setzt "
+            "er: Pachtblatt, Rolf Sandt. Haller liest es und lässt es stehen.",
+            "Raban macht drei Haken.",
+            "Ilka nimmt das Blatt wieder an sich und faltet es entlang der "
+            "alten Kanten."
+        ),
+        "ungeklaert": (
+            "Der Schreiber schreibt drei Namen.",
+            "[Ilka] Und die Kinder?",
+            "[Raban] Alle drei.",
+            "Ilka nimmt das Blatt wieder an sich und faltet es entlang der "
+            "alten Kanten. Das größere Kind sieht dich an, bis sie es "
+            "weiterschiebt."
+        )
+    },
+    {
+        "id": "bruno",
+        "menschen": 1,
+        "auftritt": (
+            "Ein Mann mit einem Peitschenstiel im Gürtel und ohne Pferd.",
+        ),
+        "karte": (
+            ("Name", "Bruno"),
+            ("Herkunft", "keine Angabe"),
+            ("Nachweis", "keiner"),
+            ("Im Verzeichnis", "nichts zu finden")
+        ),
+        "aussage": (
+            "[Bruno] Bruno. Den Rest hab ich gerade nicht. Fragen Sie mich "
+            "nach dem Königsring. An der zweiten Steigung schirrt man aus, "
+            "sonst geht die Achse.",
+            "{schreiber} sieht auf.",
+            "[{schreiber_kurz}] Woher kommen Sie?",
+            "[Bruno] Ich hab heute Morgen versucht, es mir zu sagen. Da ist "
+            "eine Stelle, wo es sein müsste.",
+            "[Haller] Den Königsring kennen viele."
+        ),
+        "aufgenommen": (
+            "{schreiber} hält die Feder über der Spalte Herkunft und sieht "
+            "dich an. Dann schreibt er: ungeklärt. Dahinter, kleiner: kennt "
+            "den Königsring. In die Spalte Status setzt er: aufgenommen.",
+            "[Haller] Keine Herkunft, kein Nachweis. Ihre Zeile.",
+            "Er lässt es stehen. Raban macht einen Haken und sieht noch "
+            "einmal hin."
+        ),
+        "ungeklaert": (
+            "[Bruno] Das stimmt ja auch.",
+            "Er zieht den Peitschenstiel gerade und geht zum Vorplatz."
+        )
+    }
+)
+
+OFFENE_TORE_AUFENTHALT = {
+    "hedda": "Hedda sitzt zwischen den Säulen und flicht den Boden ihres Korbs neu.",
+    "ilka": (
+        "Ilka sitzt bei den Säulen. Das kleinere Kind schläft, das größere "
+        "hält das gefaltete Blatt."
+    ),
+    "bruno": (
+        "Bruno hilft zwei von Ahrens' Leuten, einen Karren durch das Tor zu "
+        "schieben. Er sagt ihnen, wo sie anfassen sollen."
+    )
+}
+
+
+def offene_tore_aufnahme_stand():
+    return (spieler.get("kapitel6") or {}).get("aufnahme") or {}
+
+
+def offene_tore_aufnahme_fall(fall, namen):
+    for zeile in fall["auftritt"]:
+        text_ausgeben(zeile)
+
+    print()
+
+    for feld, wert in fall["karte"]:
+        print(f"{feld + ':':<16}{wert}")
+
+    print()
+
+    for zeile in fall["aussage"]:
+        text_ausgeben(zeile.format(**namen))
+
+    menue_trenner()
+    print()
+    print("1. Aufnehmen")
+    print("2. Ungeklärt vermerken")
+
+    ergebnis = (
+        "aufgenommen"
+        if eingabe_menu(1, 2, sonder_tasten=()) == 1
+        else "ungeklaert"
+    )
+    print()
+
+    for zeile in fall[ergebnis]:
+        text_ausgeben(zeile.format(**namen))
+
+    return ergebnis
+
+
+def offene_tore_aufnahmetisch(titel, levin):
+    namen = {
+        "schreiber": "Levin" if levin else "Der Schreiber",
+        "schreiber_kurz": "Levin" if levin else "Schreiber"
+    }
+    stand = {}
+    kapitel6_daten()["aufnahme"] = stand
+
+    text_ausgeben(
+        "Haller dreht das Register um und schiebt es dir hin. Das Verzeichnis "
+        "legt er daneben."
+    )
+    text_ausgeben(
+        "[Haller] Die nächsten nehmen Sie. Steht jemand im Verzeichnis und hat "
+        "ein Blatt, ist er aufgenommen. Hat er nichts von beidem, ist er "
+        "ungeklärt. Dazwischen entscheiden Sie."
+    )
+    text_ausgeben(
+        "[Haller] Wollen Sie gegen die Regel aufnehmen, dürfen Sie das. Die "
+        "Zeile verantworten dann Sie."
+    )
+    text_ausgeben("[Raban] Ungeklärt heißt halbe Ration. So ist es abgesprochen.")
+
+    for fall in OFFENE_TORE_AUFNAHME_FAELLE:
+        seite_wechseln(titel)
+        stand[fall["id"]] = offene_tore_aufnahme_fall(fall, namen)
+
+    seite_wechseln(titel)
+
+    text_ausgeben("Haller zieht das Register wieder zu sich und liest deine Zeilen.")
+
+    aufgenommen = sum(1 for wert in stand.values() if wert == "aufgenommen")
+
+    if aufgenommen == len(stand):
+        text_ausgeben("[Haller] Drei von drei. Sie sind großzügig mit meinem Register.")
+    elif aufgenommen == 0:
+        text_ausgeben("[Haller] Genau nach der Spalte.")
+    else:
+        text_ausgeben("[Haller] Ich hätte es anders eingetragen. Nicht unbedingt besser.")
+
+    print()
+
+
+def offene_tore_aufnahme_bilanz():
+    stand = offene_tore_aufnahme_stand()
+    voll = sum(
+        fall["menschen"]
+        for fall in OFFENE_TORE_AUFNAHME_FAELLE
+        if stand.get(fall["id"]) == "aufgenommen"
+    )
+    volle = (
+        "Keine volle Ration", "Eine volle Ration", "Zwei volle Rationen",
+        "Drei volle Rationen", "Vier volle Rationen", "Fünf volle Rationen"
+    )
+    halbe = ("keine", "eine", "zwei", "drei", "vier", "fünf")
+    return (
+        f"[Ahrens] An Ihrem Tisch fünf Menschen. {volle[voll]}, "
+        f"{halbe[5 - voll]} halbe."
+    )
+
+
+def offene_tore_lager_punkte():
+    stand = offene_tore_aufnahme_stand()
+    punkte = (
+        ("hedda", "Mit Hedda sprechen", [
+            "[Hedda] Kamphof. Sie haben ja reingesehen."
+        ]),
+        ("ilka", "Mit Ilka sprechen", [
+            "[Ilka] Die Halbe reicht. Das hab ich dem Großen gesagt."
+        ]),
+        ("bruno", "Zum Karren ohne Zugtier gehen", [
+            "Bruno liegt unter dem Karren ohne Zugtier und klopft gegen die "
+            "Achse.",
+            "[Bruno] Die hat Spiel. Wem gehört der Karren?"
+        ])
+    )
+    return [punkt for punkt in punkte if stand.get(punkt[0]) == "ungeklaert"]
+
+
+def offene_tore_aufenthalt(*figuren):
+    # Beschreibung bei jedem Besuch, solange die Aufgenommenen dort sind.
+    if offene_tore_status() not in (
+        "vorplatzlager", "vermessung_auftrag", "vermessung"
+    ):
+        return
+
+    stand = offene_tore_aufnahme_stand()
+
+    for figur in figuren:
+        if stand.get(figur) == "aufgenommen":
+            text_ausgeben(OFFENE_TORE_AUFENTHALT[figur])
+
+
+def offene_tore_ilka_kapitel9(ergebnis, satz):
+    # Einmal in Oros, sobald Brunnfeld gefunden ist.
+    if (
+        offene_tore_aufnahme_stand().get("ilka") == ergebnis
+        and brunnfeld_status() in (
+            "nachricht", "haller", "ahrens", "aufgaben", "abgeschlossen"
+        )
+        and riss_einmal("ilka_kapitel9")
+    ):
+        text_ausgeben(satz)
+
+
 def offene_tore_register():
     titel = "Universität von Oros"
     levin = offene_tore_levin_da()
@@ -48631,14 +53907,29 @@ def offene_tore_register():
 
     seite_wechseln(titel)
 
+    offene_tore_aufnahmetisch(titel, levin)
+
     text_ausgeben("Der alte Mann aus Brunnfeld.")
     text_ausgeben("[Alter Mann] Brunnfeld. Ich bin dort geboren. Mein Vater auch.")
     text_ausgeben("Haller blättert in einem Verzeichnis. Dann in einem zweiten.")
+
+    if grundklasse_holen(spieler) == "gelehrter":
+        ansehen = "Die aufgeschlagenen Seiten ansehen [Gelehrter]"
+
+        if laeuferpfad_wahl([ansehen, "Ihn weiterblättern lassen"]) == ansehen:
+            text_ausgeben(
+                "Du siehst auf die offene Seite und legst den Finger auf eine "
+                "Zeile der Wegeliste: „zum Steg“. Ein Ortsname steht nicht "
+                "dabei. Einen Eintrag für Brunnfeld findest du auch hier nicht."
+            )
+            text_ausgeben("[Haller] Das ist kein Herkunftsnachweis.")
+            text_ausgeben("Er blättert um.")
+            kapitel6_daten()["verzeichnis_steg"] = True
     text_ausgeben("[Haller] Brunnfeld steht in keinem Verzeichnis, das ich habe.")
     text_ausgeben("[Alter Mann] Dann sind Ihre Verzeichnisse falsch.")
     text_ausgeben("[Haller] Möglich. Ungeklärt.")
     text_ausgeben("Der Schreiber zögert. Dann trägt er es ein.")
-    text_ausgeben("[Raban] Ungeklärt heißt halbe Ration. So ist es abgesprochen.")
+    text_ausgeben("Raban macht einen halben Haken.")
 
     seite_wechseln(titel)
 
@@ -48676,6 +53967,7 @@ def offene_tore_register():
         "[Ahrens] Die Ungeklärten bleiben im Vorplatzlager. Bis jemand sagen "
         "kann, wohin die Wege führen, können sie ohnehin nirgends hin."
     )
+    text_ausgeben(offene_tore_aufnahme_bilanz())
     text_ausgeben("Er sieht dich an.")
     text_ausgeben(
         "[Ahrens] Sie auch nicht. Reden Sie mit ihnen. Vielleicht weiß einer "
@@ -48745,6 +54037,218 @@ def offene_tore_fehlgriff(*zeilen):
         text_ausgeben(zeile)
 
 
+def nachriss_kampf(gegner_typ, gebiet, umgebung, sieg_zeilen):
+    # Optionale Kampfstellen nach dem Riss: Niederlage beendet das Spiel nicht.
+    if not isinstance(spieler.get("waffe"), dict):
+        design_text(
+            "Rüste im Inventar eine Waffe aus, bevor du kämpfst.",
+            design="warnung",
+            art="menue"
+        )
+        warte_auf_taste("Zurück")
+        return "ohne_waffe"
+
+    kampf_ergebnis = kampf_starten(
+        lebenspunkte=spieler["lebenspunkte"],
+        heiltraenke=spieler["heiltränke"],
+        waffe=spieler["waffe"],
+        gegner_typ=gegner_typ,
+        kampf_situation={
+            "gebiet": gebiet,
+            "umgebung": umgebung,
+            "tageszeit": spieler.get("tageszeit", "Tag"),
+            "wetter": spieler.get("wetter", "Klar")
+        }
+    )
+
+    spieler["lebenspunkte"] = kampf_ergebnis["lebenspunkte"]
+    spieler["heiltränke"] = kampf_ergebnis["heiltraenke"]
+
+    if kampf_ergebnis.get("gewonnen", False):
+        spieler["besiegte_gegner"] += 1
+        print()
+        print("-" * 34)
+
+        for zeile in sieg_zeilen:
+            text_ausgeben(zeile)
+
+        spieler["gold"] = kampf_beute_vergeben(gegner_typ, spieler["gold"])
+        print()
+        print(f"Lebenspunkte: {spieler['lebenspunkte']}")
+        print("-" * 34)
+        return "sieg"
+
+    if kampf_ergebnis.get("besiegt", False):
+        warte_auf_taste("Weiter")
+        spieler["lebenspunkte"] = ZURUECKGELASSENE_RETTUNG_LP
+        return "niederlage"
+
+    print()
+    return "flucht"
+
+
+def offene_tore_lager_streit_offen():
+    return (
+        offene_tore_status() in ("vermessung_auftrag", "vermessung")
+        and "lager_streit" not in (spieler.get("kapitel6") or {})
+    )
+
+
+def offene_tore_lager_streit_bruno():
+    if offene_tore_aufnahme_stand().get("bruno") == "ungeklaert":
+        print()
+        text_ausgeben("Bruno rollt unter dem Karren hervor.")
+        text_ausgeben("[Bruno] Zwischen die zwei Planwagen. Links, wo die Achse hin ist.")
+        text_ausgeben("Der Wachmann sieht nach. Dort liegt nur noch eine Decke.")
+
+
+def offene_tore_lager_streit():
+    titel = "Universität von Oros"
+    daten = kapitel6_daten()
+    stellen = "Ihn stellen [Kampf]"
+    ansprechen = "Ihn ansprechen [Empathie]"
+    abschirmen = "Die Frau abschirmen [Krieger]"
+    krieger = [abschirmen] if grundklasse_holen(spieler) == "kaempfer" else []
+    ort_titel(titel)
+
+    text_ausgeben(
+        "Das Feuer ist heruntergebrannt. Zwischen den Bündeln geht ein Mann "
+        "herum, besser angezogen als alle anderen hier, und hebt Decken an. "
+        "Aus einem Beutel nimmt er einen Kanten, aus dem nächsten auch."
+    )
+    text_ausgeben(
+        "Die Frau mit dem Kind hält ihren Beutel mit beiden Händen fest. Er "
+        "zieht trotzdem."
+    )
+    text_ausgeben(
+        "Ahrens' Leute laden am Tor einen Karren ab. Von dort ist das Lager "
+        "hinter den Planen nicht zu sehen."
+    )
+    text_ausgeben("An seinem Gürtel steckt ein gesiegeltes Blatt, daneben ein Dolch.")
+    text_ausgeben("[Mann] Ich steh im Register. Mich fragt hier keiner.")
+
+    wahl = laeuferpfad_wahl([stellen, ansprechen] + krieger + ["Ahrens' Leute holen"])
+
+    if wahl == ansprechen:
+        if spieler_pruefung("empathie", 2):
+            text_ausgeben(
+                "Du siehst nicht auf den Dolch. Er hat dunkle Ränder unter den "
+                "Augen, und seine Finger bleiben nicht still."
+            )
+            text_ausgeben(
+                "Du sagst ihm, dass die Frau morgen noch hier sitzt und er sie "
+                "dann wiedersehen wird."
+            )
+            text_ausgeben("Er sieht zum Tor, dann auf den Sack in seiner Hand.")
+            text_ausgeben("[Mann] Drinnen wird es auch nicht mehr.")
+            text_ausgeben("Er legt den Sack ab und geht zum Tor, ohne sich zu beeilen.")
+            daten["lager_streit"] = {"weg": "gespraech", "ausgang": "aufgegeben"}
+            warte_auf_taste("Weiter")
+            return
+
+        text_ausgeben("[Mann] Wer hat dich gefragt?")
+        text_ausgeben("Seine Hand geht an den Dolch und zieht ihn ein Stück heraus.")
+        wahl = laeuferpfad_wahl([stellen] + krieger + ["Zurückweichen und Ahrens' Leute holen"])
+
+    if wahl == abschirmen:
+        text_ausgeben(
+            "Du trittst zwischen ihn und die Frau, die Deichsel des Karrens "
+            "quer vor dir. An die Beutel kommt er jetzt nur noch an dir vorbei."
+        )
+        text_ausgeben("[Mann] Geh zurück zu deinen Spalten.")
+        text_ausgeben(
+            "Er zieht den Dolch und versucht es links an der Deichsel vorbei. "
+            "Du gehst mit. Er setzt rechts an, und du bist wieder vor ihm."
+        )
+        text_ausgeben(
+            "Du rufst ins Lager, dass er einen Dolch hat. Hinter den Planen "
+            "steht jemand auf, dann noch einer."
+        )
+        text_ausgeben(
+            "Er sieht an dir vorbei zu ihnen. Dann steckt er den Dolch weg, "
+            "lässt den Sack fallen und geht zum Tor."
+        )
+        daten["lager_streit"] = {"weg": "deckung", "ausgang": "aufgegeben"}
+        warte_auf_taste("Weiter")
+        return
+
+    if wahl == stellen:
+        text_ausgeben("Du stellst dich zwischen ihn und die Frau.")
+        text_ausgeben("[Mann] Geh zurück zu deinen Spalten.")
+        text_ausgeben("Er zieht den Dolch.")
+        print()
+
+        ausgang = nachriss_kampf("Bandit", "Oros", "Offener Weg", (
+            "Er setzt sich zwischen die Bündel und hält sich den Arm. Den Dolch "
+            "schiebst du mit dem Fuß zur Seite.",
+            "Ahrens' Leute kommen vom Tor herüber. Einer zieht das Blatt aus "
+            "seinem Gürtel, liest es und steckt es zurück. Dann nehmen sie ihn "
+            "mit.",
+            "Die Frau zählt nach, was in ihrem Beutel ist."
+        ))
+
+        if ausgang == "ohne_waffe":
+            return
+
+        daten["lager_streit"] = {"weg": "kampf", "ausgang": ausgang}
+
+        if ausgang == "niederlage":
+            ort_titel(titel)
+            text_ausgeben(
+                "Jemand zieht dich am Kragen von den Bündeln weg. Zwei von "
+                "Ahrens' Leuten. Der Mann ist fort, sein Sack auch."
+            )
+            text_ausgeben("[Wachmann] Liegen bleiben. Wir suchen ihn.")
+
+        elif ausgang == "flucht":
+            text_ausgeben(
+                "Du weichst zurück und rufst zum Tor. Bis jemand kommt, ist er "
+                "zwischen den Karren verschwunden. Den Sack hat er mitgenommen."
+            )
+            offene_tore_lager_streit_bruno()
+
+        warte_auf_taste("Weiter")
+        return
+
+    text_ausgeben(
+        "Du gehst zum Tor und sagst zwei von Ahrens' Leuten, was du gesehen "
+        "hast. Sie lassen die Kiste stehen und kommen mit."
+    )
+    text_ausgeben(
+        "Als ihr ankommt, ist er fort. Die Frau hält ihren Beutel. Er ist "
+        "leichter als vorher."
+    )
+    text_ausgeben("[Wachmann] Wie viele Beutel?")
+    text_ausgeben("Er geht die Reihe der Karren ab. Was fehlt, bleibt verschwunden.")
+    offene_tore_lager_streit_bruno()
+    daten["lager_streit"] = {"weg": "wache", "ausgang": "entkommen"}
+    warte_auf_taste("Weiter")
+
+
+def offene_tore_lager_streit_nachklang():
+    streit = (spieler.get("kapitel6") or {}).get("lager_streit")
+
+    if not isinstance(streit, dict):
+        return
+
+    ausgang = streit.get("ausgang")
+
+    if ausgang == "sieg":
+        text_ausgeben(
+            "[Ahrens] Der Mann aus dem Lager sitzt bei meinen Leuten. Für ihn "
+            "gelten dieselben Regeln."
+        )
+        text_ausgeben("[Haller] Das Blatt war echt.")
+    elif ausgang == "aufgegeben":
+        text_ausgeben(
+            "[Ahrens] Der Mann aus dem Lager ist von selbst ans Tor gekommen. "
+            "Er bleibt trotzdem bei meinen Leuten."
+        )
+        text_ausgeben("[Haller] Das Blatt war echt.")
+    else:
+        text_ausgeben("[Ahrens] Den Mann aus dem Lager haben wir noch nicht.")
+
+
 def offene_tore_lager():
     titel = "Universität von Oros"
     ort_titel(titel)
@@ -48769,7 +54273,7 @@ def offene_tore_lager():
             "Er schläft. Seine Lippen bewegen sich. Es klingt wie eine "
             "Wegbeschreibung."
         ])
-    ], "Zu dem jungen Mann gehen")
+    ] + offene_tore_lager_punkte(), "Zu dem jungen Mann gehen")
 
     text_ausgeben("Er sieht auf, als dein Schatten auf das Blatt fällt.")
     text_ausgeben("[Kiran] Kiran. So heiße ich.")
@@ -49051,6 +54555,7 @@ def offene_tore_aufnahme():
     text_ausgeben(
         "Haller schreibt eine Zeile ins Register. Er unterschreibt sie nicht."
     )
+    offene_tore_lager_streit_nachklang()
 
     seite_wechseln(titel)
 
@@ -49239,6 +54744,7 @@ HILDA_NACH_RISS_SAETZE = {
 
 def eichenruh_nach_riss_satz(npc):
     # Einmal je Figur nach dem Riss.
+    brunnfeld_eichenruh_satz(npc)
     if not akt1_riss_geschehen() or npc_reaktion_gezeigt(npc, "nach_riss"):
         return
 
@@ -49445,6 +54951,5188 @@ def caelen_abschluss():
     spieler["quest_caelen"] = "abgeschlossen"
     quest_meldung("abgeschlossen", "Die Hütte am Waldrand")
     warte_auf_taste("Weiter")
+
+
+# --------------------------------------------------
+# Kapitel 6, Teil 3, Paket K-A: Nicht stehen bleiben (Kiran)
+# --------------------------------------------------
+
+def kiran_status():
+    return spieler.get("quest_kiran", "nicht_entdeckt")
+
+
+def kiran_ziel():
+    if kiran_status() == "vergleichen":
+        return (
+            "Prüfe, welche Strecke aus Kirans Heft man heute noch gehen kann."
+        )
+
+    if kiran_status() == "wegweiser":
+        if offene_tore_kiran() == "buergschaft":
+            return "Geh mit Kiran vom Torbogen bis zum alten Wegweiser."
+
+        return (
+            "Bring Kiran sein Blatt. Er sitzt am alten Wegweiser auf dem "
+            "Faden."
+        )
+
+    if kiran_status() == "lehrhallen":
+        return "Bring Kiran zurück in die Universität."
+
+    return ""
+
+
+def kiran_ziel_setzen(status, neu=False):
+    spieler["quest_kiran"] = status
+
+    quest_meldung(
+        "neu" if neu else "update",
+        "Nicht stehen bleiben",
+        kiran_ziel()
+    )
+
+    warte_auf_taste("Weiter")
+
+
+def kiran_offen(weg):
+    # Erst nach „Die offenen Tore“; der Weg folgt der Wahl am Vorplatzlager.
+    return (
+        offene_tore_status() == "abgeschlossen"
+        and offene_tore_kiran() == weg
+        and kiran_status() == "nicht_entdeckt"
+    )
+
+
+def kiran_gespraech():
+    titel = "Universität von Oros - Forschungsräume"
+    ort_titel(titel)
+
+    text_ausgeben(
+        "Vor Kiran liegt das Heft, das Valerie ihm gegeben hat. Die ersten "
+        "Seiten sind voll."
+    )
+    text_ausgeben("Valerie sieht dich und kommt herüber.")
+    text_ausgeben("[Valerie] Er schreibt seit zwei Tagen. Fast nur Zahlen.")
+    text_ausgeben(
+        "[Valerie] Ich habe ihn gebeten, auch Namen aufzuschreiben. "
+        "Gesichter. Was er gegessen hat. Er versucht es. Dann stehen da "
+        "wieder Zahlen."
+    )
+
+    seite_wechseln(titel)
+
+    text_ausgeben("Kiran hebt den Kopf.")
+    text_ausgeben("[Kiran] Du warst am Tor. Du hast für mich unterschrieben.")
+    text_ausgeben(
+        "[Kiran] Das weiß ich noch. Das hab ich mir auch aufgeschrieben, zur "
+        "Sicherheit."
+    )
+    text_ausgeben(
+        "Er tippt auf eine Zeile im Heft. Dort steht: „Unterschrift am Tor. "
+        "Nicht vergessen, danke zu sagen.“"
+    )
+    text_ausgeben("[Kiran] Danke.")
+    text_ausgeben(
+        "[Kiran] Ich war Wegläufer. Ich hab Briefe getragen, von Marke zu "
+        "Marke. Die Marken kennt man irgendwann mit den Füßen."
+    )
+
+    offene_tore_auswahl([
+        ("zahlen", "„Was bedeuten die Zahlen?“", [
+            "[Kiran] Schritte. Von einer Marke zur nächsten.",
+            "[Kiran] Man läuft nicht den ganzen Tag und zählt. Nur die "
+            "Abschnitte. Irgendwann muss man nicht mehr zählen, dann weiß "
+            "man es einfach.",
+            "[Kiran] Die Zahlen sind noch da. Wohin sie gehören, weiß ich "
+            "nicht mehr bei allen."
+        ]),
+        ("arbeit", "„Wie war die Arbeit?“", [
+            "[Kiran] Früh. Die erste Strecke am Morgen hab ich gemocht. Da "
+            "ist noch keiner unterwegs, nur Karren, die über Nacht stehen "
+            "geblieben sind.",
+            "[Kiran] Die Hälfte der Briefe hab ich selbst geschrieben. Viele "
+            "können's nicht. Sie haben mir gesagt, was drinstehen soll, und "
+            "ich hab's aufgeschrieben.",
+            "Er sieht auf sein Heft.",
+            "[Kiran] Jetzt schreib ich für mich selbst."
+        ]),
+        ("gestoert", "„Was hat dich an der Arbeit gestört?“", [
+            "[Kiran] Leute, die fragen, wie weit es noch ist.",
+            "[Kiran] Ich hab's ihnen gesagt. Genau, auf zehn Schritte. "
+            "Geglaubt hat's mir keiner."
+        ])
+    ], "Valerie zuhören")
+
+    text_ausgeben(
+        "Valerie legt das Heft so hin, dass du hineinsehen kannst."
+    )
+    text_ausgeben(
+        "[Valerie] Wenn auch nur eine dieser Strecken noch stimmt, hätte er "
+        "etwas, worauf er sich verlassen kann. Ich weiß nicht, welche man "
+        "heute noch gehen kann. Sie waren draußen."
+    )
+
+    kiran_ziel_setzen("vergleichen", neu=True)
+
+
+def kiran_heft_anzeigen():
+    print()
+    design_text("Kirans Heft:", design="wissen", art="menue")
+    print()
+    print("Torbogen – erste Marke: 418")
+    print("Erste Marke – Wegweiser: 702")
+    print("Wegweiser – Steg: 3… (durchgestrichen)")
+    print("Steg – Brunnen: 312 (durchgestrichen)")
+
+
+def kiran_vergleich():
+    titel = "Universität von Oros - Forschungsräume"
+    ort_titel(titel)
+
+    text_ausgeben(
+        "Auf der aufgeschlagenen Seite stehen Strecken untereinander, in "
+        "einer ruhigen, gleichmäßigen Schrift."
+    )
+    kiran_heft_anzeigen()
+    print()
+    text_ausgeben(
+        "Darunter mehr, durchgestrichen und neu geschrieben, bis man die "
+        "Zahlen nicht mehr lesen kann."
+    )
+    offene_tore_messmappe_anzeigen()
+
+    if untersuchung_pruefung("wahrnehmung", 2):
+        print()
+        text_ausgeben(
+            "Neben „erste Marke“ hat Kiran einen kleinen Strich gemacht, "
+            "schräg, wie ein Kreidezeichen an einem Pfahl."
+        )
+
+    if untersuchung_pruefung("wissen", 2):
+        print()
+        text_ausgeben(
+            "Wegläufer benennen Marken nach dem, was dort steht, nicht nach "
+            "Ortsnamen. „Torbogen“, „erste Marke“, „Wegweiser“ klingt nach "
+            "einem Weg, der an einem Tor beginnt."
+        )
+
+    menue_trenner()
+    print()
+    print("Welche Strecke kann man heute noch gehen?")
+    print()
+    print("1. Torbogen bis Wegweiser")
+    print("2. Wegweiser bis Steg")
+    print("3. Steg bis Brunnen")
+
+    auswahl = eingabe_menu(1, 3, sonder_tasten=())
+    daten = kapitel6_daten()
+    print()
+
+    if auswahl != 1:
+        daten["kiran_fehlgriffe"] = daten.get("kiran_fehlgriffe", 0) + 1
+
+        if auswahl == 2:
+            text_ausgeben(
+                "[Valerie] Einen Steg gibt es in keiner deiner Messungen. Und "
+                "er hat die Zahl selbst durchgestrichen."
+            )
+        else:
+            text_ausgeben(
+                "[Valerie] Ein Brunnen. Davon gibt es hundert. Und die Zahl "
+                "ist durchgestrichen."
+            )
+
+        print()
+
+    text_ausgeben(
+        "Torbogen, erste Marke, Wegweiser. Dieselben drei Punkte stehen in "
+        "Finchs Neuvermessung."
+    )
+    text_ausgeben(
+        "[Valerie] Der Faden der Erinnerung. Das ist der Weg vor unserem Tor."
+    )
+    text_ausgeben(
+        "Kiran sieht von der Mappe auf sein Heft und wieder zurück."
+    )
+    text_ausgeben("[Kiran] Dann geh ich ihn. Jetzt.")
+    text_ausgeben("[Valerie] Nicht allein.")
+    text_ausgeben("[Kiran] Dann nicht allein.")
+    text_ausgeben("Er sieht dich an. Er fragt nicht, aber er wartet.")
+
+    daten["kiran_vergleich"] = True
+    kiran_ziel_setzen("wegweiser")
+
+
+def kiran_fundsache():
+    titel = "Universität von Oros"
+    ort_titel(titel)
+
+    text_ausgeben(
+        "Am Tisch der Schutzverwaltung sitzt nur noch ein Schreiber. Haller "
+        "steht daneben und liest eine Liste gegen."
+    )
+    text_ausgeben(
+        "[Haller] Sie waren bei der Aufnahme dabei. Einer aus dem "
+        "Vorplatzlager ist nicht durch das Tor gegangen."
+    )
+    text_ausgeben(
+        "Er schiebt dir ein gefaltetes Blatt hin. Es ist zerknittert und an "
+        "einer Ecke feucht geworden."
+    )
+    text_ausgeben(
+        "[Haller] Ahrens' Leute haben es beim Räumen unter einem Stein "
+        "gefunden. Eingetragen als Fundsache, ohne Eigentümer."
+    )
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Du kennst das Blatt. Strecken, durchgestrichene Ortsnamen. Unten, "
+        "unterstrichen: „Nicht stehen bleiben.“"
+    )
+    text_ausgeben(
+        "[Haller] Ahrens' Leute sagen, auf dem Faden sitzt seit zwei Tagen "
+        "ein Mann am alten Wegweiser. Er zählt. Wenn man ihn anspricht, "
+        "fängt er von vorn an."
+    )
+    text_ausgeben(
+        "[Haller] Er gehört nicht zur Universität. Ich kann ihn nicht holen "
+        "lassen."
+    )
+    text_ausgeben(
+        "[Haller] Eine Fundsache gebe ich nur gegen Unterschrift heraus."
+    )
+
+    menue_trenner()
+    print()
+    print("1. Unterschreiben und das Blatt nehmen")
+    print("2. Später")
+
+    if eingabe_menu(1, 2, sonder_tasten=()) != 1:
+        print()
+        text_ausgeben("Haller legt das Blatt zurück in seine Mappe.")
+        warte_auf_taste("Weiter")
+        return
+
+    print()
+    text_ausgeben(
+        "Du unterschreibst. Haller sieht die Zeile an. Ein Name, eine "
+        "Fundsache."
+    )
+    text_ausgeben("[Haller] Vorläufig.")
+
+    kapitel6_daten()["kiran_blatt"] = True
+    kiran_ziel_setzen("wegweiser", neu=True)
+
+
+# --------------------------------------------------
+# Kapitel 6, Teil 3, Paket K-B: Faden, Brunnen, Kirans Entscheidung
+# --------------------------------------------------
+
+def kiran_zustand():
+    return (spieler.get("entscheidungen") or {}).get("kiran_zustand")
+
+
+def kiran_abschluss_text():
+    return {
+        "gehalten": (
+            "Kiran hat die Strecke vom Torbogen bis zum alten Wegweiser "
+            "nachgezählt. Der Weg ist länger geworden, verzählt hat er sich "
+            "nicht. In seinem Heft steht jetzt „Brunnfeld?“."
+        ),
+        "spaet_gehalten": (
+            "Kiran saß am alten Wegweiser und zählte. Er ist mit dir nach "
+            "Oros zurückgekommen, weil dort ein Mann aus Brunnfeld ist. "
+            "Seinen Namen hat er von der Rückseite seines Blatts abgeschrieben."
+        ),
+        "verloren": (
+            "Kiran hat sein Blatt zurückbekommen. Am alten Wegweiser ist er "
+            "an der Biegung geradeaus ins Gras gegangen."
+        )
+    }.get(kiran_zustand(), "")
+
+
+def kiran_abschliessen(zustand, merkmal):
+    spieler.setdefault("entscheidungen", {})["kiran_zustand"] = zustand
+    kapitel6_daten()[merkmal] = True
+    spieler["quest_kiran"] = "abgeschlossen"
+    quest_meldung("abgeschlossen", "Nicht stehen bleiben")
+    warte_auf_taste("Weiter")
+
+
+def kiran_forschungsraeume_zeile():
+    if (
+        kapitel9_wert("kiran_dabei", False) and kapitel9_wert("angekommen", False)
+        and not brunnfeld_kiran_spaet_offen()
+        or kapitel9_wert("kiran_befreit", False)
+    ):
+        # Kapitel 9: Kiran ist mit nach Brunnfeld gegangen oder lebt nach der
+        # Befreiung dort.
+        return
+
+    zustand = kiran_zustand()
+
+    if archiv_kiran_an_der_kante():
+        text_ausgeben(
+            "Kirans Platz an Valeries Tisch ist leer. Sein Heft liegt "
+            "aufgeschlagen da."
+        )
+    elif zustand == "gehalten":
+        text_ausgeben(
+            "Kiran sitzt an Valeries Tisch. Im Heft sind neben den Zahlen "
+            "jetzt auch Wörter. Eines davon hat ein Fragezeichen."
+        )
+    elif zustand == "spaet_gehalten":
+        text_ausgeben(
+            "Kiran sitzt an Valeries Tisch und schreibt. Er sieht auf, wenn "
+            "jemand hereinkommt, und braucht einen Augenblick, bis er "
+            "weiterschreibt."
+        )
+    elif zustand == "verloren":
+        if riss_einmal("kiran_verloren_valerie"):
+            text_ausgeben(
+                "[Valerie] Haller sagt, du hast ihm sein Blatt gebracht."
+            )
+            text_ausgeben(
+                "[Valerie] Ich habe ein Heft für ihn zurückgelegt. Für den "
+                "Fall."
+            )
+    elif offene_tore_kiran() == "buergschaft":
+        text_ausgeben(
+            "Kiran sitzt an Valeries Tisch und schreibt. Manchmal hält er inne "
+            "und zählt etwas an den Fingern ab."
+        )
+
+
+def kiran_lehrhallen_zeilen():
+    if brunnfeld_status() != "nicht_entdeckt":
+        # Kapitel 9: Der alte Mann lagert jetzt im Vorplatzlager.
+        return []
+
+    if archiv_kiran_an_der_kante() and kiran_zustand() == "spaet_gehalten":
+        return ["Der alte Mann aus Brunnfeld schläft."]
+
+    return {
+        "gehalten": [
+            "Der alte Mann aus Brunnfeld schläft. Auf der Bank neben ihm "
+            "liegt ein Zettel in Kirans Schrift: „Steg – Brunnen 312.“"
+        ],
+        "spaet_gehalten": [
+            "Der alte Mann aus Brunnfeld schläft. Kiran sitzt manchmal neben "
+            "ihm und wartet, ob er im Schlaf etwas sagt."
+        ]
+    }.get(kiran_zustand(), [])
+
+
+def kiran_faden():
+    ort_titel("Universität von Oros")
+
+    text_ausgeben(
+        "Kiran stellt sich unter den Torbogen, genau in die Mitte. Er schiebt "
+        "einen Fuß vor, bis die Spitze die Kante der Steinplatte berührt."
+    )
+    text_ausgeben("[Kiran] Von hier. Immer von hier.")
+    text_ausgeben(
+        "Dann geht er los. Er zählt nicht laut. Du siehst nur, wie sich "
+        "seine Lippen bewegen."
+    )
+
+    titel = "Faden der Erinnerung"
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Bei der ersten Wegmarke bleibt er stehen. Der Pfahl trägt Kreide von "
+        "Ahrens' Leuten."
+    )
+    text_ausgeben("[Kiran] Vierhundertachtzehn.")
+    text_ausgeben(
+        "Er schreibt es nicht auf. Er nickt nur, als hätte ihm jemand recht "
+        "gegeben."
+    )
+    text_ausgeben(
+        "[Kiran] Hier ging's früher geradeaus. Dann kam die Steigung. Die hab "
+        "ich gehasst. Jeden Morgen."
+    )
+    text_ausgeben(
+        "Die Pfähle führen nach rechts, in den flachen Bogen. Geradeaus ist "
+        "nur Gras."
+    )
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Kiran folgt den Pfählen. Du gehst neben ihm. Nach einer Weile wird "
+        "er langsamer."
+    )
+    text_ausgeben(
+        "Bei siebenhundertzwei bleibt er stehen. Kein Wegweiser. Nur ein "
+        "Pfahl und noch einer dahinter."
+    )
+    text_ausgeben("[Kiran] Das ist falsch. Das war immer hier.")
+    text_ausgeben(
+        "Er sieht auf seine Füße, als hätten sie sich geirrt. Dann geht er "
+        "weiter, schneller."
+    )
+    text_ausgeben("[Kiran] Weiter. Nicht stehen bleiben.")
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Als der Wegweiser zwischen den Bäumen auftaucht, bleibt er doch "
+        "stehen."
+    )
+    text_ausgeben("[Kiran] Siebenhunderteinundneunzig.")
+    text_ausgeben("[Kiran] Ich hab mich verzählt. Ich verzähl mich nie.")
+
+    menue_trenner()
+    print()
+    print("1. Ihm Finchs Messung zeigen")
+    print("2. „Der Weg ist ein anderer.“")
+
+    auswahl = eingabe_menu(1, 2, sonder_tasten=())
+    print()
+
+    if auswahl == 1:
+        text_ausgeben(
+            "Du zeigst ihm die Zeile in der Messmappe. „Abweichung bei "
+            "Wegmarke 1, neue Richtung 22.“ Er liest sie zweimal."
+        )
+    else:
+        text_ausgeben(
+            "Du erzählst ihm von der Vermessung. Von der alten Richtung, die "
+            "vor einer Böschung endet."
+        )
+
+    text_ausgeben("[Kiran] Der Weg ist länger geworden.")
+    text_ausgeben("[Kiran] Dann hab ich mich nicht verzählt.")
+    text_ausgeben("Er sagt es nicht zu dir. Er sagt es zu sich.")
+
+    kapitel6_daten()["kiran_wegweiser"] = True
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Am Pfosten des Wegweisers, auf Hüfthöhe, sind Kerben im Holz. Eine "
+        "Reihe kurzer, sauberer Schnitte, wie Wegläufer sie machen."
+    )
+    text_ausgeben("Kiran legt den Daumen darauf.")
+    text_ausgeben(
+        "[Kiran] Das ist meine. Das sehe ich am Messer, das schneidet immer "
+        "ein bisschen schief."
+    )
+    text_ausgeben("[Kiran] Wann ich das gemacht hab, weiß ich nicht.")
+    text_ausgeben(
+        "Neben seinen Kerben ist eine kleinere. Tiefer gesetzt, "
+        "ungeschickter."
+    )
+    text_ausgeben("[Kiran] Die ist nicht von mir.")
+    text_ausgeben(
+        "Er bückt sich, bis die Kerbe auf seiner Augenhöhe ist."
+    )
+    text_ausgeben("[Kiran] Die hat jemand gemacht, der kleiner war.")
+    text_ausgeben("Mehr sagt er dazu nicht. Er holt das Heft heraus.")
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "[Kiran] Ich will was aufschreiben. Damit ich das hier wiederfinde. "
+        "Was soll ich schreiben?"
+    )
+
+    menue_trenner()
+    print()
+    print("1. „Schreib auf, wer bei dir war.“")
+    print("2. „Schreib auf, wo wir stehen.“")
+    print("3. „Schreib, was du selbst behalten willst.“")
+
+    auswahl = eingabe_menu(1, 3, sonder_tasten=())
+    anker = ("mensch", "ort", "selbst")[auswahl - 1]
+    spieler.setdefault("entscheidungen", {})["kiran_anker"] = anker
+    print()
+
+    if anker == "mensch":
+        text_ausgeben(
+            "Er schreibt deinen Namen. Dann darunter: „War dabei. Hat "
+            "gewartet.“"
+        )
+        text_ausgeben("[Kiran] Wenn ich's vergesse, frag ich dich.")
+    elif anker == "ort":
+        text_ausgeben(
+            "Er schreibt: „Wegweiser am Faden. Torbogen 418, dann Bogen nach "
+            "rechts, 791. Nicht mehr 702.“"
+        )
+        text_ausgeben(
+            "[Kiran] Das kann man nachgehen. Auch wenn ich's nicht mehr weiß."
+        )
+    else:
+        text_ausgeben(
+            "Er denkt lange nach. Dann schreibt er einen Satz und hält das "
+            "Heft so, dass du ihn lesen kannst."
+        )
+        text_ausgeben("„Ich hab mich nicht verzählt.“")
+
+    print()
+    text_ausgeben(
+        "Auf dem Rückweg zählt Kiran nicht. Er geht neben dir, das Heft in "
+        "der Hand, und sieht sich die Pfähle an, als wolle er sie sich "
+        "merken."
+    )
+
+    kiran_ziel_setzen("lehrhallen")
+
+
+def kiran_lehrhallen():
+    titel = "Universität von Oros - Lehrhallen"
+    ort_titel(titel)
+
+    text_ausgeben(
+        "Kiran will zurück an Valeries Tisch. Der kürzeste Weg führt durch "
+        "die Lehrhallen, zwischen den Bänken hindurch, auf denen die "
+        "Menschen aus dem Vorplatzlager schlafen."
+    )
+    text_ausgeben("Er zählt wieder, leise. Diesmal hörst du die Zahlen.")
+    text_ausgeben("[Kiran] … dreihundertzehn, dreihundertelf …")
+    text_ausgeben(
+        "Von einer Bank weiter hinten kommt eine Stimme, rau, halb im Schlaf."
+    )
+    text_ausgeben("[Alter Mann] … dreihundertzwölf. Bis zum Brunnen.")
+
+    seite_wechseln(titel)
+
+    text_ausgeben("Kiran bleibt stehen.")
+    text_ausgeben(
+        "Der alte Mann aus Brunnfeld hat sich halb aufgerichtet. Er sieht "
+        "Kiran an, ohne ihn zu erkennen."
+    )
+    text_ausgeben(
+        "[Alter Mann] Vom Steg bis zum Brunnen. Dreihundertzwölf. Das sagen "
+        "die Läufer. Ich hab's nie nachgezählt."
+    )
+    text_ausgeben("[Alter Mann] Kenn ich dich?")
+    text_ausgeben("[Kiran] Ich weiß nicht.")
+    text_ausgeben(
+        "Kiran zieht das Blatt aus der Tasche. Auf der Vorderseite, "
+        "durchgestrichen: „Steg – Brunnen 312.“"
+    )
+    text_ausgeben(
+        "[Kiran] Das hab ich durchgestrichen. Ich wusste nicht mehr, wohin es "
+        "gehört."
+    )
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "[Alter Mann] Der Brunnen in der Mitte. Morgens stehen sie da "
+        "Schlange. Die Kinder holen das Wasser, die Großen schlafen noch."
+    )
+    text_ausgeben("Er legt sich wieder hin.")
+    text_ausgeben("[Alter Mann] Wenn du da gewohnt hast, kennst du ihn.")
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Kiran schreibt etwas ins Heft. Er braucht lange dafür. Du siehst das "
+        "Wort, bevor er die Seite umschlägt: „Brunnfeld?“"
+    )
+    text_ausgeben(
+        "Auf dem Weg zu den Forschungsräumen sagt er lange nichts."
+    )
+    text_ausgeben(
+        "[Kiran] Am Brunnen hat jemand auf mich gewartet. Morgens, bevor ich "
+        "losgelaufen bin."
+    )
+    text_ausgeben("[Kiran] Oder ich auf sie. Ich weiß es nicht mehr genau.")
+    text_ausgeben("[Kiran] Ich glaub, es ist meine Schwester. Die ich suche.")
+    text_ausgeben(
+        "Er sagt es vorsichtig, als könnte der Satz noch falsch sein."
+    )
+
+    anker = (spieler.get("entscheidungen") or {}).get("kiran_anker")
+
+    if anker == "mensch":
+        text_ausgeben("[Kiran] Wenn ich das vergesse, sagst du's mir.")
+    elif anker == "ort":
+        text_ausgeben(
+            "[Kiran] Den Brunnen schreib ich zu den Strecken. Dahin, wo er "
+            "hingehört."
+        )
+    elif anker == "selbst":
+        text_ausgeben(
+            "Er blättert zurück zu dem einen Satz und liest ihn noch einmal."
+        )
+
+    kiran_abschliessen("gehalten", "kiran_brunnen")
+
+
+def kiran_wegweiser_liste():
+    ort_titel("Universität von Oros")
+
+    text_ausgeben(
+        "Du folgst den Pfählen. Pfahl, Kreide, Pfahl, im flachen Bogen."
+    )
+
+    titel = "Faden der Erinnerung"
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Kiran sitzt mit dem Rücken am Pfosten des Wegweisers. Seine Decke "
+        "hat er nicht mehr. Neben ihm liegt sein Bündel, offen."
+    )
+    text_ausgeben(
+        "Er zählt. Er kommt bis zweihundert, dann stockt er und beginnt bei "
+        "eins."
+    )
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Er sieht dich an. Dann sieht er an dir vorbei, zum Tor zurück."
+    )
+    text_ausgeben("[Kiran] Bist du … warst du am Tor?")
+    text_ausgeben(
+        "[Kiran] Ich weiß nicht, wie man das sagt. Den Namen. Meinen."
+    )
+    text_ausgeben(
+        "Du gibst ihm das Blatt. Er dreht es um, als wüsste er, wo er suchen "
+        "muss. Auf der Rückseite, klein in der Ecke, steht ein Name."
+    )
+    text_ausgeben("[Kiran] Kiran.")
+    text_ausgeben("Er liest es noch einmal, langsamer.")
+    text_ausgeben("[Kiran] Kiran. So heiß ich.")
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "[Kiran] Die Zahlen gehen nicht mehr auf. Von der ersten Marke bis "
+        "hier. Es sind zu viele."
+    )
+    text_ausgeben("[Kiran] Ich bin stehen geblieben, um nachzuzählen.")
+    text_ausgeben("Er tippt auf die unterstrichene Zeile.")
+    text_ausgeben("[Kiran] Steht hier, dass ich das nicht soll.")
+    text_ausgeben("[Kiran] Ich such jemand. Sie wartet am … sie wartet.")
+    text_ausgeben("Das Wort kommt nicht.")
+
+    daten = kapitel6_daten()
+    daten["kiran_gefunden"] = True
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "[Kiran] Ich muss weiter. Wenn ich hierbleibe, finde ich sie nicht."
+    )
+    text_ausgeben(
+        "Er steht auf. Sein Blick geht in die Richtung, in der der Faden zur "
+        "nächsten Kuppe führt. Und daran vorbei, wo kein Weg ist."
+    )
+
+    gewaehlt = []
+
+    while True:
+        punkte = [
+            punkt for punkt in (
+                ("krank", "„Du bist krank. Du musst mitkommen.“"),
+                ("messung", "„Der Weg hat sich verändert. Deine Zahlen "
+                            "stimmen trotzdem.“")
+            )
+            if punkt[0] not in gewaehlt
+        ] + [
+            ("brunnfeld", "„In der Universität ist ein alter Mann aus "
+                          "Brunnfeld. Er kennt Wege.“"),
+            ("gehen", "„Dann geh. Nimm wenigstens das Blatt mit.“")
+        ]
+
+        menue_trenner()
+        print()
+
+        for nummer, (_, text) in enumerate(punkte, start=1):
+            print(f"{nummer}. {text}")
+
+        wahl = punkte[eingabe_menu(1, len(punkte), sonder_tasten=()) - 1][0]
+        print()
+
+        if wahl == "krank":
+            gewaehlt.append(wahl)
+            text_ausgeben("[Kiran] Ich bin nicht krank. Ich bin unterwegs.")
+            text_ausgeben("Er bindet sein Bündel zu.")
+
+        elif wahl == "messung":
+            gewaehlt.append(wahl)
+            daten["kiran_messung_erklaert"] = True
+            text_ausgeben("[Kiran] Woher weißt du das?")
+            text_ausgeben(
+                "Du erzählst ihm von Finchs Vermessung. Von der Abweichung an "
+                "der ersten Marke."
+            )
+            text_ausgeben("[Kiran] Dann hab ich mich nicht verzählt.")
+            text_ausgeben(
+                "Er sagt es leise. Es klingt nicht erleichtert. Eher wie "
+                "etwas, das man vorsichtig festhält."
+            )
+
+        elif wahl == "brunnfeld":
+            text_ausgeben("Kiran hält inne.")
+            text_ausgeben("[Kiran] Brunnfeld.")
+            text_ausgeben("[Kiran] Das steht auf dem Blatt. Durchgestrichen.")
+            text_ausgeben("Er sieht lange auf das Blatt.")
+            text_ausgeben(
+                "[Kiran] Wenn er die Strecken kennt, kann er mir sagen, wohin "
+                "sie gehören."
+            )
+            text_ausgeben(
+                "[Kiran] Ich komme mit. Aber ich geh vorne. Und ich zähle."
+            )
+            kiran_spaet_gehalten()
+            return
+
+        else:
+            print("Kiran gehen lassen? Er wird nicht nach Oros zurückkommen.")
+            print()
+            print("1. Ja")
+            print("2. Nein")
+
+            if eingabe_menu(1, 2, sonder_tasten=()) == 1:
+                print()
+                kiran_verloren()
+                return
+
+
+def kiran_spaet_gehalten():
+    titel = "Faden der Erinnerung"
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Kiran geht vor dir den Bogen zurück. Bei jeder Marke bleibt er kurz "
+        "stehen, zählt nach, geht weiter."
+    )
+    text_ausgeben("Am Tor wartet er, bis du ihn eingeholt hast.")
+
+    seite_wechseln("Universität von Oros - Forschungsräume")
+
+    text_ausgeben(
+        "In den Forschungsräumen gibt Valerie ihm ein Heft. Sie fragt nicht, "
+        "wo er war."
+    )
+    text_ausgeben(
+        "Kiran setzt sich und schreibt. Zuerst seinen Namen, langsam, "
+        "Buchstabe für Buchstabe, von der Rückseite des Blatts abgeschrieben."
+    )
+    text_ausgeben(
+        "Dann sieht er dich an, als müsse er überlegen, woher er dich kennt."
+    )
+    text_ausgeben("[Kiran] Du hast mir das Blatt gebracht.")
+    text_ausgeben("[Kiran] Das schreib ich auch auf.")
+
+    if kapitel6_daten().get("kiran_messung_erklaert") is True:
+        text_ausgeben("Darunter, in kleinerer Schrift: „Nicht verzählt.“")
+    else:
+        text_ausgeben("Mehr schreibt er an diesem Abend nicht.")
+
+    kiran_abschliessen("spaet_gehalten", "kiran_entscheidung")
+
+
+def kiran_verloren():
+    text_ausgeben(
+        "Kiran nickt. Er faltet das Blatt und steckt es in die Jacke, dahin, "
+        "wo man Briefe trägt."
+    )
+    text_ausgeben("[Kiran] Danke. Für das Blatt.")
+    text_ausgeben(
+        "Er folgt nicht den Pfählen. An der Biegung geht er geradeaus ins "
+        "Gras."
+    )
+    text_ausgeben("Du hörst ihn zählen. Dann hörst du nur noch Gras.")
+
+    seite_wechseln("Faden der Erinnerung")
+
+    text_ausgeben(
+        "Am Pfosten des Wegweisers sind Kerben im Holz, eine Reihe kurzer, "
+        "sauberer Schnitte. Daneben eine kleinere, tiefer gesetzt."
+    )
+    text_ausgeben("Ganz frisch, darunter, ein neuer Schnitt. Schief.")
+
+    kiran_abschliessen("verloren", "kiran_entscheidung")
+
+
+# --------------------------------------------------
+# Kapitel 7, Paket C-C: Wiederanbindung, Nordstraße, Abschluss
+# --------------------------------------------------
+
+CHRONIK_GEGENPUNKTE = {
+    "nord": ("Gegenpunkt Nordseite", 31, 31),
+    "dorf": ("Gegenpunkt Dorfseite", 17, 19),
+    "ost": ("Gegenpunkt Ostarm", 44, 53)
+}
+
+
+def chronik_angebunden():
+    # Nur lesen: legt bei alten Spielständen keine leeren Kapitel-7-Daten an.
+    daten = spieler.get("kapitel7")
+
+    return isinstance(daten, dict) and daten.get("angebunden") is True
+
+
+def chronik_peilung(punkt):
+    name, soll, gemessen = CHRONIK_GEGENPUNKTE[punkt]
+    print()
+    print(f"{'':<22}{'Soll':>6}{'gemessen':>10}")
+    print(f"{name:<22}{soll:>6}{gemessen:>10}")
+    print()
+
+
+def chronik_gegenpunkt(punkt):
+    daten = kapitel7_daten()
+    geprueft = daten.setdefault("gegenpunkte", [])
+    titel = "Versunkene Chronik - Ringhof"
+    ort_titel(titel)
+
+    if punkt == "nord":
+        text_ausgeben(
+            "Am Fels, wo die Fahrbahn im Gras endet, steht ein Stein, kniehoch, "
+            "oben flach geschliffen. In die Fläche ist eine Kerbe gezogen, die "
+            "nach Süden zeigt, zur Fassung im Hof."
+        )
+        text_ausgeben(
+            "Du peilst über die Kerbe zum Ringhof, so wie Finch es am Torpfeiler "
+            "getan hat."
+        )
+        chronik_peilung("nord")
+        text_ausgeben("Einunddreißig. Genau.")
+
+        if spieler_pruefung("sensibilitaet", 2):
+            text_ausgeben(
+                "Der Stein fühlt sich an wie das Ende eines Seils, an dem auf der "
+                "anderen Seite jemand zieht. Gleichmäßig. Ruhig."
+            )
+
+    elif punkt == "dorf":
+        text_ausgeben(
+            "An der Abbruchkante, wo du zum ersten Mal in die Senke hinabgesehen "
+            "hast, liegt der zweite Stein halb im Geröll. Du räumst ihn frei."
+        )
+        chronik_peilung("dorf")
+        text_ausgeben("Neunzehn. Zwei Teilstriche. Gerade noch.")
+
+        if spieler_pruefung("sensibilitaet", 2):
+            text_ausgeben(
+                "Auch hier zieht etwas am anderen Ende. Aber nicht gleichmäßig. "
+                "Es lässt nach, fasst wieder, lässt nach."
+            )
+
+    else:
+        if not chronik_ostarm_freimachen():
+            return
+
+        text_ausgeben(
+            "Hinter dem östlichen Torbogen liegt der dritte Gegenpunkt unter "
+            "Schutt. Du legst seine Oberkante frei und peilst zur Fassung."
+        )
+        chronik_peilung("ost")
+        text_ausgeben(
+            "Dreiundfünfzig. Neun Teilstriche. Du peilst noch einmal und "
+            "bekommst zweiundfünfzig."
+        )
+        text_ausgeben("Der Riegel bleibt, wo er ist.")
+
+        if spieler_pruefung("sensibilitaet", 2):
+            text_ausgeben(
+                "Am anderen Ende zieht nichts. Es ist, als hielte man ein Seil, "
+                "das irgendwo abgerissen ist."
+            )
+
+        daten["ostarm_gemessen"] = True
+        warte_auf_taste("Weiter")
+        return
+
+    if tiefen_hammer_dabei():
+        print()
+
+        if punkt == "nord":
+            text_ausgeben(
+                "Du klopfst gegen den Stein. Das Echo kommt aus der Richtung der "
+                "Fassung zurück, klar."
+            )
+        else:
+            text_ausgeben(
+                "Du klopfst gegen den Stein. Das Echo kommt aus der Richtung der "
+                "Fassung zurück, später, als du erwartest, und leiser."
+            )
+
+    if punkt not in geprueft:
+        geprueft.append(punkt)
+
+    if "nord" in geprueft and "dorf" in geprueft:
+        print()
+        text_ausgeben(
+            "Beide Gegenpunkte liegen im zulässigen Bereich. Der eine mitten "
+            "darin, der andere am Rand. Die Kerbe des Ostarms bleibt verriegelt."
+        )
+        daten["dorfseite"] = "knapp"
+        daten["verfahren_verstanden"] = True
+
+    warte_auf_taste("Weiter")
+
+
+def chronik_fehlversuch():
+    daten = kapitel7_daten()
+    ort_titel("Versunkene Chronik - Ringhof")
+
+    if daten.get("fehlversuch"):
+        text_ausgeben(
+            "Du setzt an. Dann denkst du an die Randnotiz und hältst inne. Erst "
+            "fragen, ob die Gegenseite trägt."
+        )
+        warte_auf_taste("Weiter")
+        return
+
+    daten["fehlversuch"] = True
+    daten["verfahren_verstanden"] = True
+    text_ausgeben("Der Stein gleitet in die Fassung. Er sitzt.")
+    text_ausgeben(
+        "Dann kippt der Hof. Nicht der Boden, du stehst fest. Aber die Richtung "
+        "stimmt nicht mehr: Das Rauschen des Bachs kommt von links, wo eben "
+        "noch Fels war, und von rechts, beides gleichzeitig."
+    )
+    text_ausgeben(
+        "Dir wird schlecht. Du greifst nach dem Stein, und er springt dir aus "
+        "der Fassung in die Hände, als hätte ihn etwas hinausgedrückt."
+    )
+    text_ausgeben("Die Richtungen ordnen sich wieder.")
+
+    # Ein erlaubter Rätselversuch darf nie zum Spielende führen.
+    spieler["lebenspunkte"] = max(1, spieler["lebenspunkte"] - 8)
+    print()
+    print(f"Lebenspunkte: {spieler['lebenspunkte']}")
+    print()
+    text_ausgeben(
+        "„Wer zuerst setzt, holt herein, was draußen ist.“ Die Gegenseite hat "
+        "nicht getragen. Oder du hast sie nicht gefragt."
+    )
+    warte_auf_taste("Weiter")
+
+
+def chronik_setzen():
+    daten = kapitel7_daten()
+    titel = "Versunkene Chronik - Ringhof"
+    ort_titel(titel)
+    text_ausgeben(
+        "Du setzt den Stein. Er sitzt. Der Riegel an der östlichen Kerbe rührt "
+        "sich nicht."
+    )
+    text_ausgeben("Nichts geschieht.")
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Dann hörst du Wasser. Nicht den Bach im Süden, den kennst du. Das "
+        "Geräusch kommt von Norden, aus dem Fels. Vorher war dort nichts zu "
+        "hören."
+    )
+    text_ausgeben(
+        "Du drehst dich um. Durch eine Lücke zwischen zwei Mauerresten siehst "
+        "du den Gegenpunkt an der Nordseite. Du hast ihn vorhin aus dem Hof "
+        "gesucht und nicht gefunden. Jetzt steht er genau in der Verlängerung "
+        "der Kerbe, als wäre die Lücke für ihn gelassen worden."
+    )
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Du gehst zum Rand des Hofs, dorthin, wo die nördliche Fahrbahn im Gras "
+        "endete."
+    )
+    text_ausgeben(
+        "Sie endet nicht mehr. Sie führt weiter, zwischen den Felsen hindurch, "
+        "die Senke hinauf, mit Gräben zu beiden Seiten und einer Trockenmauer, "
+        "wie am Pfad des Vergessens."
+    )
+    text_ausgeben(
+        "Du weißt nicht, ob sie eben erst entstanden ist. Sie sieht aus, als "
+        "hätte sie immer hier gelegen."
+    )
+
+    if spieler_pruefung("sensibilitaet", 2):
+        text_ausgeben("Es fühlt sich an wie ein Weg, den man schon kennt.")
+
+    daten["ringstein"] = "gesetzt"
+    daten["angebunden"] = True
+    weg_entdecken("tiefer_ring")
+    chronik_ziel_setzen("nordstrasse")
+
+
+def chronik_ostarm_freimachen():
+    # Gibt True zurück, sobald der Stein frei ist.
+    daten = kapitel7_daten()
+
+    if daten.get("ostarm_gefahr"):
+        return True
+
+    titel = "Versunkene Chronik - Ringhof"
+    kampf = "Den Schieferpanzer angreifen [Kampf]"
+    warten = "Bis zum Abend warten"
+    klopfen = "Neben ihm an den Stein klopfen"
+    klingen = "Den Stein mit der Klangrune zum Klingen bringen [Runenschmied]"
+    ort_titel(titel)
+
+    text_ausgeben(
+        "Hinter dem östlichen Torbogen liegt Schutt. Du hebst den obersten "
+        "Stein an, und der Haufen darunter verschiebt sich von allein."
+    )
+    text_ausgeben(
+        "Eine graue Platte schiebt sich zwischen den Steinen hervor, dann eine "
+        "zweite. Ein Schieferpanzer hat sich hier eingegraben, genau über dem "
+        "Stein, den du suchst."
+    )
+    text_ausgeben(
+        "An der feuchten Mauer daneben ist das Moos in breiten Streifen "
+        "abgeweidet."
+    )
+
+    while True:
+        optionen = [kampf, warten]
+
+        if tiefen_hammer_dabei():
+            optionen.append(klopfen)
+
+        if runenschmied_klangrune_bereit():
+            optionen.append(klingen)
+
+        optionen.append("Zurück")
+        wahl = laeuferpfad_wahl(optionen)
+
+        if wahl == "Zurück":
+            return False
+
+        if wahl == warten:
+            text_ausgeben(
+                "Du setzt dich auf einen Mauerrest und wartest. Das Tier rührt "
+                "sich lange nicht."
+            )
+            zeit_bis_abend()
+            text_ausgeben(
+                "Irgendwann schiebt es sich aus dem Schutt und kriecht zur "
+                "feuchten Mauer, Platte für Platte. Den Stein lässt es liegen."
+            )
+            daten["ostarm_gefahr"] = {"weg": "abgewartet"}
+            print()
+            return True
+
+        if wahl == klopfen:
+            text_ausgeben(
+                "Du setzt den Hammer neben der Platte an und schlägst zweimal "
+                "gegen den Stein. Das Tier zieht sich zusammen."
+            )
+            text_ausgeben(
+                "Beim dritten Schlag schiebt es sich rückwärts aus dem Schutt "
+                "und verschwindet hinter der Mauer."
+            )
+            daten["ostarm_gefahr"] = {"weg": "hammer"}
+            print()
+            return True
+
+        if wahl == klingen:
+            text_ausgeben(
+                "Du setzt die Waffe neben der Platte an den Stein und hältst den "
+                "Ton der Rune, bis der Stein mitklingt. Der Ton geht durch den "
+                "Schutt, hoch und lange."
+            )
+            text_ausgeben(
+                "Das Tier zieht die Platten zusammen. Dann schiebt es sich "
+                "rückwärts aus dem Schutt und verschwindet hinter der Mauer, weg "
+                "von dem Ton."
+            )
+            daten["ostarm_gefahr"] = {"weg": "klangrune"}
+            print()
+            return True
+
+        ausgang = nachriss_kampf(
+            "Schieferpanzer", "Versunkene Chronik", "Offener Hof",
+            ("Der Schieferpanzer rührt sich nicht mehr. Du wuchtest ihn von der Stelle.",)
+        )
+
+        if ausgang == "sieg":
+            daten["ostarm_gefahr"] = {"weg": "kampf"}
+            warte_auf_taste("Weiter")
+            ort_titel(titel)
+            return True
+
+        if ausgang == "niederlage":
+            ort_titel("Versunkene Chronik - Eingangshalle")
+            text_ausgeben(
+                "Du kommst in der Eingangshalle zu dir, Staub im Mund. Wie du "
+                "dorthin gekommen bist, weißt du nicht genau."
+            )
+            daten["raum"] = "eingangshalle"
+            warte_auf_taste("Weiter")
+            return False
+
+        if ausgang == "flucht":
+            text_ausgeben(
+                "Du weichst zurück. Der Schieferpanzer bleibt auf dem Stein.",
+                art="menue"
+            )
+
+
+def chronik_anbindung():
+    daten = kapitel7_daten()
+    titel = "Versunkene Chronik - Ringhof"
+
+    while True:
+        ort_titel(titel)
+
+        if not daten.get("w1_gesehen"):
+            daten["w1_gesehen"] = True
+            text_ausgeben(
+                "Du stellst dich vor die leere Fassung. Der Ringstein ist "
+                "schwerer, als er aussieht."
+            )
+        else:
+            text_ausgeben(
+                "Die leere Fassung, die drei Kerben. Die östliche ist "
+                "verriegelt."
+            )
+
+        geprueft = daten.get("gegenpunkte", [])
+
+        if geprueft:
+            namen = {"nord": "Nordseite", "dorf": "Dorfseite"}
+            print()
+            print(
+                "Geprüft: "
+                + ", ".join(namen[p] for p in ("nord", "dorf") if p in geprueft)
+            )
+
+        punkte = [("setzen", "Den Ringstein in die Fassung setzen")]
+
+        if "nord" not in geprueft:
+            punkte.append(("nord", "Den Gegenpunkt an der Nordseite prüfen"))
+
+        if "dorf" not in geprueft:
+            punkte.append(("dorf", "Den Gegenpunkt an der Dorfseite prüfen"))
+
+        if not daten.get("ostarm_gemessen"):
+            punkte.append(("ost", "Den Gegenpunkt am Ostarm prüfen"))
+
+        punkte.append(("zurueck", "Zurück"))
+        wahl = chronik_auswahl(punkte)
+
+        if wahl == "zurueck":
+            return
+
+        if wahl in ("nord", "dorf", "ost"):
+            chronik_gegenpunkt(wahl)
+
+            if daten.get("raum") == "eingangshalle":
+                return
+
+            continue
+
+        if "nord" in geprueft and "dorf" in geprueft:
+            chronik_setzen()
+            return
+
+        chronik_fehlversuch()
+
+
+def chronik_nordstrasse_erstmals():
+    daten = kapitel7_daten()
+    titel = "Nordstraße"
+    ort_titel(titel)
+    text_ausgeben(
+        "Die Straße steigt aus der Senke. Oben wird sie flacher und läuft "
+        "zwischen niedrigen Hügeln nach Norden. Die Gräben sind sauber, die "
+        "Mauer hat keine Lücken. Niemand ist hier gegangen, und trotzdem ist "
+        "nichts zugewachsen."
+    )
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Nach einer Weile siehst du Mauern über den Hügeln. Erst erkennst du sie "
+        "nicht, weil du sie nie von dieser Seite gesehen hast."
+    )
+    text_ausgeben("Oros.")
+
+    titel = "Universität von Oros"
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Die Straße endet nicht am Haupttor. Sie mündet von Westen in den "
+        "Vorplatz, an einer Stelle, an der nur Gras war. Einer von Ahrens' "
+        "Wachleuten sieht dich kommen und greift nach seinem Speer."
+    )
+    text_ausgeben("[Wachmann] Halt. Woher …")
+    text_ausgeben("Er sieht an dir vorbei, auf die Straße.")
+    text_ausgeben("[Wachmann] Von dort kommt kein Weg.")
+    text_ausgeben("[Wachmann] Das war heute Morgen noch Gras.")
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Der zweite Wachmann läuft in die Universität. Kurz darauf kommt Finch "
+        "über den Vorplatz, ohne Mantel, eine Feder noch in der Hand."
+    )
+    text_ausgeben(
+        "Er bleibt am Rand der neuen Straße stehen und sieht sie entlang, bis "
+        "sie hinter den Hügeln verschwindet."
+    )
+    text_ausgeben("[Finch] Sie sind angekommen.")
+    text_ausgeben("[Finch] Und Sie sind zurückgekehrt.")
+    text_ausgeben("Er sieht dich an. Dann wieder auf die Straße.")
+    text_ausgeben("[Finch] Das ist mehr, als in der alten Schutzordnung steht.")
+
+    if daten.get("dorfseite") == "knapp":
+        if chronik_auswahl([
+            ("erzaehlen", "Finch von der Dorfseite erzählen"),
+            ("schweigen", "Nichts weiter sagen")
+        ]) == "erzaehlen":
+            daten["finch_dorfseite"] = True
+            text_ausgeben(
+                "[Finch] Gerade noch zulässig. Das ist ein Messwert, kein Urteil."
+            )
+            text_ausgeben(
+                "[Finch] Aber schreiben Sie ihn auf. Ich möchte wissen, ob er in "
+                "einem Monat noch derselbe ist."
+            )
+
+    spieler["ort"] = "universitaet_oros"
+    weg_entdecken("nordstrasse")
+    routenkenntnis_lernen("nordstrasse")
+    spieler["quest_chronik"] = "abgeschlossen"
+    quest_meldung("abgeschlossen", "Die versunkene Chronik")
+    warte_auf_taste("Weiter")
+
+
+def chronik_reise_von_dorf():
+    kapitel7_daten()["raum"] = "eingangshalle"
+    reise(
+        "versunkene_chronik",
+        "Die Straße endet vor dem Portal der Chronik.",
+        gebiet_modus=True
+    )
+
+
+def chronik_reise_von_oros():
+    kapitel7_daten()["raum"] = "ringhof"
+    reise(
+        "versunkene_chronik",
+        "Die Straße endet im Ringhof, an der Steinplatte mit der Fassung.",
+        gebiet_modus=True
+    )
+
+
+def chronik_nordausgang():
+    if chronik_status() == "nordstrasse":
+        chronik_nordstrasse_erstmals()
+        return
+
+    reise(
+        "universitaet_oros",
+        "Die Straße mündet von Westen in den Vorplatz von Oros.",
+        gebiet_modus=True
+    )
+
+
+def chronik_abschluss_text():
+    text = (
+        "Der Knoten der Senke ist wieder angebunden. Der Tiefe Ring und die "
+        "Nordstraße verbinden das Verlassene Dorf mit Oros. Der Ostarm bleibt "
+        "getrennt."
+    )
+
+    if kapitel7_daten().get("dorfseite") == "knapp":
+        text += " Die Dorfseite trug nur knapp."
+
+    return text
+
+
+# --------------------------------------------------
+# Kapitel 7, Paket C-B1: Die versunkene Chronik (Abstieg, Räume, Funde)
+# --------------------------------------------------
+
+CHRONIK_RAEUME = {
+    "eingangshalle": {
+        "name": "Eingangshalle",
+        "wege": ["schreibstube", "ringhof", "kartenraum"]
+    },
+    "bandregale": {
+        "name": "Bandregale",
+        "wege": ["ringhof", "schreibstube"]
+    },
+    "kartenraum": {
+        "name": "Kartenraum",
+        "wege": ["eingangshalle", "anordnungskammer"]
+    },
+    "anordnungskammer": {
+        "name": "Anordnungskammer",
+        "wege": ["ringhof", "kartenraum"]
+    },
+    "schreibstube": {
+        "name": "Schreibstube",
+        "wege": ["eingangshalle", "bandregale"]
+    },
+    "ringhof": {
+        "name": "Ringhof",
+        "wege": ["bandregale", "eingangshalle", "anordnungskammer"]
+    }
+}
+
+CHRONIK_KARTENNAMEN = {
+    "bandregale": "Bände",
+    "ringhof": "Ringhof",
+    "anordnungskammer": "Kammer",
+    "schreibstube": "Stube",
+    "eingangshalle": "Eingang",
+    "kartenraum": "Karten"
+}
+
+CHRONIK_KARTENPOSITIONEN = {
+    "bandregale": (0, 0),
+    "ringhof": (0, 16),
+    "anordnungskammer": (0, 32),
+    "schreibstube": (2, 0),
+    "eingangshalle": (2, 16),
+    "kartenraum": (2, 32)
+}
+
+
+def zeit_vorruecken(sekunden):
+    # Wie beim Schlafen: Nur der Zeitversatz wächst, die Spielzeit
+    # (Statistik) bleibt unberührt.
+    frist_handlung(FRIST_WARTEN)
+    spieler["zeit_versatz"] = (
+        int(spieler.get("zeit_versatz", 0)) + int(sekunden)
+    )
+    spielzeit_aktualisieren()
+
+
+def zeit_bis_abend():
+    # Springt bis zum Beginn des Abends; am Abend und in der Nacht
+    # vergeht keine zusätzliche Zeit.
+    gesamt = (
+        int(spieler.get("spielzeit", 0))
+        + int(spieler.get("zeit_versatz", 0))
+    )
+    rest = gesamt % TAG_DAUER
+    abend = int(TAG_DAUER * 0.55)
+
+    if rest < abend:
+        zeit_vorruecken(abend - rest)
+    elif rest >= int(TAG_DAUER * 0.90):
+        zeit_vorruecken(TAG_DAUER - rest + abend)
+
+
+def chronik_funde():
+    return kapitel7_daten().setdefault("funde", [])
+
+
+def chronik_fund(fund):
+    funde = chronik_funde()
+
+    if fund not in funde:
+        funde.append(fund)
+
+    chronik_bereit_pruefen()
+
+
+def chronik_bereit_pruefen():
+    # Alles Nötige für die Wiederanbindung beisammen: neues Ziel.
+    daten = kapitel7_daten()
+    funde = chronik_funde()
+
+    if (
+        chronik_status() == "chronik"
+        and all(f in funde for f in ("anordnung", "verfahren", "lageplan"))
+        and daten.get("ringstein") == "getragen"
+        and daten.get("ringhof_geloest") is True
+    ):
+        chronik_ziel_setzen("anbinden")
+
+
+def chronik_bache_da():
+    # Tagsüber und am Morgen ist die Bache im Hof, abends und nachts nicht.
+    if kapitel7_daten().get("ringhof_geloest") is True:
+        return False
+
+    spielzeit_aktualisieren()
+
+    return spieler.get("tageszeit") in ("Tag", "Morgen")
+
+
+def chronik_ringhof_loesen(art):
+    daten = kapitel7_daten()
+    daten["ringhof_frei"] = art
+    daten["ringhof_geloest"] = True
+    chronik_bereit_pruefen()
+
+
+def chronik_auswahl(punkte):
+    menue_trenner()
+    print()
+
+    for nummer, (_, text) in enumerate(punkte, start=1):
+        print(f"{nummer}. {text}")
+
+    auswahl = eingabe_menu(1, len(punkte), sonder_tasten=())
+    print()
+
+    return punkte[auswahl - 1][0]
+
+
+def chronik_abstieg():
+    daten = kapitel7_daten()
+
+    if (
+        not daten.get("bach_gefunden")
+        and untersuchung_pruefung("wahrnehmung", 2)
+    ):
+        print()
+        text_ausgeben(
+            "Rechts unterhalb der Kante hörst du Wasser. Ein schmaler Bach hat "
+            "sich durch den Hang geschnitten. Sein Bett ist steil, aber gestuft."
+        )
+        daten["bach_gefunden"] = True
+
+    punkte = [
+        ("aussen", "Den Rand der Senke entlanggehen, bis es flacher wird")
+    ]
+
+    if item_besitzt("seil"):
+        punkte.append(("seil", "Mit dem Seil über den Geröllhang hinunter"))
+
+    if daten.get("bach_gefunden"):
+        punkte.append(("bach", "Dem Bach folgen"))
+
+    punkte.append(("zurueck", "Zurück ins Dorf"))
+    wahl = chronik_auswahl(punkte)
+
+    if wahl == "zurueck":
+        return
+
+    if wahl == "aussen":
+        text_ausgeben(
+            "Du gehst den Rand entlang, Stunde um Stunde, bis der Hang an der "
+            "Westseite flacher wird. Zwischen Wurzeln findest du einen "
+            "Wildpfad, der hinunterführt, an ein paar alten Apfelbäumen vorbei."
+        )
+        text_ausgeben(
+            "Als du unten ankommst, steht die Sonne deutlich tiefer."
+        )
+        zeit_vorruecken(TAG_DAUER // 5)
+
+    elif wahl == "seil":
+        text_ausgeben(
+            "Du legst das Seil doppelt um einen Baumstumpf an der Kante und "
+            "lässt dich am Geröll hinab. Zweimal rutschen dir Steine unter den "
+            "Füßen weg. Dann stehst du unten."
+        )
+        text_ausgeben(
+            "Du ziehst an einem Ende, bis das Seil um den Stumpf läuft und vor "
+            "deine Füße fällt."
+        )
+
+    else:
+        text_ausgeben(
+            "Du steigst dem Wasser nach, von Stufe zu Stufe. Unten mündet der "
+            "Bach in einen flachen Teich am Rand der Senke."
+        )
+
+    daten["abstieg"] = wahl
+    daten["raum"] = "eingangshalle"
+    spieler["ort"] = "versunkene_chronik"
+    warte_auf_taste("Weiter")
+
+
+def chronik_verlassen():
+    if strassen_offen():
+        reise(
+            "verlassenes_dorf",
+            "Zwischen den Birken stehst du wieder im Verlassenen Dorf.",
+            gebiet_modus=True
+        )
+        return
+
+    text_ausgeben(
+        "Über den Wildpfad an der Westseite steigst du hinauf und folgst der "
+        "Kante zurück zur alten Straße."
+    )
+    ort_nachricht_setzen(
+        "Wenig später stehst du wieder zwischen den Häusern des Dorfes."
+    )
+    spieler["ort"] = "verlassenes_dorf"
+    warte_auf_taste("Weiter")
+
+
+def chronik_raumtext(raum_id, erstmals):
+    daten = kapitel7_daten()
+    titel = f"Versunkene Chronik - {CHRONIK_RAEUME[raum_id]['name']}"
+
+    if raum_id == "eingangshalle":
+        if not erstmals:
+            if strassen_offen():
+                text_ausgeben(
+                    "Durch das Portal kommt Wind, von Norden. Vorher stand die "
+                    "Luft hier still."
+                )
+            else:
+                text_ausgeben(
+                    "Licht fällt durch die Löcher im Dach. „Was verzeichnet ist, "
+                    "bleibt.“"
+                )
+            return
+
+        text_ausgeben(
+            "Das Portal steht offen, weil es keine Tür mehr hat. Die Halle "
+            "dahinter ist zur Hälfte verschüttet: Von links hat sich Erde "
+            "hereingeschoben, bis an die Mitte des Bodens, mit Farn und Moos "
+            "darauf."
+        )
+        text_ausgeben(
+            "Licht fällt von oben. Das Dach ist an mehreren Stellen "
+            "eingebrochen, und durch die Löcher sieht man Himmel."
+        )
+        seite_wechseln(titel)
+        text_ausgeben(
+            "Über dem Portal, innen, steht eine Inschrift. Die Buchstaben sind "
+            "tief eingeschlagen, damit sie lange halten."
+        )
+        text_ausgeben("„Was verzeichnet ist, bleibt.“")
+
+        if chronik_status() == "senke_finden":
+            chronik_ziel_setzen("chronik")
+
+    elif raum_id == "bandregale":
+        if not erstmals:
+            text_ausgeben(
+                "Die Fächer IX und X sind leer. Je länger du hinsiehst, desto "
+                "weniger kannst du sagen, ob dort jemals etwas stand."
+            )
+            return
+
+        text_ausgeben(
+            "Ein langer, schmaler Raum, Regale bis unter die Decke. Die meisten "
+            "Rücken sind aufgequollen, manche so sehr, dass sie die "
+            "Nachbarbände aus dem Fach gedrückt haben."
+        )
+        text_ausgeben("Am Eingang hängt eine Holztafel mit dem Bandverzeichnis.")
+        warte_auf_taste("Weiter")
+        chronik_bandverzeichnis()
+
+    elif raum_id == "kartenraum":
+        if not erstmals:
+            if chronik_status() == "abgeschlossen":
+                text_ausgeben(
+                    "Die nördliche Straße auf der Wandkarte ist dieselbe, die du "
+                    "gegangen bist. Du erkennst die Biegung am Fels wieder. Der "
+                    "Maler war dort."
+                )
+            else:
+                text_ausgeben(
+                    "Die übermalte Straße nach Osten. Darunter die vier Kreise."
+                )
+            return
+
+        text_ausgeben(
+            "Ein runder Raum. An der Wand, über die ganze Rundung, ist eine "
+            "Karte gemalt. Die Farben sind blass geworden, die Linien noch "
+            "deutlich: In der Mitte ein Ring, von dem drei Straßen ausgehen. "
+            "Nach Norden, nach Süden, nach Osten."
+        )
+        text_ausgeben(
+            "Die östliche Straße ist mit Kalk übermalt. Durch den Kalk sieht "
+            "man sie noch."
+        )
+
+    elif raum_id == "anordnungskammer":
+        if not erstmals:
+            if chronik_angebunden():
+                text_ausgeben("Das Wasser, der Lichtstreifen, die leere Nische.")
+                text_ausgeben(
+                    "Die anderen Mappen auf dem Bord sind ebenfalls Anordnungen. "
+                    "Andere Knoten, andere Straßen. Bei keiner steht unter "
+                    "„Wiederanbindung“ etwas anderes als „vorgesehen“."
+                )
+            elif daten.get("ringstein") == "getragen":
+                text_ausgeben("Das Wasser, der Lichtstreifen, die leere Nische.")
+            else:
+                text_ausgeben(
+                    "Das Wasser, der Lichtstreifen, die Mappen auf dem obersten "
+                    "Bord."
+                )
+            return
+
+        text_ausgeben(
+            "Drei Stufen führen hinunter, und auf der dritten stehst du im "
+            "Wasser. Es reicht dir bis zu den Knien, kalt und klar. Auf dem "
+            "Grund liegen Mappen, die sich aufgelöst haben."
+        )
+        text_ausgeben(
+            "Durch ein Loch in der Decke fällt ein Lichtstreifen auf die "
+            "gegenüberliegende Wand. Dort, auf dem höchsten Bord, liegen "
+            "Mappen, die das Wasser nicht erreicht hat."
+        )
+
+    elif raum_id == "schreibstube":
+        if not daten.get("schreibstube_zugang"):
+            text_ausgeben(
+                "Ein umgestürztes Regal versperrt die Tür zur Hälfte."
+            )
+            punkte = [("kriechen", "Unter dem Regal durchkriechen")]
+
+            if spieler_pruefung("staerke", 2):
+                punkte.append(("heben", "[Stärke] Das Regal anheben"))
+
+            if chronik_auswahl(punkte) == "heben":
+                text_ausgeben(
+                    "Du stemmst das Regal hoch und lehnst es gegen die Wand. "
+                    "Dahinter liegen Federn, Hunderte, wie ein Teppich."
+                )
+                daten["schreibstube_zugang"] = "gehoben"
+            else:
+                text_ausgeben(
+                    "Du legst dich flach auf den Boden und schiebst dich unter "
+                    "dem Regal hindurch. Staub, Spinnweben, dann bist du drin."
+                )
+                daten["schreibstube_zugang"] = "gekrochen"
+
+            seite_wechseln(titel)
+
+        if not erstmals:
+            text_ausgeben(
+                "Die Zettel an der Wand bewegen sich, wenn du die Tür öffnest. "
+                "Einer fällt herunter. Du hängst ihn wieder auf."
+            )
+            return
+
+        text_ausgeben(
+            "Pulte in zwei Reihen, jedes mit einem Tintenfass, das längst "
+            "ausgetrocknet ist. An einem Pult ist das Heft noch offen, als "
+            "hätte jemand mitten im Lesen aufgehört."
+        )
+        text_ausgeben(
+            "An der Wand hängen Zettel, mit Nadeln befestigt. Verschiedene "
+            "Handschriften, verschiedene Tinten. Manche Zettel antworten auf "
+            "andere."
+        )
+
+    elif raum_id == "ringhof":
+        if not erstmals:
+            if not strassen_offen():
+                text_ausgeben(
+                    "Der offene Hof, die Steinplatte mit der leeren Fassung. Die "
+                    "östliche Kerbe ist verriegelt."
+                )
+                return
+
+            text_ausgeben(
+                "Der Ringstein sitzt in der Fassung. Nach Norden führt die Straße "
+                "zwischen den Felsen hinauf. Die östliche Kerbe ist verriegelt."
+            )
+
+            if chronik_status() == "abgeschlossen":
+                if daten.get("ringhof_frei") == "kampf":
+                    text_ausgeben(
+                        "Unter dem Apfelbaum ist das Laub zusammengefallen."
+                    )
+                else:
+                    text_ausgeben(
+                        "Unter dem Apfelbaum ist das Lager frisch gewühlt. Die "
+                        "Bache ist nicht da. Ihre Spuren führen zur Nordstraße "
+                        "und auf ihr ein Stück hinaus."
+                    )
+            return
+
+        text_ausgeben(
+            "Der Hof ist offen zum Himmel. Gras wächst zwischen den Platten, an "
+            "den Rändern Holunder und ein wilder Apfelbaum."
+        )
+        text_ausgeben(
+            "Mitten im Ringhof liegt eine Steinplatte mit einer leeren Fassung. "
+            "Drei Kerben laufen von ihr aus, jede zu einer Spur alter Fahrbahn: "
+            "nach Süden zur Kante, nach Norden in den Fels, nach Osten durch "
+            "einen Torbogen. Die nördliche Spur endet nach wenigen Schritten "
+            "im Gras. Hinter dem östlichen Torbogen ist Mauerwerk eingestürzt."
+        )
+        text_ausgeben(
+            "Die östliche Kerbe ist mit einem eisernen Riegel verschlossen. "
+            "Darauf ein Bleisiegel: „Ostarm – getrennt“."
+        )
+
+
+def chronik_bandverzeichnis():
+    ort_titel("Versunkene Chronik - Bandregale")
+    design_text("VERZEICHNIS DER BÄNDE", design="wissen", art="menue")
+    print()
+    print("I – VIII     Anordnungen")
+    print("IX           Wiederanbindungen")
+    print("X            ░░░░░░░░░░░░░░")
+    print("XI – XII     Ortsverzeichnisse")
+    print("XIII         Randnotizen und Abschriften")
+    print()
+    text_ausgeben(
+        "Die Regale für I bis VIII sind voll, die Rücken aufgequollen. XI bis "
+        "XIII stehen, wo sie stehen sollen."
+    )
+    text_ausgeben(
+        "Die Fächer für IX und X sind leer. Im Staub sieht man Ränder, wo lange "
+        "Bücher gestanden haben. Kein Band liegt auf dem Boden."
+    )
+    text_ausgeben(
+        "Der Titel von Band X ist aus dem Verzeichnis herausgekratzt, "
+        "sorgfältig, mit einer Klinge. Band IX hat einen Titel. Er ist trotzdem "
+        "nicht da."
+    )
+
+    daten = kapitel7_daten()
+
+    if not daten.get("vorgeschmack"):
+        daten["vorgeschmack"] = True
+        seite_wechseln("Versunkene Chronik - Bandregale")
+        text_ausgeben(
+            "Auf dem Rücken eines Bandes steht ein Wort, das du kennst. Du "
+            "weißt, dass du es kennst."
+        )
+        text_ausgeben(
+            "Für einen Atemzug weißt du nicht, was es bedeutet."
+        )
+        text_ausgeben(
+            "Dann ist es wieder da: „Ortsverzeichnis“. Ein gewöhnliches Wort."
+        )
+
+    chronik_fund("bandverzeichnis")
+    warte_auf_taste("Weiter")
+
+
+def chronik_anordnung():
+    titel = "Versunkene Chronik - Anordnungskammer"
+    ort_titel(titel)
+    text_ausgeben(
+        "In einer Mappe auf dem höchsten Bord, über dem Wasser, liegt ein Blatt "
+        "mit Siegel."
+    )
+    print()
+    design_text("ANORDNUNG", design="wissen", art="menue")
+    print("Gegenstand:  Knoten der Senke, Tiefer Ring,")
+    print("             mit allen drei Straßen (Dorfseite, Nordseite, Ostarm)")
+    print("Datum:       (vom Wasser zerstört)")
+    print()
+    print("Befund:")
+    print("Seit dem Frühjahr ziehen die Bezüge am Ostarm.")
+    print("Marken stimmen am Morgen, am Abend nicht mehr.")
+    print("Wege führen in Richtungen, die auf keinem Plan stehen.")
+    print("Die Gegenpunkte am Ostarm tragen nicht.")
+    print()
+    print("Es wurde beobachtet, dass die Störung über die Verbindungen")
+    print("weiterwandert. Erst der Ostarm. Dann die Furt. Jetzt die Senke.")
+    warte_auf_taste("Weiterlesen")
+    ort_titel(titel)
+    print("Begründung:")
+    print("Was ohne Bezug bleibt, beginnt zu treiben.")
+    print("Was mit dem Treibenden verbunden bleibt, treibt mit.")
+    print("Es ist anzunehmen, dass die Störung über die Senke den Kern")
+    print("erreicht, wenn der Knoten verbunden bleibt.")
+    print()
+    print("Anordnung:")
+    print("Der Knoten der Senke wird abgetrennt. Der Ringstein wird aus")
+    print("seiner Fassung genommen und in dieser Kammer verwahrt.")
+    print("Die Kerbe des Ostarms wird verriegelt.")
+    print("Zum Schutz des Kerns.")
+    print()
+    print("Vollzug:                     Erfolgt.")
+    print("Wiederanbindung:             Vorgesehen, sobald die Gegenseite trägt.")
+    print("Mitteilung an die Siedlungen: Entfällt.")
+    print()
+    print("                        Der Verwalter des Tiefen Rings")
+    print()
+    print("Darunter, mit anderer Tinte, eine spätere Hand:")
+    print("Die Furt hat danach getragen. Der Ostarm nicht.")
+    warte_auf_taste("Weiter")
+    ort_titel(titel)
+    text_ausgeben(
+        "Du liest die Anordnung zweimal. Beim zweiten Mal bleibst du an "
+        "derselben Zeile hängen wie beim ersten."
+    )
+    text_ausgeben("„Mitteilung an die Siedlungen: Entfällt.“")
+    text_ausgeben(
+        "„Zum Schutz des Kerns.“ Die Worte sind älter als Haller. Der Gedanke "
+        "ist derselbe."
+    )
+    kapitel7_daten()["anordnung_gelesen"] = True
+    chronik_fund("anordnung")
+    warte_auf_taste("Weiter")
+
+
+def chronik_nische():
+    ort_titel("Versunkene Chronik - Anordnungskammer")
+    daten = kapitel7_daten()
+
+    if daten.get("ringstein") == "getragen":
+        text_ausgeben(
+            "Die Nische ist leer. Das Bleischild hängt noch am Blech: "
+            "„Ringstein Senke. Verwahrt.“"
+        )
+        warte_auf_taste("Weiter")
+        return
+
+    text_ausgeben(
+        "In der Wand ist eine Nische, mit Eisenblech ausgeschlagen. Darin "
+        "liegt, auf einem Tuch, das zerfällt, als du es berührst, ein Stein. "
+        "Faustgroß, oben flach, an einer Seite eine Kerbe."
+    )
+    text_ausgeben(
+        "Ein Schild aus Blei ist an das Blech genagelt: „Ringstein Senke. "
+        "Verwahrt.“"
+    )
+
+    if chronik_auswahl([
+        ("nehmen", "Den Ringstein mitnehmen"),
+        ("lassen", "Ihn liegen lassen")
+    ]) == "nehmen":
+        text_ausgeben("Er ist schwerer, als er aussieht.")
+        daten["ringstein"] = "getragen"
+        chronik_bereit_pruefen()
+
+    warte_auf_taste("Weiter")
+
+
+def chronik_verfahren():
+    titel = "Versunkene Chronik - Schreibstube"
+    ort_titel(titel)
+    text_ausgeben(
+        "Ein gebundenes Heft, offen auf dem Pult, als hätte jemand mitten im "
+        "Lesen aufgehört."
+    )
+    print()
+    design_text("WIEDERANBINDUNG EINES KNOTENS", design="wissen", art="menue")
+    print("(Verfahren)")
+    print()
+    print("1. Den Ringstein in seine Fassung setzen.")
+    print("2. Die Gegenpunkte an allen Straßen bestätigen.")
+    print("   Weicht ein Gegenpunkt um mehr als zwei Teilstriche ab,")
+    print("   trägt er nicht. Die Kerbe einer Straße, deren Gegenpunkt")
+    print("   nicht trägt, bleibt verriegelt.")
+    print("3. Die Straßen begehen. Erst wer ankommt, hat angebunden.")
+    print()
+    print("Am Rand neben Schritt 1 und 2, mit einem Pfeil, der die beiden")
+    print("Zeilen vertauscht:")
+    print()
+    print("   Falsch herum.")
+    print("   Erst fragen, ob die Gegenseite trägt.")
+    print("   Wer zuerst setzt, holt herein, was draußen ist.")
+    print()
+    text_ausgeben(
+        "Die Randnotiz ist in einer anderen Hand geschrieben als das Verfahren. "
+        "Enger, schneller. Der Pfeil ist so fest gezogen, dass die Feder das "
+        "Papier eingerissen hat."
+    )
+
+    if untersuchung_pruefung("wissen", 2):
+        print()
+        text_ausgeben(
+            "Wer die Randnotiz schrieb, kannte die Anordnung zum Tiefen Ring. "
+            "„Was mit dem Treibenden verbunden bleibt, treibt mit.“ Setzt man "
+            "den Stein zuerst, ist der Knoten schon verbunden, bevor man weiß, "
+            "womit."
+        )
+
+    chronik_fund("verfahren")
+    warte_auf_taste("Weiter")
+
+
+def chronik_zettel():
+    ort_titel("Versunkene Chronik - Schreibstube")
+    text_ausgeben("Auf den Zetteln, in verschiedenen Händen:")
+    print()
+    print("   Bei Nebel nicht messen.")
+    print()
+    print("   Bei Nebel messen. Nur dann sieht man, was zieht.")
+    print()
+    print("   Schritt 3 ist der einzige, der zählt.")
+    print()
+    warte_auf_taste("Weiter")
+
+
+def chronik_schubladen():
+    titel = "Versunkene Chronik - Kartenraum"
+    ort_titel(titel)
+    daten = kapitel7_daten()
+    design_text("KNOTEN DER SENKE – Gegenpunkte", design="wissen", art="menue")
+    print()
+    print(f"{'':<26}{'Peilung':>8}{'zulässig':>12}")
+    print(f"{'Gegenpunkt Nordseite':<26}{31:>8}{'29 bis 33':>12}")
+    print("(Anfang der Nordstraße, am Fels)")
+    print(f"{'Gegenpunkt Dorfseite':<26}{17:>8}{'15 bis 19':>12}")
+    print("(Ende der Straße, an der Kante)")
+    print(f"{'Gegenpunkt Ostarm':<26}{44:>8}{'42 bis 46':>12}")
+    print("(Ausgang nach Osten, hinter dem Torbogen)")
+    print()
+    text_ausgeben(
+        "Die Zahlen sind mit derselben Sorgfalt eingetragen wie in Finchs "
+        "Neuvermessung. Zwei Teilstriche nach jeder Seite, wie im Verfahren."
+    )
+    chronik_fund("lageplan")
+    warte_auf_taste("Weiter")
+
+    ort_titel(titel)
+    text_ausgeben(
+        "In derselben Schublade liegen zwei Blätter mit gleichem Kopf, in "
+        "verschiedenen Händen."
+    )
+    print()
+    print("ORTE AM OSTARM (versorgt über den Knoten der Senke)")
+    print()
+    print("   Haselgrund")
+    print("   Lindweil")
+    print("   Steinach")
+    print("   Wendelau")
+    print()
+    print("ORTE AM OSTARM (versorgt über den Knoten der Senke)")
+    print("neu gefasst")
+    print()
+    print("   Haselgrund")
+    print("   Steinach")
+    print("   Wendelau")
+    print()
+    text_ausgeben(
+        "Auf dem zweiten Blatt fehlt Lindweil. Es ist nicht durchgestrichen. "
+        "Es steht einfach nicht da."
+    )
+    text_ausgeben(
+        "Ob der Name bewusst weggelassen wurde oder jemand ihn vergessen hat, "
+        "lässt sich aus den Listen nicht erkennen."
+    )
+
+    if "lindweil_blatt" not in daten:
+        if chronik_auswahl([
+            ("mitgenommen", "Die ältere Liste mit Lindweil mitnehmen"),
+            ("abgeschrieben", "Beide Listen abschreiben und die Originale liegen lassen")
+        ]) == "mitgenommen":
+            text_ausgeben(
+                "Du faltest die ältere Liste und steckst sie ein. Du schreibst "
+                "auch die neuere ab. In der Mappe bleibt eine Lücke."
+            )
+            daten["lindweil_blatt"] = "mitgenommen"
+        else:
+            text_ausgeben(
+                "Du schreibst die Namen ab, beide Listen, Zeile für Zeile. Die "
+                "Originale legst du zurück."
+            )
+            daten["lindweil_blatt"] = "abgeschrieben"
+
+    chronik_fund("ortslisten")
+    warte_auf_taste("Weiter")
+
+
+def chronik_untersuchen(text):
+    ort_titel(
+        f"Versunkene Chronik - "
+        f"{CHRONIK_RAEUME[kapitel7_daten().get('raum', 'eingangshalle')]['name']}"
+    )
+    text_ausgeben(text)
+    warte_auf_taste("Weiter")
+
+
+def chronik_aktionen(raum_id):
+    daten = kapitel7_daten()
+
+    if raum_id == "eingangshalle":
+        return [
+            ("Die Erde ansehen", lambda: chronik_untersuchen(
+                "Unter dem Farn liegen Steinplatten. An einer Stelle ragt die "
+                "Ecke eines Pults heraus. Wer hier saß, hat jeden empfangen, "
+                "der kam."
+            )),
+            ("Die Wände ansehen", lambda: chronik_untersuchen(
+                "An der rechten Wand hängen eiserne Haken in einer langen "
+                "Reihe. An manchen hängen noch Reste von Schnüren. Vielleicht "
+                "für Laternen, vielleicht für Schlüssel."
+            ))
+        ]
+
+    if raum_id == "bandregale":
+        return [
+            ("Das Bandverzeichnis lesen", chronik_bandverzeichnis),
+            ("Einen Band aus den Anordnungen aufschlagen", lambda: chronik_untersuchen(
+                "Die Seiten kleben aneinander. Du bekommst eine auseinander: "
+                "„… wird angeordnet, die Marken am Hang … ersetzt …“. Der Rest "
+                "ist Tinte, die das Wasser verteilt hat."
+            )),
+            ("Die leeren Fächer ansehen", lambda: chronik_untersuchen(
+                "Kein Staub in den Fächern von IX und X selbst, nur an den "
+                "Rändern. Wer die Bände genommen hat, hat sie nicht hastig "
+                "herausgerissen. Ein Buchrücken hinterlässt eine Spur, wenn man "
+                "ihn zieht. Hier ist keine."
+            ))
+        ]
+
+    if raum_id == "kartenraum":
+        return [
+            ("Die Wandkarte von nahem ansehen", lambda: chronik_untersuchen(
+                "Unter dem Kalk führt die östliche Straße zu vier kleinen "
+                "Kreisen. Neben jedem stand ein Name. Der Kalk hat sie verdeckt, "
+                "bis auf einzelne Buchstaben. Keiner davon passt zu einem Ort, "
+                "den du kennst."
+            )),
+            ("Die Schubladen durchsehen", chronik_schubladen)
+        ]
+
+    if raum_id == "anordnungskammer":
+        mappen = "Die Mappen auf dem obersten Bord durchsehen"
+
+        if "anordnung" not in chronik_funde():
+            mappen += " [!]"
+
+        return [
+            (mappen, chronik_anordnung),
+            ("Die Nische neben dem Bord ansehen", chronik_nische)
+        ]
+
+    if raum_id == "schreibstube":
+        return [
+            ("Das offene Heft lesen", chronik_verfahren),
+            ("Die Zettel an der Wand lesen", chronik_zettel),
+            ("Die Pulte ansehen", lambda: chronik_untersuchen(
+                "In die Platte eines Pults hat jemand mit dem Messer Striche "
+                "geritzt, in Fünfergruppen. Viele Gruppen. Wer hier saß, hat "
+                "etwas gezählt, Tage vielleicht."
+            ))
+        ]
+
+    if raum_id == "ringhof" and chronik_status() == "anbinden":
+        return [("Den Ringstein einsetzen [!]", chronik_anbindung)]
+
+    if raum_id == "ringhof" and strassen_offen():
+        return [
+            ("Die Fassung ansehen", lambda: chronik_untersuchen(
+                "Der Ringstein sitzt fest in der Fassung. Zwei Kerben führen "
+                "zu den Straßen nach Norden und Süden. Die östliche hält der "
+                "Riegel verschlossen."
+            ))
+        ]
+
+    if raum_id == "ringhof":
+        return [
+            ("Die Fassung ansehen", lambda: chronik_untersuchen(
+                "Die Fassung ist glatt ausgeschliffen, eine Mulde für einen "
+                "faustgroßen Stein. Von ihr gehen drei Kerben aus. Die östliche "
+                "hält ein eiserner Riegel verschlossen."
+            ))
+        ]
+
+    return []
+
+
+def chronik_ringhof_bache():
+    daten = kapitel7_daten()
+    titel = "Versunkene Chronik - Ringhof"
+    ort_titel(titel)
+
+    if not daten.get("bache_gesehen"):
+        daten["bache_gesehen"] = True
+        text_ausgeben(
+            "Der Hof ist offen zum Himmel. Gras wächst zwischen den Platten, an "
+            "den Rändern Holunder und ein wilder Apfelbaum."
+        )
+        text_ausgeben(
+            "Unter dem Apfelbaum hat sich etwas ein Lager gewühlt. Laub, Erde, "
+            "plattgedrückt."
+        )
+        text_ausgeben("Das Lager ist nicht leer.")
+        seite_wechseln(titel)
+        text_ausgeben(
+            "Eine Bache hebt den Kopf. Neben ihr, im Laub, bewegen sich vier "
+            "gestreifte Frischlinge."
+        )
+        text_ausgeben(
+            "Sie steht auf. Langsam. Sie stellt sich zwischen dich und die "
+            "Jungen und senkt den Kopf."
+        )
+    else:
+        text_ausgeben(
+            "Die Bache steht unter dem Apfelbaum, zwischen dir und den "
+            "Frischlingen. Sie senkt den Kopf."
+        )
+
+    zurueck_raum = daten.get("vorheriger_raum", "eingangshalle")
+
+    if zurueck_raum == "ringhof" or zurueck_raum not in CHRONIK_RAEUME:
+        zurueck_raum = "eingangshalle"
+
+    wahl = chronik_auswahl([
+        ("kampf", "Kämpfen"),
+        ("futter", "Sich zurückziehen und nach Futter suchen"),
+        ("warten", "Sich zurückziehen und warten, bis sie den Hof verlässt")
+    ] + (
+        [("faehrte", "Ihre Fährte lesen [Fährtensteller]")]
+        if faehrtensteller_aktiv(spieler)
+        else []
+    ) + [
+        ("zurueck", f"Zurück: {CHRONIK_RAEUME[zurueck_raum]['name']}")
+    ])
+
+    if wahl == "faehrte":
+        chronik_bache_faehrte(titel)
+        return
+
+    if wahl == "zurueck":
+        daten["raum"] = zurueck_raum
+        return
+
+    if wahl == "kampf":
+        chronik_bache_kampf(zurueck_raum)
+        return
+
+    if wahl == "warten" and not frist_warten_erlaubt():
+        daten["raum"] = zurueck_raum
+        return
+
+    if wahl == "futter":
+        text_ausgeben(
+            "Unter dem Apfelbaum liegt kein Fallobst mehr, sie hat alles "
+            "gefressen. An der Westseite der Senke wachsen weitere alte "
+            "Apfelbäume."
+        )
+        text_ausgeben(
+            "Du sammelst, was am Boden liegt, und legst es am Eingang des Hofs "
+            "aus, dann weiter draußen, in einer Linie zum Hang."
+        )
+        seite_wechseln(titel)
+        text_ausgeben("Die Bache hebt den Kopf. Sie wittert. Lange.")
+        text_ausgeben(
+            "Dann geht sie los, die Frischlinge hinter ihr, der Linie aus "
+            "Äpfeln nach. Am Rand des Hofs dreht sie sich noch einmal um."
+        )
+        text_ausgeben("Dann ist der Hof leer.")
+    else:
+        text_ausgeben(
+            "Du ziehst dich in die Eingangshalle zurück und wartest. Das Licht "
+            "in den Dachlöchern wandert."
+        )
+        zeit_bis_abend()
+        seite_wechseln(titel)
+        text_ausgeben(
+            "Als es dämmert, hörst du sie. Die Bache verlässt den Hof, die "
+            "Frischlinge dicht hinter ihr. Sie geht zum Hang, zum Wasser, zu "
+            "den Bäumen."
+        )
+
+    chronik_ringhof_loesen(wahl)
+    warte_auf_taste("Weiter")
+
+
+def chronik_bache_kampf(zurueck_raum):
+    daten = kapitel7_daten()
+
+    if not isinstance(spieler.get("waffe"), dict):
+        design_text(
+            "Rüste im Inventar eine Waffe aus, bevor du kämpfst.",
+            design="warnung",
+            art="menue"
+        )
+        warte_auf_taste("Zurück")
+        return
+
+    kampf_ergebnis = kampf_starten(
+        lebenspunkte=spieler["lebenspunkte"],
+        heiltraenke=spieler["heiltränke"],
+        waffe=spieler["waffe"],
+        gegner_typ="Bache",
+        kampf_situation={
+            "gebiet": "Versunkene Chronik",
+            "umgebung": "Offener Hof",
+            "tageszeit": spieler.get("tageszeit", "Tag"),
+            "wetter": spieler.get("wetter", "Klar")
+        }
+    )
+
+    spieler["lebenspunkte"] = kampf_ergebnis["lebenspunkte"]
+    spieler["heiltränke"] = kampf_ergebnis["heiltraenke"]
+
+    if kampf_ergebnis.get("gewonnen", False):
+        spieler["besiegte_gegner"] += 1
+        print()
+        print("-" * 34)
+        text_ausgeben(
+            "Die Bache liegt still. Die Frischlinge drängen sich unter den "
+            "Apfelbaum und rühren sich nicht."
+        )
+        text_ausgeben("Als du später wieder hinsiehst, sind sie fort.")
+        spieler["gold"] = kampf_beute_vergeben("Bache", spieler["gold"])
+        print()
+        print(f"Lebenspunkte: {spieler['lebenspunkte']}")
+        print("-" * 34)
+        chronik_ringhof_loesen("kampf")
+        warte_auf_taste("Weiter")
+        return
+
+    if kampf_ergebnis.get("besiegt", False):
+        # Keine Spielende-Niederlage: Der Spieler kommt in der Eingangshalle zu sich.
+        warte_auf_taste("Weiter")
+        ort_titel("Versunkene Chronik - Eingangshalle")
+        text_ausgeben(
+            "Du kommst in der Eingangshalle zu dir. Wie du dorthin gekommen "
+            "bist, weißt du nicht genau. Dein Körper erinnert sich an jeden "
+            "Schritt."
+        )
+        spieler["lebenspunkte"] = 10
+        daten["raum"] = "eingangshalle"
+        warte_auf_taste("Weiter")
+        return
+
+    print()
+    text_ausgeben(
+        "Du weichst zurück. Die Bache bleibt unter dem Apfelbaum.",
+        art="menue"
+    )
+    daten["raum"] = zurueck_raum
+    warte_auf_taste("Weiter")
+
+
+def chronik_ringhof_leer():
+    ort_titel("Versunkene Chronik - Ringhof")
+    text_ausgeben(
+        "Der Hof ist leer. Unter dem Apfelbaum ist das Laub plattgedrückt und "
+        "noch warm."
+    )
+    chronik_ringhof_loesen("warten")
+    warte_auf_taste("Weiter")
+
+
+def chronik_verbindungen(raum_id):
+    return list(CHRONIK_RAEUME.get(raum_id, {}).get("wege", []))
+
+
+def chronik_gebietskarte_anzeigen():
+    daten = kapitel7_daten()
+
+    raumkarte_anzeigen(
+        "Gebietskarte - Versunkene Chronik",
+        CHRONIK_RAEUME,
+        CHRONIK_KARTENNAMEN,
+        CHRONIK_KARTENPOSITIONEN,
+        daten.get("raum", "eingangshalle"),
+        set(daten.get("besucht", [])),
+        chronik_verbindungen
+    )
+
+
+def versunkene_chronik():
+    daten = kapitel7_daten()
+    raum_id = daten.get("raum", "eingangshalle")
+
+    if raum_id not in CHRONIK_RAEUME:
+        raum_id = "eingangshalle"
+        daten["raum"] = raum_id
+
+    if raum_id == "ringhof" and not daten.get("ringhof_geloest"):
+        if chronik_bache_da():
+            chronik_ringhof_bache()
+        else:
+            chronik_ringhof_leer()
+        return
+
+    besucht = daten.setdefault("besucht", [])
+    erstmals = raum_id not in besucht
+
+    ort_titel(f"Versunkene Chronik - {CHRONIK_RAEUME[raum_id]['name']}")
+    ort_nachricht_anzeigen()
+    chronik_raumtext(raum_id, erstmals)
+
+    if erstmals:
+        besucht.append(raum_id)
+
+    eintraege = [
+        ("weg", ziel_id, CHRONIK_RAEUME[ziel_id]["name"])
+        for ziel_id in chronik_verbindungen(raum_id)
+    ]
+    eintraege += [
+        ("aktion", funktion, text)
+        for text, funktion in chronik_aktionen(raum_id)
+    ]
+
+    if raum_id == "eingangshalle":
+        if strassen_offen():
+            eintraege.append((
+                "verlassen", None, "Über den Tiefen Ring zum Verlassenen Dorf"
+            ))
+        else:
+            eintraege.append(("verlassen", None, "Die Senke verlassen"))
+
+    if raum_id == "ringhof" and strassen_offen():
+        if chronik_status() == "nordstrasse":
+            eintraege.append(("norden", None, "Der Nordstraße folgen [!]"))
+        else:
+            eintraege.append(("norden", None, "Über die Nordstraße nach Oros"))
+
+    menue_trenner()
+    print()
+
+    for nummer, (_, _, text) in enumerate(eintraege, start=1):
+        print(f"{nummer}. {text}")
+
+    print()
+    print("[K] Gebietskarte")
+    print("[S] Status")
+    print("[I] Inventar")
+    print("[J] Questlog/Erfolge")
+    print("[T] Talente")
+    print("[Q] Speichern / Menü")
+
+    auswahl = eingabe_menu(
+        1,
+        len(eintraege),
+        sonder_tasten=("k", "s", "i", "j", "t", "q")
+    )
+
+    if auswahl == "k":
+        chronik_gebietskarte_anzeigen()
+    elif auswahl == "s":
+        status()
+    elif auswahl == "i":
+        inventar()
+    elif auswahl == "j":
+        questlog()
+    elif auswahl == "t":
+        talentmenue()
+    elif auswahl == "q":
+        spielmenue()
+    else:
+        typ, ziel, _ = eintraege[auswahl - 1]
+
+        if typ == "weg":
+            daten["vorheriger_raum"] = raum_id
+            daten["raum"] = ziel
+            frist_handlung(1)
+        elif typ == "aktion":
+            ziel()
+        elif typ == "norden":
+            chronik_nordausgang()
+        else:
+            chronik_verlassen()
+
+
+# --------------------------------------------------
+# Kapitel 8, Paket A-A: Das Archiv der Schatten (Eröffnung)
+# --------------------------------------------------
+
+def kapitel8_daten():
+    daten = spieler.get("kapitel8")
+
+    if not isinstance(daten, dict):
+        daten = {}
+        spieler["kapitel8"] = daten
+
+    return daten
+
+
+def kapitel8_wert(schluessel, standard=None):
+    # Nur lesen: legt bei alten Spielständen keine leeren Kapitel-8-Daten an.
+    daten = spieler.get("kapitel8")
+
+    if not isinstance(daten, dict):
+        return standard
+
+    return daten.get(schluessel, standard)
+
+
+def archiv_status():
+    return spieler.get("quest_archiv", "nicht_entdeckt")
+
+
+def archiv_ziel():
+    if archiv_status() == "amboss":
+        if archiv_frist_laeuft():
+            return (
+                "Finde den anderen Gegenpunkt im Verlassenen Dorf. "
+                f"{archiv_anker_name()} hält einen Tagesweg lang."
+            )
+
+        return (
+            "Finde den anderen Gegenpunkt im Verlassenen Dorf. Die Verbindung "
+            "ist vorläufig getrennt."
+        )
+
+    return {
+        "finch": "Sprich in den Forschungsräumen mit Finch.",
+        "pfad": "Folge dem Bleichen Pfad nach Norden zum Archiv der Schatten.",
+        "archiv": "Erkunde das Archiv der Schatten.",
+        "nachmessung": "Geh zur Kante über der Senke. Finch misst dort nach.",
+        "haller_vorschlag": "Geh zu Haller.",
+        "entscheidung": "Geh zur Kante über der Senke. Dort wird entschieden.",
+        "klangweg": "Finde den Weg, auf dem der Klang damals zur Kante ging.",
+        "rueckkehr": "Geh zurück zur Kante."
+    }.get(archiv_status(), "")
+
+
+def archiv_ziel_setzen(status, neu=False):
+    spieler["quest_archiv"] = status
+
+    quest_meldung(
+        "neu" if neu else "update",
+        "Das Archiv der Schatten",
+        archiv_ziel()
+    )
+
+    warte_auf_taste("Weiter")
+
+
+def archiv_mit_kiran():
+    return kiran_zustand() in ("gehalten", "spaet_gehalten")
+
+
+def archiv_haller_offen():
+    # Kapitel 8 beginnt nach der Hauptquest von Kapitel 7.
+    return (
+        archiv_status() == "nicht_entdeckt"
+        and chronik_status() == "abgeschlossen"
+    )
+
+
+def archiv_marit_offen():
+    return (
+        archiv_status() not in ("nicht_entdeckt", "finch")
+        and not archiv_mit_kiran()
+        and not kapitel8_wert("marit_gesehen")
+        and not kapitel8_wert("kante_gesehen")
+    )
+
+
+def archiv_haller_zeile():
+    if archiv_status() == "nicht_entdeckt":
+        return "Haller sitzt an seinem Tisch und sieht auf, als du hereinkommst."
+
+    return (
+        "Haller sitzt an seinem Tisch. Vor ihm liegt ein Blatt: "
+        "„Nordstraße. Beobachtung.“"
+    )
+
+
+def archiv_haller():
+    titel = "Universität von Oros - Amtsstube der Schutzverwaltung"
+    ort_titel(titel)
+
+    text_ausgeben(
+        "Haller steht am Fenster. Von hier sieht man den Vorplatz und, an "
+        "seinem westlichen Rand, die neue Straße."
+    )
+    text_ausgeben("[Haller] Meine Wachen sagen, dort war bis vor Kurzem Gras.")
+
+    if riss_wahl() == "beweise":
+        text_ausgeben("Er legt die Hand auf einen Stapel geretteter Mappen.")
+        text_ausgeben(
+            "[Haller] In der Schutzordnung steht, warum man solche "
+            "Verbindungen trennt. Ich habe es noch einmal gelesen."
+        )
+        text_ausgeben("[Haller] Sie haben eine davon wieder geöffnet.")
+    else:
+        text_ausgeben(
+            "Auf seinem Tisch liegt nur ein einzelnes Blatt. Der Schrank "
+            "hinter ihm liegt noch zerbrochen am Boden."
+        )
+        text_ausgeben(
+            "[Haller] Ich habe keine Akten mehr, die mir sagen, was diese "
+            "Straße ist. Ich habe, was meine Wachen gesehen haben. Und was "
+            "Sie mir sagen."
+        )
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "[Haller] Sie haben eine Verbindung wiederhergestellt. Das bestreite "
+        "ich nicht."
+    )
+    text_ausgeben(
+        "[Haller] Ob es vor Ihnen jemandem gelungen ist, sagen die "
+        "Aufzeichnungen nicht."
+    )
+    text_ausgeben(
+        "[Haller] Ich frage, was jetzt über diese Straße kommt. Menschen, "
+        "Vorräte. Oder etwas anderes."
+    )
+
+    offene_tore_auswahl([
+        ("gemessen", "„Der Gegenpunkt hat getragen. Ich habe ihn gemessen.“", [
+            "[Haller] Als Sie gemessen haben. Ich frage nach dem, was danach "
+            "kommt."
+        ]),
+        ("verwalter", "„Die Verwalter haben damals ohne Mitteilung getrennt.“", [
+            "Haller sieht dich länger an, als er muss.",
+            "[Haller] Und vielleicht haben sie damit Menschen gerettet, die "
+            "nie erfahren haben, wovor."
+        ]),
+        ("tun", "„Was wollen Sie tun?“", [
+            "[Haller] Messen. Jeden Tag. Herr Finch übernimmt das.",
+            "[Haller] Bis auf Weiteres bleibt sie offen."
+        ])
+    ], "Nichts weiter sagen")
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Haller setzt sich und zieht ein leeres Blatt heran. Oben schreibt "
+        "er: „Nordstraße. Beobachtung.“"
+    )
+    text_ausgeben("[Haller] Vorläufig.")
+
+    archiv_ziel_setzen("finch", neu=True)
+
+
+def archiv_kiran_zeichen(titel):
+    if kiran_zustand() == "gehalten":
+        text_ausgeben(
+            "Kiran sitzt an Valeries Tisch, das Heft aufgeschlagen, aber er "
+            "schreibt nicht. Er zählt an den Fingern ab, kommt durcheinander "
+            "und fängt von vorn an."
+        )
+        text_ausgeben(
+            "[Kiran] Da ist eine Strecke in meinem Kopf. Ich kenne die Zahl. "
+            "Ich kenne den Weg nicht."
+        )
+        text_ausgeben("[Kiran] Seit die Straße da ist.")
+        text_ausgeben(
+            "Er sagt es nicht vorwurfsvoll. Er stellt es fest, wie eine "
+            "Messung."
+        )
+
+        anker = (spieler.get("entscheidungen") or {}).get("kiran_anker")
+
+        if anker == "mensch":
+            text_ausgeben(
+                "[Kiran] Ich hab dich gesucht. Im Heft steht, ich soll dich "
+                "fragen, wenn ich was vergesse."
+            )
+        elif anker == "ort":
+            text_ausgeben(
+                "[Kiran] Die Strecken im Heft stimmen noch. Die neue steht "
+                "nicht drin."
+            )
+        elif anker == "selbst":
+            text_ausgeben(
+                "Er zeigt auf seinen Satz. „Ich hab mich nicht verzählt.“"
+            )
+            text_ausgeben(
+                "Daneben hat er mit Bleistift ein Fragezeichen gesetzt und es "
+                "wieder ausradiert."
+            )
+    else:
+        text_ausgeben(
+            "Kiran sitzt an Valeries Tisch. Als du hereinkommst, sieht er "
+            "dich an, und es dauert einen Augenblick."
+        )
+        text_ausgeben("[Kiran] Du hast mir das Blatt gebracht.")
+        text_ausgeben("[Kiran] Da sind Zahlen. Die gehören nicht mir.")
+
+    print()
+    text_ausgeben(
+        "[Valerie] Es hat angefangen, als die Straße kam. Ob es deshalb "
+        "angefangen hat, weiß ich nicht."
+    )
+    text_ausgeben(
+        "[Valerie] Finch sucht etwas. Er sagt, er hat es schon einmal gelesen "
+        "und nicht verstanden."
+    )
+
+    seite_wechseln(titel)
+
+
+def archiv_finch():
+    titel = "Universität von Oros - Forschungsräume"
+    ort_titel(titel)
+
+    if archiv_mit_kiran():
+        archiv_kiran_zeichen(titel)
+
+    text_ausgeben(
+        "Finch hat seine Abschrift der Schutzordnung vor sich, aufgeschlagen "
+        "bei der halben Seite über die Wiederanbindung. Daneben die Seite "
+        "davor, die du noch nicht gesehen hast."
+    )
+    text_ausgeben(
+        "[Finch] Neben dem Verweis auf die Chronik steht ein zweiter. "
+        "Kleiner, in einer anderen Spalte."
+    )
+    text_ausgeben(
+        "Er dreht das Blatt zu dir. „Personen betreffend: Archiv der "
+        "Schatten. Bleicher Pfad.“"
+    )
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "[Finch] Ich habe das für einen Verweis auf Personalakten gehalten. "
+        "Dienstboten, Schreiber. Wer wann eingestellt wurde."
+    )
+    text_ausgeben(
+        "[Finch] Die Verwalter haben aber nichts in Personalakten abgelegt. "
+        "Sie haben alles in Anordnungen geschrieben. Nur das hier nicht."
+    )
+
+    if archiv_mit_kiran():
+        text_ausgeben("Er sieht zu Kiran hinüber und senkt die Stimme.")
+        text_ausgeben(
+            "[Finch] Wenn es damals Fälle gab, die Menschen betrafen, dann "
+            "stehen sie dort."
+        )
+    else:
+        text_ausgeben(
+            "[Finch] Haller hat mich gefragt, ob die Schutzordnung auch "
+            "Verfahren mit Personen kennt. Ich habe nein gesagt. Dann habe "
+            "ich nachgesehen."
+        )
+
+    text_ausgeben(
+        "[Finch] Der Bleiche Pfad führt von Oros nach Norden. Niemand geht "
+        "ihn. Über die Hochebene führt er schon, nur weiß keiner mehr, wohin."
+    )
+
+    kapitel8_daten()["anker"] = "kiran" if archiv_mit_kiran() else "marit"
+    archiv_ziel_setzen("pfad")
+
+
+def archiv_marit():
+    titel = "Universität von Oros - Zentrale Halle"
+    ort_titel(titel)
+
+    text_ausgeben(
+        "Zwischen den Bündeln im Notlager sitzt eine alte Frau auf dem Boden. "
+        "Vor ihr liegen Steine in Reihen, nach Größe geordnet: "
+        "Pflastersteine, Bruchstücke, ein Randstein mit abgeschlagener Ecke."
+    )
+    text_ausgeben(
+        "Sie nimmt einen auf, klopft mit dem Knöchel dagegen und legt ihn in "
+        "eine andere Reihe."
+    )
+    text_ausgeben("[Marit] Der hier ist gesprungen. Man hört es.")
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "[Marit] Marit. Ich hab Wege gemacht. Vierzig Jahre. Pflaster "
+        "gesetzt, Gräben gezogen."
+    )
+    text_ausgeben(
+        "[Marit] Die Hälfte davon gibt es nicht mehr. Seit der Nacht. Die "
+        "Steine schon. Ich hab sie aufgelesen, damit man sie wieder setzen "
+        "kann."
+    )
+    text_ausgeben("[Marit] Irgendwann.")
+
+    offene_tore_auswahl([
+        ("klang", "„Wie hören Sie, ob ein Stein gut ist?“", [
+            "[Marit] Ein guter Stein klingt nach dem, worauf er liegt. Ein "
+            "schlechter klingt nach sich selbst."
+        ]),
+        ("wege", "„Wohin führten Ihre Wege?“", [
+            "[Marit] Zu Orten, die heute keiner kennt. Fragen Sie den Mann "
+            "am Tisch. Bei dem stehen sie nicht im Buch."
+        ])
+    ], "Sie weiter sortieren lassen")
+
+    wm_erlebnis(
+        "wm_resonanz_stein",
+        "Sie legt den Stein zurück in seine Reihe. Den Klopfton hörst du noch, "
+        "als sie schon den nächsten in der Hand hat."
+    )
+    kapitel8_daten()["marit_gesehen"] = True
+    warte_auf_taste("Weiter")
+
+
+# --------------------------------------------------
+# Kapitel 8, Paket A-B1: Bleicher Pfad und Archiv der Schatten
+# --------------------------------------------------
+
+ARCHIV_RAEUME = {
+    "namenswand": {
+        "name": "Namenswand",
+        "wege": ["briefe", "dinge", "anker", "tiefe"]
+    },
+    "tiefe": {
+        "name": "Die Tiefe",
+        "wege": ["namenswand"]
+    },
+    "briefe": {
+        "name": "Kammer der Briefe",
+        "wege": ["namenswand"]
+    },
+    "dinge": {
+        "name": "Kammer der Dinge",
+        "wege": ["namenswand"]
+    },
+    "anker": {
+        "name": "Kammer der Anker",
+        "wege": ["namenswand", "berichte"]
+    },
+    "berichte": {
+        "name": "Kammer der Berichte",
+        "wege": ["anker"]
+    }
+}
+
+ARCHIV_KARTENNAMEN = {
+    "namenswand": "Namen",
+    "briefe": "Briefe",
+    "dinge": "Dinge",
+    "anker": "Anker",
+    "berichte": "Berichte",
+    "tiefe": "Tiefe"
+}
+
+ARCHIV_KARTENPOSITIONEN = {
+    "tiefe": (0, 16),
+    "briefe": (2, 0),
+    "namenswand": (2, 16),
+    "dinge": (2, 32),
+    "anker": (4, 16),
+    "berichte": (4, 32)
+}
+
+ARCHIV_BRIEFE = {
+    "senke": (
+        "„An die Verwaltung der Senke“",
+        [
+            "„Unsere Marken stimmen nicht mehr. Morgens zeigt der Wegweiser "
+            "zur Furt, abends ins Gras. Bitte schickt jemanden, der misst. "
+            "Wir zahlen.“",
+            "Du bist der Erste, der das liest."
+        ]
+    ),
+    "mutter": (
+        "„An meine Mutter, am Ostarm“",
+        [
+            "„Wenn du das liest, nimm den Weg über die Höhe, nicht den unten. "
+            "Der unten führt nicht mehr hin. Ich warte am Stein.“",
+            "Keine Antwort, keine Spur, dass der Brief je losging."
+        ]
+    ),
+    "ohne": (
+        "Ein Brief ohne Anschrift",
+        [
+            "Nur ein Satz, in großer, ungeübter Schrift: „Wir sind noch da.“"
+        ]
+    )
+}
+
+
+def archiv_funde():
+    return kapitel8_daten().setdefault("funde", [])
+
+
+def archiv_fund(*funde):
+    liste = archiv_funde()
+
+    for fund in funde:
+        if fund not in liste:
+            liste.append(fund)
+
+
+def archiv_reise_von_oros():
+    kapitel8_daten()["raum"] = "namenswand"
+    reise(
+        "archiv_schatten",
+        "Du steigst die Treppe hinab.",
+        gebiet_modus=True
+    )
+
+
+def archiv_verlassen():
+    if archiv_nachmessung_bereit():
+        archiv_nachmessung_ruf()
+
+    reise(
+        "universitaet_oros",
+        "Hinter den Lehrhallen kommst du durch das Nordtor zurück nach Oros.",
+        gebiet_modus=True
+    )
+
+
+def archiv_untersuchen(text):
+    raum_id = kapitel8_daten().get("raum", "namenswand")
+    ort_titel(f"Archiv der Schatten - {ARCHIV_RAEUME[raum_id]['name']}")
+
+    for zeile in ([text] if isinstance(text, str) else text):
+        text_ausgeben(zeile)
+
+    warte_auf_taste("Weiter")
+
+
+def archiv_raumtext(raum_id, erstmals):
+    titel = f"Archiv der Schatten - {ARCHIV_RAEUME[raum_id]['name']}"
+
+    if raum_id == "namenswand":
+        if not erstmals:
+            text_ausgeben(
+                "Die Namen an den Wänden, einer unter dem anderen. Oben der "
+                "Streifen Himmel."
+            )
+            return
+
+        text_ausgeben(
+            "Die Treppe endet in einem langen Gang zwischen zwei Felswänden. "
+            "Oben, sehr weit oben, ein Streifen Himmel."
+        )
+        text_ausgeben(
+            "Die Wände sind beschrieben. Nicht mit Farbe. Mit Messerspitzen, "
+            "Nägeln, Steinen. Namen, einer unter dem anderen, so dicht, dass "
+            "sie ineinanderlaufen."
+        )
+        seite_wechseln(titel)
+        text_ausgeben(
+            "Es gibt hier keine Inschrift über dem Eingang. Keinen Leitsatz. "
+            "Nur die Namen."
+        )
+        text_ausgeben(
+            "Manche sind sauber geschnitten. Manche sind nur angefangen. Neben "
+            "einem steht: „war hier“. Neben einem anderen: „sucht“."
+        )
+        return
+
+    if raum_id == "briefe":
+        if not erstmals:
+            text_ausgeben("Die Nische mit den Briefen.")
+            return
+
+        text_ausgeben(
+            "Eine Nische, in der Briefe liegen. Gefaltet und versiegelt. Die "
+            "Siegel sind unversehrt; niemand hat diese Briefe je geöffnet. Auf "
+            "manchen steht eine Anschrift, auf manchen nur ein Ort."
+        )
+        text_ausgeben("Du brichst das erste Siegel selbst.")
+        return
+
+    if raum_id == "dinge":
+        text_ausgeben(
+            "Regale aus Stein. Darauf Dinge, die jemand hergebracht hat, weil "
+            "er sie nicht wegwerfen wollte."
+        )
+        return
+
+    if raum_id == "anker":
+        if not erstmals:
+            text_ausgeben(
+                "Der runde Raum. Das Buch mit dem Eisendeckel liegt auf dem "
+                "Pult."
+            )
+            return
+
+        text_ausgeben(
+            "Ein runder Raum. In der Mitte ein Pult aus Stein, darauf ein "
+            "einzelnes Buch mit Eisendeckel, größer als das an der Kante."
+        )
+        return
+
+    if raum_id == "tiefe":
+        text_ausgeben(
+            "Der Stein steht allein. Ein schmaler Streifen Licht fällt auf "
+            "die Kerbe."
+        )
+        return
+
+    if raum_id == "berichte":
+        text_ausgeben(
+            "Eine schmale Kammer, kaum breiter als ein Mensch. An den Wänden "
+            "hängen Blätter auf Schnüren, wie Wäsche. Berichte, die in keinem "
+            "Register stehen."
+        )
+
+
+def archiv_brief_lesen(brief_id):
+    daten = kapitel8_daten()
+    gelesen = daten.setdefault("briefe", [])
+    _, zeilen = ARCHIV_BRIEFE[brief_id]
+    zeilen = list(zeilen)
+
+    if brief_id not in gelesen:
+        gelesen.append(brief_id)
+
+        if len(gelesen) == len(ARCHIV_BRIEFE):
+            zeilen.append(
+                "Mitteilung an die Siedlungen: Entfällt. Hier liegen die "
+                "Mitteilungen der Siedlungen. Sie sind auch nicht angekommen."
+            )
+
+    archiv_untersuchen(zeilen)
+
+
+def archiv_ankerbuch():
+    titel = "Archiv der Schatten - Kammer der Anker"
+    ort_titel(titel)
+
+    print("GEHALTENE GEGENPUNKTE")
+    print()
+    print("Gegenpunkt      Gehalten von     Dauer            Vermerk")
+    print("Furt, Ostarm    Jorin Weidmann   drei Tageswege   eigenhändig gestrichen")
+    print("Steinach        Ilsa Reuter      ein Tagesweg     eigenhändig gestrichen")
+    print("Senke, Süd      Bertram Kolb     ———              Verbleib: ———")
+    print("Ostarm, Höhe    Teja Lang        zwei Tageswege   gestrichen von fremder Hand")
+    print()
+    text_ausgeben("Am Fuß der Seite, in der Hand der Verwalter:")
+    text_ausgeben("„Ein Anker hält eine Zahl von Wegen, nicht von Stunden.")
+    text_ausgeben("Eigenhändig gestrichen: entlassen.")
+    text_ausgeben("Von fremder Hand gestrichen: Bindung ungeklärt.“")
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Du liest die Zeile über Bertram Kolb noch einmal. Keine Dauer. Kein "
+        "Strich. Nur der Ort: Senke, Süd. Die Dorfseite."
+    )
+    print()
+    text_ausgeben(
+        "Ein loses Blatt, zwischen die Seiten gelegt, in einer anderen, "
+        "ungeübten Hand:"
+    )
+    text_ausgeben(
+        "„Ich habe Bertram gekannt. Sie haben ihn an den Stein gestellt und "
+        "den Namen eingeschrieben. Er hat gesagt, er will nicht. Am ersten Tag "
+        "hat er noch gefragt, wann er gehen darf. Am dritten wusste er seinen "
+        "Namen nicht mehr, aber er wusste noch, wo der Stein lag. Danach haben "
+        "sie mich nicht mehr hingelassen.“"
+    )
+
+    archiv_fund("ankerbuch", "bertram")
+    kapitel8_daten()["ankerbuch_gelesen"] = True
+    wm_erlebnis(
+        "wm_anker_name",
+        "Du liest den Satz über den dritten Tag noch einmal. Dann klappst du das "
+        "Buch zu, langsamer als nötig."
+    )
+    warte_auf_taste("Weiter")
+
+
+def archiv_dorfbericht():
+    ort_titel("Archiv der Schatten - Kammer der Berichte")
+
+    text_ausgeben(
+        "„Als sie uns abschnitten, hat der Schmied seinen eigenen Stein "
+        "gesetzt. Unter den Amboss. Damit der Weg ihn nicht vergisst, hat er "
+        "gesagt."
+    )
+    text_ausgeben(
+        "Jeden Morgen hat er dreimal draufgeschlagen, bevor er mit der Arbeit "
+        "anfing. Wir haben es bis zur Kante gehört."
+    )
+    text_ausgeben(
+        "Solange er geschlagen hat, kamen die Leute vom Hang noch zu uns. Als "
+        "er weg war, nicht mehr.“"
+    )
+
+    if kapitel8_wert("marit_gesehen"):
+        print()
+        text_ausgeben(
+            "Du denkst an Marits Satz: Ein guter Stein klingt nach dem, worauf "
+            "er liegt."
+        )
+
+    archiv_fund("amboss")
+    warte_auf_taste("Weiter")
+
+
+def archiv_aktionen(raum_id):
+    funde = kapitel8_wert("funde", [])
+
+    if raum_id == "namenswand":
+        return [
+            ("Einen Namen berühren", lambda: archiv_untersuchen(
+                "Die Kerbe ist alt und glatt, als hätten viele Finger darüber "
+                "gestrichen. Zu wem der Name gehört, steht nirgends."
+            )),
+            ("Nach einem bekannten Namen suchen", lambda: archiv_untersuchen(
+                "Du suchst lange. Keiner der Namen gehört jemandem, den du "
+                "kennst. Du weißt nicht, ob dich das erleichtert."
+            ))
+        ]
+
+    if raum_id == "briefe":
+        return [
+            (f"{titel} lesen", lambda brief_id=brief_id: archiv_brief_lesen(brief_id))
+            for brief_id, (titel, _) in ARCHIV_BRIEFE.items()
+        ]
+
+    if raum_id == "dinge":
+        schnur = [
+            "Eine Schnur mit Knoten in gleichen Abständen. Wegläufer nehmen so "
+            "etwas, um Strecken zu zählen, wenn die Füße müde werden."
+        ]
+
+        if archiv_mit_kiran():
+            schnur.append("Du denkst an Kiran. Du nimmst sie nicht mit.")
+
+        return [
+            ("Die Zählschnur ansehen", lambda: archiv_untersuchen(schnur)),
+            ("Den Schlüssel ansehen", lambda: archiv_untersuchen(
+                "Ein Schlüssel ohne Tür. Groß, schwer, für ein Tor gemacht. Ein "
+                "Anhänger aus Leder, darauf ein Ortsname. Das Leder ist so "
+                "abgegriffen, dass der Name nicht mehr zu lesen ist."
+            )),
+            ("Den kleinen Schuh ansehen", lambda: archiv_untersuchen([
+                "Ein Kinderschuh.",
+                "Nein. Ein Hufschuh für ein kleines Pferd, eingewickelt in ein "
+                "Tuch, als wäre er kostbar."
+            ]))
+        ]
+
+    if raum_id == "anker":
+        text = "Das Buch lesen"
+
+        if "ankerbuch" not in funde:
+            text += " [!]"
+
+        return [(text, archiv_ankerbuch)]
+
+    if raum_id == "berichte":
+        text = "Den Bericht aus dem Dorf am Tiefen Ring lesen"
+
+        if "amboss" not in funde:
+            text += " [!]"
+
+        return [
+            ("Die Blätter durchgehen", lambda: archiv_untersuchen(
+                "Wer was gesehen hat. Wann ein Weg verschwand. Wer zurückkam "
+                "und wer nicht. Keine Unterschrift von einem Verwalter."
+            )),
+            (text, archiv_dorfbericht)
+        ]
+
+    return []
+
+
+def archiv_verbindungen(raum_id):
+    return list(ARCHIV_RAEUME.get(raum_id, {}).get("wege", []))
+
+
+def archiv_gebietskarte_anzeigen():
+    daten = kapitel8_daten()
+
+    raumkarte_anzeigen(
+        "Gebietskarte - Archiv der Schatten",
+        ARCHIV_RAEUME,
+        ARCHIV_KARTENNAMEN,
+        ARCHIV_KARTENPOSITIONEN,
+        daten.get("raum", "namenswand"),
+        set(daten.get("besucht", [])),
+        archiv_verbindungen
+    )
+
+
+def archiv_schatten():
+    daten = kapitel8_daten()
+    raum_id = daten.get("raum", "namenswand")
+
+    if raum_id not in ARCHIV_RAEUME:
+        raum_id = "namenswand"
+        daten["raum"] = raum_id
+
+    if raum_id == "tiefe" and not kapitel8_wert("tiefe"):
+        archiv_tiefe_begegnung()
+        return
+
+    besucht = daten.setdefault("besucht", [])
+    erstmals = raum_id not in besucht
+
+    ort_titel(f"Archiv der Schatten - {ARCHIV_RAEUME[raum_id]['name']}")
+    ort_nachricht_anzeigen()
+    archiv_raumtext(raum_id, erstmals)
+
+    if erstmals:
+        besucht.append(raum_id)
+
+    if archiv_status() == "pfad":
+        daten["archiv_erreicht"] = True
+        weg_entdecken("bleicher_pfad")
+        archiv_ziel_setzen("archiv")
+
+    eintraege = [
+        ("weg", ziel_id, ARCHIV_RAEUME[ziel_id]["name"])
+        for ziel_id in archiv_verbindungen(raum_id)
+    ]
+    eintraege += [
+        ("aktion", funktion, text)
+        for text, funktion in archiv_aktionen(raum_id)
+    ]
+
+    if raum_id == "namenswand":
+        eintraege.append((
+            "verlassen", None, "Die Treppe hinauf – Bleicher Pfad nach Oros"
+        ))
+
+    menue_trenner()
+    print()
+
+    for nummer, (_, _, text) in enumerate(eintraege, start=1):
+        print(f"{nummer}. {text}")
+
+    print()
+    print("[K] Gebietskarte")
+    print("[S] Status")
+    print("[I] Inventar")
+    print("[J] Questlog/Erfolge")
+    print("[T] Talente")
+    print("[Q] Speichern / Menü")
+
+    auswahl = eingabe_menu(
+        1,
+        len(eintraege),
+        sonder_tasten=("k", "s", "i", "j", "t", "q")
+    )
+
+    if auswahl == "k":
+        archiv_gebietskarte_anzeigen()
+    elif auswahl == "s":
+        status()
+    elif auswahl == "i":
+        inventar()
+    elif auswahl == "j":
+        questlog()
+    elif auswahl == "t":
+        talentmenue()
+    elif auswahl == "q":
+        spielmenue()
+    else:
+        typ, ziel, _ = eintraege[auswahl - 1]
+
+        if typ == "weg":
+            daten["raum"] = ziel
+            frist_handlung(1)
+        elif typ == "aktion":
+            ziel()
+        else:
+            archiv_verlassen()
+
+
+# --------------------------------------------------
+# Kapitel 8, Paket A-B2: Die Tiefe (Void-Begegnung, Trüber Geist)
+# --------------------------------------------------
+
+def archiv_tiefe_titel():
+    return "Archiv der Schatten - Die Tiefe"
+
+
+def archiv_tiefe_begegnung():
+    daten = kapitel8_daten()
+    besucht = daten.setdefault("besucht", [])
+    erstmals = "tiefe" not in besucht
+
+    if erstmals:
+        besucht.append("tiefe")
+
+    if kiran_zustand() == "verloren":
+        archiv_tiefe_kiran()
+    else:
+        archiv_tiefe_haltender(erstmals)
+
+
+def archiv_tiefe_zurueckweichen():
+    kapitel8_daten()["raum"] = "namenswand"
+    ort_nachricht_setzen("Du steigst die Treppe wieder hinauf zur Namenswand.")
+
+
+def archiv_tiefe_loesen(art):
+    daten = kapitel8_daten()
+    daten["tiefe"] = art
+    daten["tiefe_geloest"] = True
+
+    if kiran_zustand() == "verloren":
+        daten["tiefe_ende"] = "fels_erinnert" if art == "erinnert" else "fels_kampf"
+
+    warte_auf_taste("Weiter")
+
+
+def archiv_haltender_geht(titel, erkannt):
+    text_ausgeben(
+        "Er nimmt die Hand vom Stein, sehr langsam, als wäre sie dort "
+        "festgewachsen."
+    )
+
+    if erkannt:
+        text_ausgeben(
+            "[Der Haltende] Wo … war der Stein? Ich weiß noch, wo der Stein lag."
+        )
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Dann ist er nicht mehr da. Nicht verschwunden, nicht zerfallen. Der "
+        "Raum ist nur leer, und der Stein steht allein."
+    )
+    text_ausgeben(
+        "Ob er gegangen ist oder ob er nur aufgehört hat zu halten, kannst du "
+        "nicht sagen."
+    )
+
+
+def archiv_kiran_geht():
+    text_ausgeben(
+        "Er geht. Nicht zur Treppe. In den Fels, dort, wo kein Gang ist, und "
+        "der Fels lässt ihn."
+    )
+
+
+def runenschmied_klangrune_bereit():
+    # Aktiver Runenschmied mit Klangrune auf der ausgerüsteten Waffe.
+    waffe = spieler.get("waffe")
+    return (
+        hybrid_aktiv_holen(spieler) == "runenschmied"
+        and not hybrid_probe_offen(spieler, "runenschmied")
+        and isinstance(waffe, dict)
+        and waffe.get("rune") == "klang"
+    )
+
+
+def chronik_bache_faehrte(titel):
+    text_ausgeben(
+        "Du siehst zuerst auf den Boden. Vom Apfelbaum führt eine ausgetretene "
+        "Rinne zum Eingang des Hofs, dorthin, wo du stehst."
+    )
+    text_ausgeben(
+        "Die Bache sieht zum Eingang. Sie setzt einen Schritt in diese Richtung "
+        "und hält inne, als du dich bewegst."
+    )
+    text_ausgeben(
+        "Du gehst langsam rückwärts aus dem Eingang und an der Mauer entlang, "
+        "bis genug Platz zwischen euch ist. Dort bleibst du stehen."
+    )
+    seite_wechseln(titel)
+    text_ausgeben("Die Bache hebt den Kopf. Lange geschieht nichts.")
+    text_ausgeben(
+        "Dann schiebt sie die Frischlinge mit der Schnauze an und geht die "
+        "Rinne entlang, durch den Eingang, zum Hang. Dich sieht sie dabei "
+        "nicht an."
+    )
+    text_ausgeben("Dann ist der Hof leer.")
+    chronik_ringhof_loesen("faehrte")
+    warte_auf_taste("Weiter")
+
+
+def archiv_haltender_lauschen():
+    # Nur ein Hinweis: kein Name, keine Lösung.
+    ort_titel(archiv_tiefe_titel())
+    text_ausgeben("Du hörst nicht auf das, was er sagt. Du achtest darauf, wann es anfängt.")
+    text_ausgeben(
+        "„Ich halte“ kommt jedes Mal gleich, ohne Ansatz. Danach setzt er zu "
+        "etwas anderem an. Es fängt an wie ein Satz über ihn selbst und bricht "
+        "an derselben Stelle ab."
+    )
+    text_ausgeben("Es klingt, als suche er ein Wort für sich selbst.")
+    kapitel8_daten()["haltender_gelauscht"] = True
+    warte_auf_taste("Weiter")
+
+
+def archiv_tiefe_haltender(erstmals):
+    titel = archiv_tiefe_titel()
+    ort_titel(titel)
+
+    text_ausgeben(
+        "Unten ist ein Stein, kniehoch, oben flach, mit einer Kerbe. Ein "
+        "Gegenpunkt, tiefer als jeder, den du gesehen hast."
+    )
+    text_ausgeben(
+        "Davor steht jemand. Oder etwas, das so steht wie jemand. Die Umrisse "
+        "stimmen, die Ränder nicht. Wo der schmale Streifen Licht hinfällt, "
+        "ist nichts. Wo er nicht hinfällt, ist er."
+    )
+    text_ausgeben("Er hat die Hand auf den Stein gelegt.")
+
+    if erstmals:
+        seite_wechseln(titel)
+        text_ausgeben("[Der Haltende] … halte. Ich halte.")
+        text_ausgeben("[Der Haltende] Wen … was …")
+        text_ausgeben(
+            "Er dreht den Kopf zu dir. Er hat kein Gesicht, an das man sich "
+            "erinnern könnte."
+        )
+        text_ausgeben("[Der Haltende] Wer hat mich hingestellt?")
+
+    punkte = [("kampf", "Kämpfen")]
+
+    if "bertram" in kapitel8_wert("funde", []):
+        punkte.append(("name", "„Bertram. Bertram Kolb.“"))
+
+    if (
+        magier_resonanzwerte(spieler).get("magier_lauschen_gelernt")
+        and not kapitel8_wert("haltender_gelauscht", False)
+    ):
+        punkte.append(("lauschen", "Lauschen [Magier]"))
+
+    punkte.append(("zurueck", "Zurückweichen"))
+    wahl = chronik_auswahl(punkte)
+
+    if wahl == "lauschen":
+        archiv_haltender_lauschen()
+        return
+
+    if wahl == "zurueck":
+        archiv_tiefe_zurueckweichen()
+        return
+
+    if wahl == "kampf":
+        archiv_tiefe_kampf("Haltender")
+        return
+
+    ort_titel(titel)
+    text_ausgeben("Er hält inne. Die Hand auf dem Stein zuckt.")
+    text_ausgeben("[Der Haltende] Bertram.")
+    text_ausgeben("[Der Haltende] Das war … das ist …")
+    archiv_haltender_geht(titel, erkannt=True)
+    archiv_tiefe_loesen("erinnert")
+
+
+def archiv_tiefe_kiran():
+    titel = archiv_tiefe_titel()
+    ort_titel(titel)
+
+    text_ausgeben(
+        "Unten ist ein Stein mit einer Kerbe. Davor steht jemand mit dem "
+        "Rücken zu dir und zählt."
+    )
+    text_ausgeben("[Kiran] … zweihundert. Eins. Zwei.")
+    text_ausgeben(
+        "Die Stimme ist Kirans Stimme. Die Gestalt hat seine Haltung. Die "
+        "Ränder stimmen nicht."
+    )
+
+    gesagt = []
+
+    while True:
+        punkte = [("kampf", "Kämpfen")]
+
+        if "name" not in gesagt:
+            punkte.append(("name", "„Kiran.“"))
+        if "satz" not in gesagt:
+            punkte.append(("satz", "„Nicht stehen bleiben.“"))
+
+        punkte.append(("zurueck", "Zurückweichen"))
+        wahl = chronik_auswahl(punkte)
+
+        if wahl == "zurueck":
+            archiv_tiefe_zurueckweichen()
+            return
+
+        if wahl == "kampf":
+            archiv_tiefe_kampf("Gestalt")
+            return
+
+        gesagt.append(wahl)
+
+        if wahl == "name":
+            text_ausgeben("Die Gestalt hört auf zu zählen.")
+        elif len(gesagt) == 1:
+            text_ausgeben("Das Zählen stockt. Dann geht es weiter, leiser.")
+
+        if len(gesagt) == 2:
+            break
+
+    seite_wechseln(titel)
+
+    text_ausgeben("[Kiran] Nicht stehen … das hab ich …")
+    text_ausgeben("Er dreht sich halb um, nicht ganz.")
+    text_ausgeben(
+        "[Kiran] Ich such jemand. Ich weiß nicht mehr, wen. Ich weiß nicht "
+        "mehr, ob ich jemand bin, der sucht."
+    )
+    archiv_kiran_geht()
+    archiv_tiefe_loesen("erinnert")
+
+
+def archiv_tiefe_kampf(gegner_typ):
+    daten = kapitel8_daten()
+    titel = archiv_tiefe_titel()
+
+    if not isinstance(spieler.get("waffe"), dict):
+        design_text(
+            "Rüste im Inventar eine Waffe aus, bevor du kämpfst.",
+            design="warnung",
+            art="menue"
+        )
+        warte_auf_taste("Zurück")
+        return
+
+    kampf_ergebnis = kampf_starten(
+        lebenspunkte=spieler["lebenspunkte"],
+        heiltraenke=spieler["heiltränke"],
+        waffe=spieler["waffe"],
+        gegner_typ=gegner_typ,
+        kampf_situation={
+            "gebiet": "Archiv der Schatten",
+            "umgebung": "Tiefe mit Licht",
+            "tageszeit": spieler.get("tageszeit", "Tag"),
+            "wetter": spieler.get("wetter", "Klar")
+        },
+        trueber_geist=True
+    )
+
+    spieler["lebenspunkte"] = kampf_ergebnis["lebenspunkte"]
+    spieler["heiltränke"] = kampf_ergebnis["heiltraenke"]
+
+    print()
+    print("-" * 34)
+    text_ausgeben(
+        "Die Worte kommen zurück, eins nach dem anderen. "
+        f"{spieler['waffe'].get('typ', 'Waffe')}. Schützen. Du sagst sie leise "
+        "vor dich hin, bis sie wieder dir gehören."
+    )
+
+    if kampf_ergebnis.get("gewonnen", False):
+        spieler["besiegte_gegner"] += 1
+        print()
+        print(f"Lebenspunkte: {spieler['lebenspunkte']}")
+        print("-" * 34)
+        seite_wechseln(titel)
+
+        if gegner_typ == "Gestalt":
+            archiv_kiran_geht()
+        else:
+            archiv_haltender_geht(titel, erkannt=False)
+
+        archiv_tiefe_loesen("kampf")
+        return
+
+    if kampf_ergebnis.get("besiegt", False):
+        # Kein Spielende: Der Spieler kommt an der Namenswand zu sich.
+        warte_auf_taste("Weiter")
+        ort_titel("Archiv der Schatten - Namenswand")
+        text_ausgeben("Du kommst an der Namenswand zu dir.")
+        spieler["lebenspunkte"] = 10
+        daten["raum"] = "namenswand"
+        warte_auf_taste("Weiter")
+        return
+
+    print()
+    text_ausgeben("Du weichst die Treppe hinauf zurück.", art="menue")
+    daten["raum"] = "namenswand"
+    warte_auf_taste("Weiter")
+
+
+# --------------------------------------------------
+# Kapitel 8, Pakete A-C1 und A-C2: Entscheidung an der Kante, Amboss, Abschluss
+# --------------------------------------------------
+
+# Frist der freiwilligen Bindung, gezählt in Handlungen („ein Tagesweg“).
+FRIST_WEGE = 30
+FRIST_WARNUNG = 10
+FRIST_SCHLAFEN = 15
+FRIST_WARTEN = 8
+
+ARCHIV_KANTE_STATUS = (
+    "nachmessung", "haller_vorschlag", "entscheidung", "amboss", "klangweg",
+    "rueckkehr", "abgeschlossen"
+)
+
+ARCHIV_STELLEN = {
+    "hof": "Der Hof hinter der Schmiede",
+    "garten": "Der Garten am Dorfrand",
+    "fahrbahn": "Das Ende der Fahrbahn"
+}
+
+
+def archiv_anker_name():
+    return "Kiran" if archiv_mit_kiran() else "Marit"
+
+
+def archiv_bindung():
+    # Nur lesen: legt keine Kapitel-8-Daten an.
+    bindung = kapitel8_wert("bindung")
+
+    return bindung if isinstance(bindung, dict) else {}
+
+
+def archiv_frist_laeuft():
+    bindung = archiv_bindung()
+
+    return bindung.get("art") == "freiwillig" and bindung.get("aktiv") is True
+
+
+def archiv_kiran_an_der_kante():
+    bindung = archiv_bindung()
+
+    return bindung.get("wer") == "kiran" and bindung.get("aktiv") is True
+
+
+def archiv_zustand_speichern(zustand):
+    # Kirans Zustand aus Kapitel 6 bleibt unverändert; Kapitel 9 liest beides.
+    if archiv_mit_kiran():
+        spieler.setdefault("entscheidungen", {})["kiran_kapitel8"] = zustand
+    else:
+        kapitel8_daten()["marit"] = zustand
+
+
+def frist_rest():
+    bindung = archiv_bindung()
+
+    if bindung.get("frist_status") != "aktiv":
+        return 0
+
+    return max(0, bindung.get("erlaubt", FRIST_WEGE) - bindung.get("wege", 0))
+
+
+def frist_handlung(menge=1):
+    # Zählt Wege (Reiseschritte, Raumwechsel, Warten, Schlafen). Ohne laufende
+    # Frist geschieht nichts. Sobald der Amboss trägt, zählt nichts mehr.
+    bindung = archiv_bindung()
+
+    if (
+        not archiv_frist_laeuft()
+        or bindung.get("frist_status") != "aktiv"
+        or kapitel8_wert("amboss_eingebunden")
+    ):
+        return
+
+    vorher = frist_rest()
+    bindung["wege"] = min(
+        bindung.get("erlaubt", FRIST_WEGE),
+        bindung.get("wege", 0) + menge
+    )
+    rest = frist_rest()
+
+    if rest == 0:
+        bindung["frist_status"] = "abgelaufen"
+        bindung["meldung"] = "um"
+    elif rest <= FRIST_WARNUNG < vorher:
+        bindung["meldung"] = "kurz"
+
+
+def archiv_frist_satz():
+    if not archiv_frist_laeuft():
+        return ""
+
+    name = archiv_anker_name()
+
+    if kapitel8_wert("amboss_eingebunden"):
+        return f"Der Amboss trägt mit. {name} wartet an der Kante."
+
+    rest = frist_rest()
+
+    if rest == 0:
+        return f"Der Tagesweg ist um. {name} wartet an der Kante."
+    if rest <= FRIST_WARNUNG:
+        return f"{name} hält nur noch kurz."
+    if rest <= 20:
+        return f"{name} hält noch etwa einen halben Tagesweg."
+    if rest < archiv_bindung().get("erlaubt", FRIST_WEGE):
+        return f"{name} hält noch fast einen ganzen Tagesweg."
+
+    return f"{name} hält noch einen ganzen Tagesweg."
+
+
+def frist_meldung_anzeigen():
+    # Einmalig beim nächsten Ortswechsel: „nur noch kurz“ und „um“.
+    bindung = archiv_bindung()
+
+    if not bindung.get("meldung"):
+        return
+
+    del bindung["meldung"]
+    design_text(archiv_frist_satz(), design="warnung", art="menue")
+    print()
+
+
+def frist_vorher_fragen(kosten, wenn, frage):
+    # Fragt, bevor Schlafen oder Warten den Tagesweg beendet. Nein bricht nur
+    # das Schlafen bzw. Warten ab.
+    if (
+        not archiv_frist_laeuft()
+        or archiv_bindung().get("frist_status") != "aktiv"
+        or kapitel8_wert("amboss_eingebunden")
+        or frist_rest() > kosten
+    ):
+        return True
+
+    print()
+    text_ausgeben(
+        f"{archiv_frist_satz()} Wenn du jetzt {wenn}, ist der Tagesweg um. "
+        f"Trotzdem {frage}?"
+    )
+
+    return chronik_auswahl([("ja", "Ja"), ("nein", "Nein")]) == "ja"
+
+
+def frist_schlafen_erlaubt():
+    return frist_vorher_fragen(FRIST_SCHLAFEN, "schläfst", "schlafen")
+
+
+def frist_warten_erlaubt():
+    return frist_vorher_fragen(FRIST_WARTEN, "wartest", "warten")
+
+
+def strassen_offen():
+    # Nur lesen. Ist der Ringstein in Kapitel 8 wieder heraus, fehlen Tiefer
+    # Ring und Nordstraße; kapitel7.angebunden bleibt als Verlauf erhalten.
+    return chronik_angebunden() and not kapitel8_wert("ringstein_entfernt")
+
+
+def archiv_nachmessung_bereit():
+    return (
+        archiv_status() == "archiv"
+        and "ankerbuch" in kapitel8_wert("funde", [])
+        and kapitel8_wert("tiefe") is not None
+    )
+
+
+def archiv_nachmessung_ruf():
+    ort_titel("Archiv der Schatten - Namenswand")
+    text_ausgeben(
+        "Oben an der Treppe wartet ein Schreiber der Schutzverwaltung. Finch "
+        "schickt ihn, sagt er. Finch ist zur Kante über der Senke gegangen, um "
+        "die Dorfseite nachzumessen."
+    )
+    archiv_ziel_setzen("nachmessung")
+
+
+def archiv_abschliessen():
+    spieler["quest_archiv"] = "abgeschlossen"
+    quest_meldung("abgeschlossen", "Das Archiv der Schatten")
+    warte_auf_taste("Weiter")
+
+
+def archiv_abschluss_text():
+    ausgang = kapitel8_wert("ausgang")
+    name = archiv_anker_name()
+
+    if ausgang == "abtrennung":
+        return (
+            "Der Ringstein ist wieder herausgenommen. Der Tiefe Ring und die "
+            "Nordstraße sind verschwunden. Vorläufig, sagt Haller."
+        )
+
+    if ausgang == "zwang":
+        willen = "seinen" if name == "Kiran" else "ihren"
+        # Nach der Befreiung in Kapitel 9 als Verlauf.
+        ist = "war" if kapitel9_wert("befreiung") == "frei" else "ist"
+
+        return (
+            f"{name} {ist} gegen {willen} Willen an den Gegenpunkt der Dorfseite "
+            "gebunden. Die Nordstraße bleibt offen."
+        )
+
+    text = (
+        "Der Amboss-Stein im Verlassenen Dorf trägt die Dorfseite mit. Die "
+        "Nordstraße bleibt offen."
+    )
+
+    if ausgang == "freiwillig":
+        eigenen = "seinen" if name == "Kiran" else "ihren"
+        text += f" {name} hat {eigenen} Namen eigenhändig gestrichen."
+
+    return text
+
+
+# ---------- N1: Die Nachmessung, N2: Hallers Vorschläge ----------
+
+def archiv_nachmessung():
+    titel = "Rand der Senke"
+    ort_titel(titel)
+
+    text_ausgeben(
+        "Finch steht neben dem Gegenpunkt an der Kante, die Peilscheibe "
+        "aufgebaut. Er hat dich kommen sehen und nicht aufgesehen."
+    )
+    text_ausgeben(
+        "[Finch] Die Kerben in der Mauer am Hang. Ich habe sie auf dem Herweg "
+        "abgeschritten. Sie passen nicht mehr zu meinen Schritten."
+    )
+    text_ausgeben("[Finch] Also habe ich nicht auf den Monat gewartet.")
+    print()
+    print(f"{'':<22}{'Soll':>6}{'gemessen':>10}")
+    print(f"{'Gegenpunkt Dorfseite':<22}{17:>6}{20:>10}")
+    print()
+    text_ausgeben("[Finch] Zwanzig. Drei Teilstriche.")
+    text_ausgeben(
+        "Er schreibt den Wert auf, unter den alten, und unterstreicht ihn."
+    )
+    text_ausgeben("[Finch] Das ist jetzt ein Urteil.")
+    wm_erlebnis(
+        "wm_kontrolle_messung",
+        "Finch hört auf zu messen. Er weiß genug. Du merkst dir, wie das aussieht."
+    )
+
+    seite_wechseln(titel)
+
+    text_ausgeben("[Finch] Ich muss es Haller sagen. Sie wissen, was er dann tut.")
+
+    kapitel8_daten()["nachmessung"] = True
+    archiv_ziel_setzen("haller_vorschlag")
+
+
+def archiv_haller_vorschlag():
+    titel = "Universität von Oros - Amtsstube der Schutzverwaltung"
+    ort_titel(titel)
+
+    text_ausgeben(
+        "Haller hat Finchs Bericht vor sich. Er liest ihn nicht mehr, er kennt "
+        "ihn."
+    )
+    text_ausgeben(
+        "[Haller] Was mit dem Treibenden verbunden bleibt, treibt mit. Das ist "
+        "nicht von mir. Das steht in der Chronik, die Sie gefunden haben."
+    )
+    text_ausgeben(
+        "[Haller] Oros ist jetzt mit der Senke verbunden. Und die Senke mit "
+        "einer Seite, die nicht mehr trägt."
+    )
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "[Haller] Ich werde nicht warten, bis wir wissen, was über diese Straße "
+        "kommt. Ahrens' Leute gehen hinunter und nehmen den Stein heraus."
+    )
+    text_ausgeben(
+        "[Haller] Die Straße verschwindet. Das Dorf bleibt über den alten Pfad "
+        "erreichbar. Die Senke nicht."
+    )
+    text_ausgeben("Er sieht dich an.")
+    text_ausgeben(
+        "[Haller] Es ist dasselbe, was die Verwalter getan haben. Ich weiß das."
+    )
+
+    wahl = chronik_auswahl([
+        ("umsonst", "„Dann ist alles, was wir gelernt haben, umsonst.“"),
+        ("anders", "„Gibt es keinen anderen Weg?“"),
+        ("recht", "„Vielleicht haben Sie recht.“")
+    ])
+
+    if wahl == "recht":
+        text_ausgeben(
+            "[Haller] Vielleicht. Es gibt noch einen Weg. Ich sage ihn Ihnen, "
+            "damit Sie nicht später glauben, ich hätte ihn verschwiegen."
+        )
+    else:
+        text_ausgeben("[Haller] Es gibt einen. Die Schutzordnung verweist darauf.")
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "[Haller] Ein Gegenpunkt, der nicht trägt, kann gehalten werden. Von "
+        "einem Menschen, der dort steht und dessen Name im Verzeichnis des "
+        "Steins eingetragen ist. Sie haben im Archiv gelesen, wie das geht."
+    )
+    text_ausgeben(
+        "[Haller] Die Straße bleibt. Und Oros wäre sicherer. So steht es in den "
+        "Aufzeichnungen. Was es sonst bewirkt, steht dort nicht."
+    )
+
+    if archiv_mit_kiran():
+        text_ausgeben(
+            "[Haller] Herr Finch und Frau Vance meinen, dass Kiran dafür "
+            "geeignet wäre. Ein Wegläufer. Seine Bezüge sind ohnehin locker."
+        )
+    else:
+        text_ausgeben(
+            "[Haller] Herr Finch sagt, die alte Frau aus dem Notlager hört an "
+            "einem Stein, worauf er liegt. Marit. Wegmacherin."
+        )
+
+    text_ausgeben(
+        "[Haller] Das ist eine Vermutung. Ich weiß, dass es eine Vermutung ist."
+    )
+    text_ausgeben(
+        "[Haller] Ahrens' Leute werden an der Kante auf Sie warten. Dort "
+        "entscheiden wir, was geschieht."
+    )
+
+    archiv_ziel_setzen("entscheidung")
+
+
+# ---------- Die Kante ----------
+
+def archiv_kante_aktiv():
+    return archiv_status() in ARCHIV_KANTE_STATUS
+
+
+def archiv_kante_text():
+    text = "Zur Kante über der Senke"
+
+    if (
+        archiv_status() in ("nachmessung", "entscheidung", "rueckkehr")
+        or archiv_bindung().get("frist_status") == "abgelaufen"
+        and archiv_frist_laeuft()
+        or befreiung_kante_offen()
+    ):
+        text += " [!]"
+
+    return text
+
+
+def archiv_kante():
+    titel = "Rand der Senke"
+    status = archiv_status()
+    bindung = archiv_bindung()
+    name = archiv_anker_name()
+    ort_titel(titel)
+
+    if strassen_offen():
+        text_ausgeben(
+            "An der Kante biegt die alte Fahrbahn ab und führt als Tiefer Ring "
+            "in einem weiten Bogen hinunter in die Senke."
+        )
+    else:
+        text_ausgeben(
+            "Die alte Straße endet an der Kante. Unten in der Senke liegen die "
+            "halb versunkenen Mauern."
+        )
+
+    if status == "nachmessung":
+        text_ausgeben("Am Gegenpunkt steht Finch, die Peilscheibe aufgebaut.")
+    elif status == "entscheidung":
+        text_ausgeben(
+            "Am Gegenpunkt warten Ahrens und zwei seiner Leute. Finch steht "
+            "etwas abseits."
+        )
+    elif bindung.get("aktiv") and bindung.get("art") == "zwang":
+        if name == "Kiran":
+            text_ausgeben(
+                "Kiran steht am Gegenpunkt. Er sieht dich an, als suche er ein "
+                "Wort für dich."
+            )
+        else:
+            text_ausgeben(
+                "Marit steht am Gegenpunkt. Sie klopft mit dem Knöchel gegen "
+                "den Stein und hört zu."
+            )
+    elif bindung.get("aktiv"):
+        if name == "Kiran":
+            text_ausgeben(
+                "Kiran sitzt auf dem Stein neben dem Gegenpunkt und sieht nach "
+                "Süden, zum Dorf hin."
+            )
+        else:
+            text_ausgeben(
+                "Marit sitzt auf dem Stein neben dem Gegenpunkt, die Hände auf "
+                "den Knien."
+            )
+
+    if befreiung_status() == "messung" and befreiung_offen():
+        text_ausgeben("Am Gegenpunkt steht Finch, die Peilscheibe aufgebaut.")
+
+    punkte = []
+
+    if status == "nachmessung":
+        punkte.append(("szene", "Zu Finch an den Gegenpunkt [!]"))
+        szene = archiv_nachmessung
+    elif status == "entscheidung":
+        punkte.append(("szene", "Zu Ahrens und Finch an den Gegenpunkt [!]"))
+        szene = archiv_entscheidung
+    elif status == "rueckkehr":
+        punkte.append(("szene", "Zu Finch an den Gegenpunkt [!]"))
+        szene = archiv_rueckkehr
+    elif archiv_frist_laeuft() and bindung.get("frist_status") == "abgelaufen":
+        punkte.append(("szene", f"Zu {name} an den Gegenpunkt [!]"))
+        szene = archiv_frist_ablauf
+    elif archiv_frist_laeuft():
+        punkte.append(("szene", f"Zu {name} an den Gegenpunkt"))
+        szene = archiv_bindung_gespraech
+
+    befreiung = befreiung_kante_punkte()
+    punkte.extend((schluessel, text) for schluessel, text, _ in befreiung)
+
+    if wm_klang_ersatz_offen():
+        punkte.append(("klang", "Am Gegenpunkt dem Klang nachgehen"))
+
+    if strassen_offen():
+        punkte.append(("ring", "Über den Tiefen Ring zur Chronik"))
+    else:
+        punkte.append(("senke", "In die Senke hinabsteigen"))
+
+    punkte.append(("dorf", "Zurück ins Dorf"))
+    wahl = chronik_auswahl(punkte)
+
+    for schluessel, _, funktion in befreiung:
+        if wahl == schluessel:
+            funktion()
+
+    if wahl == "szene":
+        szene()
+        # WM-B2: die Entscheidung an der Kante, gleich nachdem sie getroffen wurde.
+        if szene is archiv_entscheidung and kapitel8_wert("ausgang"):
+            wm_erlebnis(
+                "wm_anker_kante",
+                "Auf dem Rückweg sagst du dir deinen Namen vor, einmal, leise. Er "
+                "ist noch da."
+            )
+    elif wahl == "klang":
+        wm_gegenpunkt_klang()
+    elif wahl == "ring":
+        chronik_reise_von_dorf()
+    elif wahl == "senke":
+        ort_titel(titel)
+        chronik_abstieg()
+
+
+# ---------- E1 und E2: Die Wahl ----------
+
+def archiv_kante_e1(titel):
+    text_ausgeben(
+        "An der Kante stehen Ahrens und zwei seiner Leute, einer mit einem "
+        "Hebeisen, einer mit einer Tasche, aus der ein Schreibbrett ragt. Finch "
+        "steht etwas abseits, die Messmappe unter dem Arm."
+    )
+    text_ausgeben(
+        "Neben dem Gegenpunkt ist eine Nische im Stein freigelegt. Als du den "
+        "Stein in der Chronik geprüft hast, lag sie noch unter Geröll; Ahrens' "
+        "Leute haben sie beim Herabsteigen freigeräumt."
+    )
+    text_ausgeben(
+        "Darin liegt ein kleines Buch mit Eisendeckel. Das Verzeichnis des "
+        "Gegenpunkts. Zwei Seiten sind beschrieben, mit Namen, die du nicht "
+        "kennst. Hinter jedem eine Jahreszahl, die das Wasser verwischt hat."
+    )
+
+    if "bertram" in kapitel8_wert("funde", []):
+        text_ausgeben(
+            "Einen der Namen kennst du aus dem Buch im Archiv: Bertram Kolb. Die "
+            "Jahreszahl dahinter ist verwischt. Im Ankerbuch stand bei seiner "
+            "Dauer nur ein Strich."
+        )
+
+    text_ausgeben(
+        "[Ahrens] Und damit Sie es wissen: Rabans Versorgungskarren ist auf der "
+        "Nordstraße unterwegs zur Senke. Mit Leuten aus dem Notlager."
+    )
+
+    seite_wechseln(titel)
+
+    if kiran_zustand() == "gehalten":
+        text_ausgeben(
+            "Kiran ist mitgekommen. Er steht am Rand, das Heft in der Hand, und "
+            "sieht auf den Stein, nicht auf die Leute."
+        )
+        text_ausgeben(
+            "[Kiran] Finch hat es mir erklärt. Wer da steht, hält. Wer da "
+            "steht, bleibt."
+        )
+        text_ausgeben(
+            "Er nimmt das Blatt aus der Tasche, das zerknitterte, und liest die "
+            "unterste Zeile."
+        )
+        text_ausgeben("[Kiran] Nicht stehen bleiben.")
+        text_ausgeben("Er betrachtet das Blatt eine Weile.")
+        text_ausgeben("[Kiran] Das habe ich mir aufgeschrieben.")
+        text_ausgeben("[Kiran] Und jetzt soll ich hierbleiben?")
+
+        anker = (spieler.get("entscheidungen") or {}).get("kiran_anker")
+
+        if anker == "mensch":
+            text_ausgeben(
+                "[Kiran] Wenn ich das mache, kommst du zurück? Du stehst in "
+                "meinem Heft. Du hast es versprochen. Oder ich hab's mir so "
+                "aufgeschrieben."
+            )
+        elif anker == "ort":
+            text_ausgeben(
+                "Er geht von der Kante bis zur ersten Kerbe der Mauer und "
+                "zurück, zählt halblaut."
+            )
+            text_ausgeben(
+                "[Kiran] Siebenundzwanzig. Wenn ich hier stehe, will ich wissen, "
+                "wo genau."
+            )
+        elif anker == "selbst":
+            text_ausgeben("Er schlägt das Heft auf und liest seinen Satz.")
+            text_ausgeben("[Kiran] „Ich hab mich nicht verzählt.“")
+            text_ausgeben("[Kiran] Wenn ich hier stehe, zählt mich jemand anders.")
+
+    elif kiran_zustand() == "spaet_gehalten":
+        text_ausgeben(
+            "Kiran steht neben Finch. Er hat die Erklärung schon gehört, "
+            "zweimal."
+        )
+        text_ausgeben("[Kiran] Wer da steht, hält. Und dann?")
+        text_ausgeben("Er sieht auf sein Blatt.")
+        text_ausgeben("[Kiran] Nicht stehen bleiben. Das habe ich mir aufgeschrieben.")
+        text_ausgeben("[Kiran] Und jetzt soll ich hierbleiben?")
+
+    else:
+        text_ausgeben(
+            "Marit ist mitgekommen, ohne gefragt zu werden. Sie kniet am "
+            "Gegenpunkt und klopft mit dem Knöchel dagegen."
+        )
+        text_ausgeben(
+            "[Marit] Der klingt hohl. Nicht kaputt. Hohl. Als ob am anderen Ende "
+            "keiner zuhört."
+        )
+        text_ausgeben("Sie steht auf, langsam.")
+        text_ausgeben("[Marit] Und ich soll zuhören. Für immer, oder bis wann?")
+
+    seite_wechseln(titel)
+
+
+def archiv_e2_punkte():
+    name = archiv_anker_name()
+    zustimmung = "seine" if name == "Kiran" else "ihre"
+    punkte = [
+        ("abtrennung", "Die Abtrennung zulassen: „Nehmen Sie den Stein heraus.“"),
+        ("zwang", f"{name} eintragen lassen, ohne {zustimmung} Zustimmung"),
+        ("freiwillig", f"{name} bitten, selbst zu schreiben, mit Frist")
+    ]
+
+    if "amboss" in kapitel8_wert("funde", []):
+        punkte.append((
+            "direkt", "„Es gibt einen anderen Gegenpunkt. Ich suche ihn.“"
+        ))
+    else:
+        punkte.append((
+            "unbekannt", "„Es gibt einen anderen Gegenpunkt …“ (Du weißt keinen.)"
+        ))
+
+    punkte.append(("spaeter", "„Noch nicht. Ich brauche mehr Wissen.“"))
+
+    return punkte
+
+
+def archiv_bestaetigen(text):
+    print()
+    text_ausgeben(text)
+
+    return chronik_auswahl([("ja", "Ja"), ("nein", "Nein")]) == "ja"
+
+
+def archiv_entscheidung():
+    daten = kapitel8_daten()
+    titel = "Rand der Senke"
+    ort_titel(titel)
+
+    if not daten.get("kante_gesehen"):
+        daten["kante_gesehen"] = True
+        archiv_kante_e1(titel)
+    else:
+        text_ausgeben(
+            "Ahrens und seine Leute warten am Gegenpunkt. In der Nische liegt "
+            "das Verzeichnis mit dem Eisendeckel."
+        )
+        print()
+
+    text_ausgeben("Ahrens sieht zu dir, nicht zu Finch.")
+    text_ausgeben(
+        "[Ahrens] Haller hat gesagt, Sie entscheiden das hier mit. Er hat nicht "
+        "gesagt, warum."
+    )
+
+    name = archiv_anker_name()
+    er = "er" if name == "Kiran" else "sie"
+    seinen = "seinen" if name == "Kiran" else "ihren"
+
+    while True:
+        wahl = chronik_auswahl(archiv_e2_punkte())
+
+        if wahl == "spaeter":
+            text_ausgeben("[Ahrens] Wir warten hier.")
+            warte_auf_taste("Weiter")
+            return
+
+        if wahl == "unbekannt":
+            text_ausgeben(
+                "Du weißt keinen anderen. Vielleicht steht im Archiv mehr, als "
+                "du gelesen hast."
+            )
+            continue
+
+        if wahl == "abtrennung":
+            if archiv_bestaetigen(
+                "Der Ringstein wird herausgenommen. Der Tiefe Ring und die "
+                "Nordstraße verschwinden wieder. Die Chronik ist nur noch über "
+                "den Umweg in die Senke erreichbar. Das Dorf bleibt über den "
+                "Pfad des Vergessens erreichbar. Wirklich?"
+            ):
+                archiv_abtrennung(titel)
+                return
+
+            continue
+
+        if wahl == "zwang":
+            if archiv_bestaetigen(
+                f"{name} wird dauerhaft an diesen Gegenpunkt gebunden, gegen "
+                f"{seinen} Willen. {er.capitalize()} kann die Kante nicht mehr "
+                f"verlassen und wird Sprache und Erinnerung verlieren. Eine "
+                "spätere Befreiung ist schwierig, die Schäden bleiben. Wirklich?"
+            ):
+                archiv_zwang(titel)
+                return
+
+            continue
+
+        if wahl == "freiwillig":
+            if archiv_freiwillig_zustimmung():
+                archiv_freiwillig(titel)
+                return
+
+            continue
+
+        archiv_direkt(titel)
+        return
+
+
+# ---------- E3: Abtrennung ----------
+
+def archiv_abtrennung(titel):
+    daten = kapitel8_daten()
+    ort_titel(titel)
+
+    text_ausgeben(
+        "[Ahrens] Ich lasse die Reisenden auf der Nordstraße zurückrufen. Erst "
+        "wenn sie den Weg verlassen haben, nehmen wir den Stein heraus."
+    )
+    text_ausgeben(
+        "Ahrens nickt seinem Mann mit dem Hebeisen zu. Ihr steigt gemeinsam in "
+        "die Senke hinunter. Niemand redet."
+    )
+    text_ausgeben(
+        "Im Ringhof setzt der Mann das Eisen an. Der Ringstein kommt leichter "
+        "heraus, als er hineinging."
+    )
+
+    seite_wechseln(titel)
+
+    text_ausgeben("Nichts geschieht.")
+    text_ausgeben(
+        "Dann ist das Wasser im Norden still. Die Lücke zwischen den "
+        "Mauerresten zeigt nur noch Fels. Wo die Straße nach Norden lief, steht "
+        "Gras."
+    )
+    text_ausgeben(
+        "Ihr steigt den Umweg hinauf. Oben an der Kante ist die Fahrbahn, die "
+        "in den Bogen hinabführte, wieder Geröll."
+    )
+
+    if archiv_mit_kiran():
+        print()
+        text_ausgeben(
+            "Kiran steht an der Kante, wie vorher. Er geht ein paar Schritte, "
+            "bleibt stehen, geht weiter. Niemand hält ihn."
+        )
+        text_ausgeben("[Kiran] Die Zahl ist weg. Die fremde.")
+        text_ausgeben("Er sagt nicht, ob er froh darüber ist.")
+
+    print()
+    text_ausgeben("[Ahrens] Ich melde es Haller. Er wird sagen: vorläufig.")
+
+    daten["ausgang"] = "abtrennung"
+    daten["ringstein_entfernt"] = "dauerhaft"
+    daten["karren_gewarnt"] = True
+
+    if archiv_mit_kiran():
+        archiv_zustand_speichern("frei")
+
+    archiv_abschliessen()
+
+
+# ---------- E4: Bindung ----------
+
+def archiv_zwang(titel):
+    daten = kapitel8_daten()
+    ort_titel(titel)
+
+    text_ausgeben(
+        "Ahrens' Schreiber kniet vor der Nische und schlägt das Verzeichnis "
+        "auf. Er taucht die Feder ein."
+    )
+
+    if archiv_mit_kiran():
+        text_ausgeben("[Kiran] Nein. Ich hab nicht ja gesagt.")
+        text_ausgeben("Der Schreiber sieht zu Ahrens. Ahrens sieht zu dir.")
+        text_ausgeben("Der Schreiber schreibt. Kiran. Kein Datum.")
+        text_ausgeben(
+            "Kiran dreht sich um und geht. Fünf Schritte, sechs. Dann biegt der "
+            "Weg unter seinen Füßen, sanft, und führt ihn an die Kante zurück. "
+            "Er versucht es noch einmal. Derselbe Bogen."
+        )
+        text_ausgeben("[Kiran] Ich wollte doch nur …")
+        text_ausgeben("Er bricht ab. Er sucht das Wort und findet es nicht.")
+    else:
+        text_ausgeben("[Marit] Ich habe Nein gesagt.")
+        text_ausgeben("Der Schreiber sieht zu Ahrens. Ahrens sieht zu dir.")
+        text_ausgeben("Sie sieht dem Schreiber auf die Hände.")
+        text_ausgeben(
+            "[Marit] Und wenn Sie schon meinen Namen schreiben, dann richtig. "
+            "Mit t am Ende."
+        )
+        text_ausgeben("Der Schreiber schreibt. Marit. Kein Datum.")
+
+    seite_wechseln(titel)
+
+    text_ausgeben("Finch misst. Siebzehn. Genau.")
+    text_ausgeben("Er schreibt es auf und sagt nichts.")
+
+    daten["bindung"] = {
+        "wer": "kiran" if archiv_mit_kiran() else "marit",
+        "art": "zwang",
+        "aktiv": True
+    }
+    daten["ausgang"] = "zwang"
+    archiv_zustand_speichern("gebunden_zwang")
+    archiv_abschliessen()
+
+
+def archiv_freiwillig_zustimmung():
+    # Bei spät gehaltenem Kiran nur mit einer Erklärung in seinen Worten.
+    if kiran_zustand() != "spaet_gehalten":
+        return True
+
+    wahl = chronik_auswahl([
+        ("finch", "Erklären, wie Finch es erklärt hat"),
+        ("strecken", "Erklären mit Strecken und Marken")
+    ])
+
+    if wahl == "strecken":
+        return True
+
+    text_ausgeben("[Kiran] Ich versteh das nicht. Dann mach ich das nicht.")
+
+    return False
+
+
+def archiv_freiwillig(titel):
+    daten = kapitel8_daten()
+    ort_titel(titel)
+
+    if archiv_mit_kiran():
+        text_ausgeben(
+            "Kiran kniet vor der Nische. Er nimmt dem Schreiber die Feder aus "
+            "der Hand, ohne zu fragen."
+        )
+        text_ausgeben(
+            "Vorher erklärt Finch, was im Archiv stand: Ein Anker hält eine "
+            "Zahl von Wegen, nicht von Stunden."
+        )
+        text_ausgeben(
+            "[Kiran] Dann schreib ich's so, wie wir's gemacht haben. Einen "
+            "Tagesweg."
+        )
+        text_ausgeben(
+            "Er schreibt seinen Namen, langsam, Buchstabe für Buchstabe. "
+            "Dahinter, nach einem Strich: „einen Tagesweg lang“."
+        )
+        text_ausgeben("[Kiran] Wenn ich will, streich ich's vorher durch. Das gilt doch?")
+        text_ausgeben("Finch nickt.")
+
+        seite_wechseln(titel)
+
+        text_ausgeben("Finch misst. Achtzehn. Gerade sicher.")
+        text_ausgeben(
+            "Kiran setzt sich auf den Stein neben dem Gegenpunkt. Er sieht nach "
+            "Süden, zum Dorf hin."
+        )
+        text_ausgeben(
+            "[Kiran] Da war eine Strecke. Vom Brunnen … nein. Von der Kante bis "
+            "zu den ersten Häusern. Ich weiß noch, wie sie geht. Ich weiß nicht "
+            "mehr, wie sie heißt."
+        )
+    else:
+        text_ausgeben(
+            "Finch erklärt ihr, was im Archiv stand: ein Tagesweg, gezählt in "
+            "Wegen, und dass sie jederzeit streichen darf."
+        )
+        text_ausgeben(
+            "Marit schreibt ihren Namen in einer Schrift, die aussieht wie "
+            "gesetztes Pflaster. Dahinter: „einen Tagesweg, nicht mehr“."
+        )
+        text_ausgeben("[Marit] Ich hab schon länger auf Steinen gesessen. Gehen Sie.")
+
+        seite_wechseln(titel)
+
+        text_ausgeben("Finch misst. Achtzehn. Gerade sicher.")
+
+    print()
+    design_text(
+        "Ein Tagesweg zählt Wege: Reiseschritte, Raumwechsel, Warten und "
+        "Schlaf. Lesen, Gespräche und Menüs zählen nicht. Was noch bleibt, "
+        "steht im Questlog.",
+        design="wissen",
+        art="menue"
+    )
+
+    daten["bindung"] = {
+        "wer": "kiran" if archiv_mit_kiran() else "marit",
+        "art": "freiwillig",
+        "aktiv": True,
+        "wege": 0,
+        "erlaubt": FRIST_WEGE,
+        "verlaengerungen": 0,
+        "frist_status": "aktiv"
+    }
+    daten["ausgang"] = "freiwillig"
+    archiv_zustand_speichern("gebunden_freiwillig")
+    archiv_ziel_setzen("amboss")
+
+
+# ---------- E5: Der andere Gegenpunkt (direkt) ----------
+
+def archiv_stein_heraus():
+    # Der Stein kommt vorläufig heraus; vorher kann der Karren gewarnt werden.
+    daten = kapitel8_daten()
+
+    wahl = chronik_auswahl([
+        ("warnen", "„Schicken Sie zuerst jemanden zum Karren auf der Nordstraße.“"),
+        ("sofort", "„Nehmen Sie ihn sofort heraus.“")
+    ])
+
+    if wahl == "warnen":
+        text_ausgeben(
+            "Ahrens nickt einem seiner Leute zu. Der läuft los, die Senke "
+            "hinunter, durch den Ringhof nach Norden. Erst als er außer Sicht "
+            "ist, steigt der zweite mit dem Hebeisen hinab."
+        )
+        print()
+
+    text_ausgeben("Eine Weile später ist das Wasser im Norden still.")
+
+    daten["karren_gewarnt"] = wahl == "warnen"
+    daten["ringstein_entfernt"] = "vorlaeufig"
+
+
+def archiv_direkt(titel):
+    daten = kapitel8_daten()
+    ort_titel(titel)
+
+    text_ausgeben(
+        "[Finch] Wenn Sie gehen, ohne dass jemand hält, nimmt Ahrens den Stein "
+        "heraus. Bis Sie zurück sind."
+    )
+    text_ausgeben(
+        "[Ahrens] Vorläufig. Ich setze ihn wieder ein, wenn Herr Finch sagt, "
+        "dass es trägt."
+    )
+
+    archiv_stein_heraus()
+
+    if archiv_mit_kiran():
+        print()
+        text_ausgeben(
+            "[Kiran] Ich komm mit bis zum Dorf. Ich zähl die Schritte. "
+            "Vielleicht stimmt da was nicht mehr."
+        )
+        archiv_zustand_speichern("frei")
+
+    daten["ausgang"] = "eigene_loesung"
+    archiv_ziel_setzen("amboss")
+
+
+# ---------- Frist: Gespräch, Ablauf, Verlängerung, Streichen ----------
+
+def archiv_bindung_streichen(titel):
+    daten = kapitel8_daten()
+    bindung = daten["bindung"]
+
+    if archiv_mit_kiran():
+        text_ausgeben(
+            "Kiran nimmt die Feder und streicht seinen Namen. Einmal, sauber. "
+            "Daneben schreibt er: „eigenhändig“."
+        )
+    else:
+        text_ausgeben(
+            "Marit streicht ihren Namen und schreibt „eigenhändig“ daneben."
+        )
+
+    bindung["aktiv"] = False
+    bindung["freigabe"] = "eigenhaendig"
+    bindung["frist_status"] = "beendet"
+    bindung.pop("meldung", None)
+    archiv_zustand_speichern("frei")
+
+    seite_wechseln(titel)
+
+    text_ausgeben("[Ahrens] Dann kommt der Stein heraus. Vorläufig.")
+    archiv_stein_heraus()
+    archiv_ziel_setzen(archiv_status())
+
+
+def archiv_bindung_gespraech():
+    titel = "Rand der Senke"
+    ort_titel(titel)
+
+    if archiv_mit_kiran():
+        text_ausgeben("[Kiran] Ich zähl mit. Geh weiter.")
+        streichen = "„Streich deinen Namen.“"
+    else:
+        text_ausgeben("[Marit] Ich sitz gut. Gehen Sie.")
+        streichen = "„Streichen Sie Ihren Namen.“"
+
+    print()
+    print(archiv_frist_satz())
+
+    if chronik_auswahl([
+        ("weiter", "Weitersuchen"),
+        ("streichen", streichen)
+    ]) == "streichen":
+        archiv_bindung_streichen(titel)
+
+
+def archiv_verlaengerung_zustimmung():
+    # Spät gehaltener Kiran fragt nach und braucht wieder eine Erklärung.
+    if kiran_zustand() == "spaet_gehalten":
+        text_ausgeben(
+            "[Kiran] Sag mir noch einmal, was ich hier halte. Und wann ich "
+            "wieder gehen darf."
+        )
+
+    return archiv_freiwillig_zustimmung()
+
+
+def archiv_frist_ablauf():
+    titel = "Rand der Senke"
+    daten = kapitel8_daten()
+    bindung = daten["bindung"]
+    ort_titel(titel)
+
+    if archiv_mit_kiran():
+        text_ausgeben(
+            "Kiran sieht dich an, als du zurückkommst, und weiß, dass du den "
+            "Stein noch nicht hast."
+        )
+        text_ausgeben("[Kiran] Der Tagesweg ist um.")
+        punkte = [
+            ("verlaengern", "„Hältst du noch einen?“"),
+            ("streichen", "„Streich deinen Namen.“")
+        ]
+    else:
+        text_ausgeben(
+            "Marit sieht dich an, als du zurückkommst, und weiß, dass du den "
+            "Stein noch nicht hast."
+        )
+        text_ausgeben("[Marit] Der Tagesweg ist um.")
+        punkte = [
+            ("verlaengern", "„Halten Sie noch einen?“"),
+            ("streichen", "„Streichen Sie Ihren Namen.“")
+        ]
+
+    wahl = chronik_auswahl(punkte)
+
+    if wahl == "verlaengern":
+        if not archiv_mit_kiran():
+            text_ausgeben("[Marit] Nein. Ich habe „nicht mehr“ geschrieben. Das gilt.")
+        elif bindung.get("verlaengerungen", 0) >= 1:
+            text_ausgeben("[Kiran] Nein. Noch einen nicht.")
+        elif archiv_verlaengerung_zustimmung():
+            text_ausgeben("[Kiran] Einen noch.")
+            text_ausgeben(
+                "Er schreibt hinter den Strich ein zweites Mal: „einen "
+                "Tagesweg“."
+            )
+            bindung["verlaengerungen"] = bindung.get("verlaengerungen", 0) + 1
+            bindung["wege"] = 0
+            bindung["frist_status"] = "aktiv"
+            bindung.pop("meldung", None)
+            print()
+            print(archiv_frist_satz())
+            warte_auf_taste("Weiter")
+            return
+
+        print()
+
+    archiv_bindung_streichen(titel)
+
+
+# ---------- D: Die Suche nach dem Amboss-Stein ----------
+
+def archiv_dorf_aktiv():
+    # Kapitel 9 öffnet die Suche für die Befreiung wieder (L1).
+    return archiv_status() in ("amboss", "klangweg") or befreiung_amboss_aktiv()
+
+
+def archiv_dorf():
+    daten = kapitel8_daten()
+    ort_titel("Verlassenes Dorf")
+    ort_nachricht_anzeigen()
+
+    if not daten.get("gassen_gesehen"):
+        daten["gassen_gesehen"] = True
+        text_ausgeben(
+            "Das Dorf liegt da, wo es lag. Aber die Gassen stimmen nicht. Die "
+            "Gasse zur Schmiede führt dich an der Schmiede vorbei, und als du "
+            "dich umdrehst, ist die Schmiede auf der anderen Seite."
+        )
+    else:
+        text_ausgeben("Die Gassen liegen anders als vorhin.", art="menue")
+
+    if archiv_status() == "amboss" or (
+        befreiung_amboss_aktiv() and not daten.get("schmiede_gefunden")
+    ):
+        optionen = [("Die Schmiede suchen [!]", archiv_schmiede_suchen)]
+    else:
+        optionen = [("Den alten Weg zur Kante suchen [!]", archiv_klangweg)]
+
+    riss_ort_menue(optionen + [
+        (archiv_kante_text(), archiv_kante),
+        ("Zurück nach Eichenruh", lambda: reise(
+            "Eichenruh",
+            "Die Felder Eichenruhs öffnen sich vor dir.",
+            "Vertraute Stimmen und Arbeitsgeräusche kehren zurück.",
+            gebiet_modus=True
+        ))
+    ])
+
+
+def archiv_schmiede_suchen():
+    titel = "Verlassenes Dorf - Gassen"
+
+    while True:
+        ort_titel(titel)
+        punkte = [
+            ("gasse", "Der Gasse folgen"),
+            ("horchen", "Am Pflaster horchen")
+        ]
+
+        if tiefen_hammer_dabei():
+            punkte.append(("hammer", "Mit dem Hammer des Weges auf das Pflaster schlagen"))
+
+        punkte.append(("zurueck", "Zurück"))
+        wahl = chronik_auswahl(punkte)
+
+        if wahl == "zurueck":
+            return
+
+        frist_handlung(1)
+
+        if wahl == "gasse":
+            text_ausgeben(
+                "Du kommst dort heraus, wo du angefangen hast. Nur das Licht "
+                "steht anders."
+            )
+            warte_auf_taste("Weiter")
+            continue
+
+        if wahl == "horchen":
+            wie = ", wie Marit" if kapitel8_wert("marit_gesehen") else ""
+            text_ausgeben(
+                f"Du kniest dich hin und klopfst mit dem Knöchel auf die "
+                f"Steine{wie}. Die meisten klingen nach sich selbst. Einer, "
+                "zwei Häuser weiter, klingt nach etwas darunter. Du folgst dem "
+                "Klang, Stein für Stein. Er führt nicht die Gasse entlang, "
+                "sondern quer über einen Hof. Dann stehst du vor der Schmiede."
+            )
+
+            if untersuchung_pruefung("wahrnehmung", 2):
+                text_ausgeben(
+                    "Unter dem Moos siehst du, wo das Pflaster ausgebessert "
+                    "wurde, in einer Linie, die zur Schmiede führt."
+                )
+        else:
+            text_ausgeben(
+                "Du schlägst einmal auf das Pflaster. Das Echo kommt aus einer "
+                "Richtung, und es ist die richtige. Du gehst ihm nach."
+            )
+
+        break
+
+    titel = "Verlassenes Dorf - Schmiede"
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "In der Schmiede steht der Amboss auf einem flachen Stein, der aus dem "
+        "Boden ragt. Um den Stein ist der Boden blank getreten, an einer "
+        "Stelle, wo jemand jahrelang jeden Morgen gestanden hat."
+    )
+    text_ausgeben(
+        "In den Stein ist eine Kerbe gezogen. Sie zeigt nicht zum Hof, nicht "
+        "zur Tür. Sie zeigt zur Kante."
+    )
+    print()
+    archiv_erster_schlag()
+
+    kapitel8_daten()["schmiede_gefunden"] = True
+
+    if befreiung_amboss_aktiv():
+        # Kapitel 9: quest_archiv bleibt "abgeschlossen".
+        befreiung_ziel_setzen("amboss")
+    else:
+        archiv_ziel_setzen("klangweg")
+
+
+def archiv_erster_schlag():
+    text_ausgeben(
+        "Du schlägst dreimal auf den Amboss. Er klingt, aber der Klang bleibt "
+        "in der Schmiede. Keine Antwort."
+    )
+    text_ausgeben(
+        "Im Bericht stand: „Wir haben es bis zur Kante gehört.“ Der Klang muss "
+        "irgendwohin gegangen sein."
+    )
+
+
+def archiv_stelle(stelle):
+    daten = kapitel8_daten()
+    hammer = tiefen_hammer_dabei()
+    klangrune = not hammer and runenschmied_klangrune_bereit()
+    kosten = 1
+
+    if klangrune and not daten.get("klangrune_gezeigt"):
+        daten["klangrune_gezeigt"] = True
+        text_ausgeben(
+            "Du setzt die Waffe an den Stein und hältst den Ton der Rune, bis "
+            "der Stein mitklingt. Aus Richtung der nächsten Stelle kommt ein "
+            "Echo zurück."
+        )
+        print()
+
+    if hammer and not daten.get("hammer_gezeigt"):
+        daten["hammer_gezeigt"] = True
+        text_ausgeben(
+            "Der Hammer liegt anders in der Hand als vorher, als wüsste er, "
+            "wofür er gemacht ist. An den Steinen der Reihe sagt dir sein Echo, "
+            "wo der nächste liegt."
+        )
+        print()
+
+    if stelle == "hof":
+        text_ausgeben(
+            "Unter einem eingestürzten Schuppen liegen Bretter auf dem Boden. "
+            "Darunter: Pflaster, in einer geraden Linie, quer über den Hof."
+        )
+
+        if spieler_pruefung("staerke", 2):
+            text_ausgeben("Du räumst die Bretter in einem Zug beiseite.")
+        else:
+            if klangrune:
+                text_ausgeben("Du räumst nur die Bretter beiseite, unter denen die Rune anschlägt.")
+            else:
+                text_ausgeben("Du räumst die Bretter beiseite, Brett für Brett.")
+
+            kosten = 1 if hammer or klangrune else 2
+
+        text_ausgeben(
+            "Klopfst du auf diese Steine, klingen sie nach etwas darunter."
+        )
+
+    elif stelle == "garten":
+        text_ausgeben(
+            "Wo die Linie weiterlaufen müsste, steht ein Dickicht junger Birken."
+        )
+
+        if untersuchung_pruefung("wahrnehmung", 2):
+            text_ausgeben("Du siehst die Lücke in der Reihe, bevor du suchst.")
+        else:
+            kosten = 1 if hammer or klangrune else 2
+
+        text_ausgeben(
+            "Zwischen den Wurzeln findest du den nächsten Stein, halb gehoben, "
+            "als hätte ein Baum ihn aus der Reihe gedrückt. Du setzt ihn zurück "
+            "in die Linie."
+        )
+
+    else:
+        text_ausgeben(
+            "Hinter den letzten Häusern trifft die Reihe auf die breite "
+            "Fahrbahn, die zur Kante führt. Dort, wo sie auf die Fahrbahn "
+            "stößt, liegt ein Stein mit derselben Kerbe wie unter dem Amboss."
+        )
+
+    frist_handlung(kosten)
+    stellen = daten.setdefault("amboss_stellen", [])
+    stellen.append(stelle)
+
+    if len(stellen) == len(ARCHIV_STELLEN):
+        print()
+        text_ausgeben(
+            "Jetzt siehst du es: Der Schmied hat nicht nur auf einen Stein "
+            "geschlagen. Er hat auf den Anfang eines Weges geschlagen, den "
+            "jeden Tag Menschen gegangen sind, von den Häusern über den Hof bis "
+            "zur Kante. Der Klang ist diesen Weg entlanggegangen, weil die "
+            "Menschen ihn gegangen sind."
+        )
+
+    warte_auf_taste("Weiter")
+
+
+def archiv_zweiter_schlag():
+    titel = "Verlassenes Dorf - Schmiede"
+    ort_titel(titel)
+
+    text_ausgeben(
+        "Du gehst zurück in die Schmiede und schlägst dreimal auf den Amboss."
+    )
+    text_ausgeben(
+        "Der Klang geht hinaus, über den Hof, durch die Birken, auf die "
+        "Fahrbahn."
+    )
+    text_ausgeben(
+        "Beim dritten Schlag hörst du, ganz leise, von der Kante her eine "
+        "Antwort. Als hätte jemand dort mit dem Knöchel gegen einen Stein "
+        "geklopft."
+    )
+
+    wm_erlebnis(
+        "wm_resonanz_klang",
+        "Du spürst die Antwort noch in der Hand, als hätte der Amboss sie dir "
+        "zurückgegeben."
+    )
+    befreiung = befreiung_amboss_aktiv()
+    kapitel8_daten()["amboss_eingebunden"] = True
+
+    if befreiung:
+        # Kapitel 9: quest_archiv bleibt "abgeschlossen".
+        befreiung_ziel_setzen("messung")
+    else:
+        archiv_ziel_setzen("rueckkehr")
+
+
+def archiv_klangweg():
+    daten = kapitel8_daten()
+    titel = "Verlassenes Dorf - Der alte Weg"
+
+    while True:
+        stellen = daten.get("amboss_stellen", [])
+        ort_titel(titel)
+
+        if not stellen:
+            text_ausgeben(
+                "Die heutigen Gassen folgen nicht dem alten Verlauf. Von der "
+                "Schmiede aus führt in Richtung der Kerbe eine Reihe alter "
+                "Pflastersteine, die man nur stückweise findet."
+            )
+        else:
+            print(
+                "Gefunden: "
+                + ", ".join(ARCHIV_STELLEN[s] for s in ARCHIV_STELLEN if s in stellen)
+            )
+
+        punkte = [
+            (stelle, text)
+            for stelle, text in ARCHIV_STELLEN.items()
+            if stelle not in stellen
+        ]
+        fertig = len(stellen) == len(ARCHIV_STELLEN)
+        punkte.append(("schmiede", "In die Schmiede gehen" + (" [!]" if fertig else "")))
+        punkte.append(("zurueck", "Zurück"))
+        wahl = chronik_auswahl(punkte)
+
+        if wahl == "zurueck":
+            return
+
+        if wahl == "schmiede":
+            if fertig:
+                archiv_zweiter_schlag()
+                return
+
+            ort_titel("Verlassenes Dorf - Schmiede")
+            archiv_erster_schlag()
+            warte_auf_taste("Weiter")
+            continue
+
+        ort_titel(titel)
+        archiv_stelle(wahl)
+
+
+# ---------- R: Zurück an der Kante ----------
+
+def archiv_rueckkehr():
+    titel = "Rand der Senke"
+    daten = kapitel8_daten()
+    ort_titel(titel)
+
+    if archiv_frist_laeuft():
+        text_ausgeben("Finch misst. Siebzehn. Er misst noch einmal. Siebzehn.")
+        text_ausgeben("[Finch] Er trägt. Der Amboss trägt mit.")
+
+        if archiv_mit_kiran():
+            text_ausgeben("Kiran sitzt am Gegenpunkt. Er hat es auch gehört.")
+
+            seite_wechseln(titel)
+
+            text_ausgeben("[Kiran] Da hat jemand geklopft. Dreimal.")
+            text_ausgeben(
+                "Er nimmt die Feder und streicht seinen Namen. Einmal, sauber. "
+                "Daneben schreibt er: „eigenhändig“."
+            )
+            text_ausgeben(
+                "Er steht auf. Er geht fünf Schritte, sechs, sieben. Der Weg "
+                "biegt nicht."
+            )
+            text_ausgeben(
+                "[Kiran] Die Strecke von der Kante bis zu den Häusern. Ich weiß, "
+                "wie sie geht."
+            )
+            text_ausgeben(
+                "[Kiran] Wie sie heißt, weiß ich nicht mehr. Das schreib ich "
+                "auf. Damit ich weiß, dass es eine gab."
+            )
+        else:
+            text_ausgeben("Marit sitzt am Gegenpunkt. Sie hat es auch gehört.")
+
+            seite_wechseln(titel)
+
+            text_ausgeben(
+                "Marit streicht ihren Namen, schreibt „eigenhändig“ daneben und "
+                "klopft einmal gegen den Stein."
+            )
+            text_ausgeben("[Marit] Jetzt hört einer zu.")
+
+        bindung = daten["bindung"]
+        bindung["aktiv"] = False
+        bindung["freigabe"] = "eigenhaendig"
+        bindung["frist_status"] = "beendet"
+        bindung.pop("meldung", None)
+        archiv_zustand_speichern("frei")
+
+    else:
+        text_ausgeben("Finch misst. Siebzehn.")
+        text_ausgeben("[Finch] Er trägt. Jetzt kann der Ring wieder hinein.")
+        text_ausgeben(
+            "Ahrens' Mann steigt mit dem Ringstein in die Senke. Eine Weile "
+            "später hörst du von Norden wieder Wasser."
+        )
+
+        if daten.get("karren_gewarnt") is True:
+            print()
+            text_ausgeben(
+                "[Ahrens] Der Karren ist umgekehrt, bevor es eng wurde. Raban "
+                "flucht über den halben Tag. Mehr nicht."
+            )
+        elif daten.get("karren_gewarnt") is False:
+            print()
+            text_ausgeben(
+                "[Ahrens] Rabans Karren stand auf der Nordstraße, als sie "
+                "verschwand. Die Leute mussten über die Höhe zurück. Zwei Tage. "
+                "Die Hälfte der Vorräte haben sie stehen gelassen."
+            )
+            text_ausgeben("Im Notlager sind die Rationen danach eine Weile kleiner.")
+
+        daten.pop("ringstein_entfernt", None)
+
+    archiv_abschliessen()
+
+
+# ---------- Danach: Haller, Notlager, Raban ----------
+
+def archiv_haller_danach_offen():
+    return archiv_status() == "abgeschlossen" and not kapitel8_wert("haller_danach")
+
+
+def archiv_haller_danach():
+    ort_titel("Universität von Oros - Amtsstube der Schutzverwaltung")
+    ausgang = kapitel8_wert("ausgang")
+
+    text_ausgeben("Haller sieht auf, als du hereinkommst.")
+
+    if ausgang == "abtrennung":
+        text_ausgeben("[Haller] Vorläufig.")
+    elif ausgang == "zwang":
+        text_ausgeben("[Haller] Oros ist sicherer.")
+        text_ausgeben("Er sieht nicht auf.")
+        text_ausgeben(
+            "[Haller] Ich werde nicht so tun, als hätte es nichts gekostet."
+        )
+    else:
+        text_ausgeben("[Haller] Herr Finch sagt, sie trägt. Ich glaube Herrn Finch.")
+        text_ausgeben(
+            "[Haller] Ich glaube nicht, dass wir alles wissen, was ein Schmied "
+            "vor langer Zeit gewusst hat. Messen Sie weiter."
+        )
+
+    kapitel8_daten()["haller_danach"] = True
+    warte_auf_taste("Weiter")
+
+
+def archiv_rationen_knapp():
+    # Nach dem verlorenen Karren, bis eine Ersatzlieferung eintrifft
+    # (kapitel8.ersatzlieferung, wird in einem späteren Paket gesetzt).
+    return (
+        kapitel8_wert("karren_gewarnt") is False
+        and not kapitel8_wert("ringstein_entfernt")
+        and not kapitel8_wert("ersatzlieferung")
+    )
+
+
+def archiv_rationen_gesehen():
+    if archiv_status() == "abgeschlossen":
+        kapitel8_daten()["rationen_gesehen"] = True
+
+
+def archiv_rationen_zeile():
+    if archiv_rationen_knapp():
+        text_ausgeben(
+            "An der Ausgabe im Notlager sind die Portionen kleiner geworden. "
+            "Niemand beschwert sich laut."
+        )
+        archiv_rationen_gesehen()
+
+
+def archiv_raban_zeile():
+    daten = spieler.get("kapitel8")
+
+    if isinstance(daten, dict) and daten.pop("lieferung_neu", False):
+        text_ausgeben(
+            "[Raban] Die Ersatzlieferung ist endlich angekommen. Nicht alles, "
+            "was wir verloren haben. Aber genug, dass im Notlager wieder jeder "
+            "seine volle Ration bekommt."
+        )
+    elif archiv_rationen_knapp():
+        text_ausgeben(
+            "[Raban] Die Hälfte der Vorräte steht noch irgendwo auf der Höhe. "
+            "Bis sie wieder da ist, gibt es weniger."
+        )
+        archiv_rationen_gesehen()
+
+
+def archiv_ankunft(ziel):
+    # Ersatzlieferung: Hat der Spieler die kleineren Rationen nach dem
+    # Abschluss gesehen, trifft sie bei der nächsten Reise nach Oros ein.
+    if (
+        ziel == "universitaet_oros"
+        and archiv_rationen_knapp()
+        and kapitel8_wert("rationen_gesehen")
+    ):
+        daten = kapitel8_daten()
+        daten["ersatzlieferung"] = True
+        daten["lieferung_neu"] = True
+
+
+# --------------------------------------------------
+# Kapitel 7, Paket C-A: Die versunkene Chronik (Einstieg)
+# --------------------------------------------------
+
+PFAD_GRABEN_NACH_RISS = (
+    "Neben dem Weg ziehen sich flache Gräben hin. Der rechte endet plötzlich, "
+    "mitten zwischen zwei Eichen, als hätte ihn jemand nicht zu Ende "
+    "gegraben. Ein paar Schritte weiter beginnt er wieder."
+)
+
+
+def kapitel7_daten():
+    daten = spieler.get("kapitel7")
+
+    if not isinstance(daten, dict):
+        daten = {}
+        spieler["kapitel7"] = daten
+
+    return daten
+
+
+def chronik_status():
+    return spieler.get("quest_chronik", "nicht_entdeckt")
+
+
+def chronik_ziel():
+    return {
+        "tiefer_ring_suchen": "Finde heraus, wo der Tiefe Ring liegt.",
+        "strasse_folgen": (
+            "Folge hinter dem Verlassenen Dorf der alten Straße."
+        ),
+        "senke_finden": "Finde einen Weg hinunter in die Senke.",
+        "chronik": (
+            "Erkunde die Chronik. Finde heraus, warum der Tiefe Ring "
+            "abgetrennt wurde und wie man ihn wieder anbindet."
+        ),
+        "anbinden": (
+            "Bring den Ringstein in den Ringhof und binde den Knoten wieder an."
+        ),
+        "nordstrasse": "Folge der Nordstraße. Erst wer ankommt, hat angebunden."
+    }.get(chronik_status(), "")
+
+
+def chronik_ziel_setzen(status, neu=False):
+    spieler["quest_chronik"] = status
+
+    quest_meldung(
+        "neu" if neu else "update",
+        "Die versunkene Chronik",
+        chronik_ziel()
+    )
+
+    warte_auf_taste("Weiter")
+
+
+def chronik_finch_offen():
+    # Kapitel 7 beginnt nach der Hauptquest von Kapitel 6.
+    return (
+        chronik_status() == "nicht_entdeckt"
+        and zurueckgelassene_status() == "abgeschlossen"
+    )
+
+
+def chronik_quelle_offen():
+    return chronik_status() == "tiefer_ring_suchen"
+
+
+def chronik_quelle_gefunden(quelle):
+    kapitel7_daten()["ortsquelle"] = quelle
+    chronik_ziel_setzen("strasse_folgen")
+
+
+def chronik_strasse_offen():
+    return chronik_status() not in ("nicht_entdeckt",)
+
+
+def chronik_strasse_text():
+    if archiv_kante_aktiv():
+        return archiv_kante_text()
+
+    if strassen_offen():
+        return "Tiefer Ring – Versunkene Chronik"
+
+    if chronik_status() == "strasse_folgen":
+        return "Der alten Straße hinter der Schmiede folgen [!]"
+
+    return "Der alten Straße hinter der Schmiede folgen"
+
+
+def chronik_finch():
+    titel = "Universität von Oros - Forschungsräume"
+    ort_titel(titel)
+
+    text_ausgeben(
+        "Finch sitzt nicht am Tisch, sondern auf der Fensterbank, ein Bündel "
+        "Blätter auf den Knien. Es ist seine Handschrift, eng und gerade."
+    )
+    text_ausgeben(
+        "[Finch] Erinnern Sie sich an Hallers Schrank? Die alte Schutzordnung?"
+    )
+    text_ausgeben(
+        "[Finch] Ich habe ihn gefragt, ob ich sie abschreiben darf. Er hat ja "
+        "gesagt."
+    )
+    text_ausgeben("[Finch] Warum, weiß ich nicht.")
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "Er blättert bis zu einer Seite, die er mit einem Faden markiert hat."
+    )
+    text_ausgeben(
+        "[Finch] Abtrennung gefährdeter Außenverbindungen. Drei Seiten. "
+        "Wiederanbindung: eine halbe."
+    )
+    text_ausgeben("[Finch] Und am Ende der halben Seite steht das hier.")
+    text_ausgeben(
+        "Er hält dir das Blatt hin. Unter dem letzten Absatz, in kleinerer "
+        "Schrift: „Verfahren nach der Chronik am Tiefen Ring.“"
+    )
+
+    seite_wechseln(titel)
+
+    text_ausgeben(
+        "[Finch] Haller sagt, die Aufzeichnungen enden vorher. Das stimmt. Sie "
+        "enden hier, mit einem Verweis auf eine Stelle, die niemand kennt."
+    )
+    text_ausgeben(
+        "[Finch] Ich habe Ignaz' Verzeichnisse durchgesehen, soweit wir sie "
+        "haben, und die Karten der Fakultät. Kein Tiefer Ring."
+    )
+    text_ausgeben(
+        "[Finch] Entweder hat sich der Schreiber geirrt. Oder es gab einmal "
+        "eine Chronik, die wichtiger war als alles, was wir hier haben."
+    )
+    text_ausgeben("Er legt die Blätter zusammen.")
+    text_ausgeben("[Finch] Ich wüsste gern, welches von beiden.")
+
+    chronik_ziel_setzen("tiefer_ring_suchen", neu=True)
+
+
+def chronik_ignaz():
+    ort_titel("Universität von Oros - Archiv")
+
+    text_ausgeben(
+        "Ignaz hört den Namen und schließt die Augen, als suche er in einem "
+        "Regal, das nur er sieht."
+    )
+    text_ausgeben(
+        "[Ignaz] Tiefer Ring. Das stand in einem alten Wegverzeichnis. Nicht "
+        "als Ort, als Weg. Am Ende einer Straße, die schon damals niemand mehr "
+        "fuhr."
+    )
+    text_ausgeben(
+        "[Ignaz] Pfad des Vergessens. Hinter dem Dorf. Weiter weiß ich nicht. "
+        "Das Verzeichnis war im unteren Archiv."
+    )
+    text_ausgeben("Er öffnet die Augen.")
+    text_ausgeben("[Ignaz] Das untere Archiv gibt es nicht mehr.")
+
+    chronik_quelle_gefunden("ignaz")
+
+
+def chronik_siegelakten():
+    ort_titel("Universität von Oros - Amtsstube der Schutzverwaltung")
+
+    text_ausgeben(
+        "Die Mappen, die ihr beim Riss getragen habt, liegen noch auf Hallers "
+        "Tisch. Ganz durchgesehen hat sie seitdem niemand."
+    )
+    text_ausgeben(
+        "In der dritten liegt ein gefalteter Lageplan, älter als die Mappe. "
+        "Eine Straße, ein Dorf ohne Namen, dahinter eine Linie, die in einem "
+        "weiten Bogen nach unten führt. Daneben, in alter Schrift: „T. Ring“."
+    )
+    text_ausgeben("Das Dorf liegt am Ende des Pfads des Vergessens.")
+
+    chronik_quelle_gefunden("siegelakten")
+
+
+def chronik_tomas():
+    text_ausgeben(
+        "[Tomas] Tiefer Ring. So nannten die alten Fuhrleute die Straße hinter "
+        "dem verlassenen Dorf."
+    )
+    text_ausgeben(
+        "[Tomas] Mein Großvater kannte den Namen noch. Woher er ihn hatte, weiß "
+        "ich nicht."
+    )
+    text_ausgeben(
+        "[Tomas] Sie soll hinunter in eine Senke geführt haben. Was unten war, "
+        "hat er nie gesagt."
+    )
+    text_ausgeben(
+        "[Tomas] Schreib auf, was du findest. Wir müssen noch nicht "
+        "entscheiden, was es bedeutet."
+    )
+
+    if weg_status("pfad_des_vergessens") != "entdeckt":
+        weg_entdecken("pfad_des_vergessens")
+
+    chronik_quelle_gefunden("tomas")
+
+
+def chronik_kante():
+    if archiv_kante_aktiv():
+        archiv_kante()
+        return
+
+    daten = kapitel7_daten()
+
+    if strassen_offen():
+        chronik_reise_von_dorf()
+        return
+
+    if daten.get("senke_gesehen") is True:
+        ort_titel("Rand der Senke")
+        text_ausgeben(
+            "Die alte Straße endet an der Kante. Unten in der Senke liegen die "
+            "halb versunkenen Mauern."
+        )
+        chronik_abstieg()
+        return
+
+    ort_titel("Verlassenes Dorf - Alte Straße")
+    text_ausgeben(
+        "Hinter der alten Schmiede wird das Gras höher. Erst siehst du nichts, "
+        "dann die Gräben: Die breite Fahrbahn des Pfads geht weiter, an der "
+        "letzten Hauswand vorbei, aus dem Dorf hinaus."
+    )
+    text_ausgeben(
+        "Sie ist hier noch stärker zugewachsen. Junge Birken stehen mitten auf "
+        "ihr."
+    )
+
+    seite_wechseln("Rand der Senke")
+
+    text_ausgeben("Nach einigen hundert Schritten hört sie auf.")
+    text_ausgeben(
+        "Nicht im Gras. An einer Kante. Der Boden bricht vor dir ab, und unten "
+        "öffnet sich eine Senke, weit und rund, mit steilen, bewachsenen "
+        "Hängen."
+    )
+    text_ausgeben(
+        "Auf dem Grund, halb in die Erde gesunken, stehen Mauern. Dächer, von "
+        "denen nur noch die Balken übrig sind. Ein Hof in der Mitte, darum "
+        "herum Gebäude, die einmal hoch gewesen sein müssen."
+    )
+    text_ausgeben(
+        "Die Straße führte einmal hinunter. Wo sie den Hang hinabging, ist "
+        "jetzt nur Geröll."
+    )
+
+    if "ortsquelle" not in daten:
+        daten["ortsquelle"] = "selbst"
+
+    daten["senke_gesehen"] = True
+    chronik_ziel_setzen("senke_finden")
+    ort_titel("Rand der Senke")
+    chronik_abstieg()
 
 
 ZURUECKGELASSENE_ZIELE = {
@@ -49889,7 +60577,12 @@ def zurueckgelassene_felsweg():
                 f"(Wildfleisch: {fleisch})"
             ))
 
-        optionen.append(("warten", "Zurückweichen und warten, bis er weiterzieht"))
+        spaeher_moment = nische and grundklasse_holen(spieler) == "spaeher"
+        optionen.append(("warten", (
+            "Den Moment abpassen [Späher]"
+            if spaeher_moment else
+            "Zurückweichen und warten, bis er weiterzieht"
+        )))
         optionen.append(("zurueck", "Zurück zum Wegweiser"))
 
         print()
@@ -49970,7 +60663,18 @@ def zurueckgelassene_felsweg():
             break
 
         print()
-        if nische:
+        if spaeher_moment:
+            text_ausgeben(
+                "Du zeigst Arvid die Nische hinter dem Vorsprung und wartest. "
+                "Als der Wolf den Kopf zur Kehre dreht, gehst du hinein, Arvid "
+                "dicht hinter dir."
+            )
+            text_ausgeben(
+                "Er kommt näher, den Kopf gesenkt. Du hältst Arvid am Ärmel "
+                "fest, bis der Wolf an euch vorbei ist und den Hang "
+                "hinaufzieht. Erst dann geht ihr weiter."
+            )
+        elif nische:
             text_ausgeben(
                 "Ihr drückt euch in die Nische. Der Wolf trottet an euch vorbei "
                 "den Hang hinauf, ohne den Kopf zu heben."
@@ -50714,6 +61418,131 @@ def wegstation_messung_zusatz(nummer):
         print()
 
 
+def wegstation_peiltabelle(messungen):
+    print()
+    kopf = f"{'':<28}{'Register':>9}"
+
+    for nummer in messungen:
+        kopf += f"{nummer + '. Messung':>12}"
+
+    print(kopf)
+
+    for punkt_id, punkt_name in WEGSTATION_PEILPUNKTE:
+        zeile = f"{punkt_name:<28}{WEGSTATION_PEILWERTE['register'][punkt_id]:>9}"
+
+        for nummer in messungen:
+            zeile += f"{WEGSTATION_PEILWERTE[nummer][punkt_id]:>12}"
+
+        print(zeile)
+
+
+def wegstation_kontrolle_waehlen():
+    while True:
+        menue_trenner()
+        print()
+        print("1. Zuerst Grenzstein und Torbogen anpeilen")
+        print("2. Gleich den ersten Pfosten anpeilen")
+
+        wahl = eingabe_menu(1, 2, sonder_tasten=())
+        print()
+
+        if wahl == 1:
+            return
+
+        text_ausgeben(
+            "[Finch] Womit wollen Sie den Wert vergleichen, wenn er abweicht? "
+            "Erst die Scheibe, dann der Stein."
+        )
+
+
+def wegstation_pfosten_waehlen():
+    pfosten = WEGSTATION_PEILPUNKTE[2:]
+
+    menue_trenner()
+    print()
+
+    for nummer, (_, name) in enumerate(pfosten, start=1):
+        print(f"{nummer}. {name}")
+
+    punkt_id = pfosten[eingabe_menu(1, len(pfosten), sonder_tasten=()) - 1][0]
+    print()
+    return punkt_id
+
+
+def wegstation_abweichung_erste():
+    text_ausgeben("[Ahrens] Was weicht ab?")
+
+    while True:
+        punkt_id = wegstation_pfosten_waehlen()
+
+        if punkt_id == "letzthafen":
+            return
+
+        register = WEGSTATION_PEILWERTE["register"][punkt_id]
+        gemessen = WEGSTATION_PEILWERTE["1"][punkt_id]
+        text_ausgeben(
+            f"[Ahrens] Register {register}. Gemessen {gemessen}. Das ist "
+            "keine Abweichung."
+        )
+
+
+def wegstation_abweichung_zweite():
+    # Gibt zurück, ob Letzthafen schon genannt wurde.
+    text_ausgeben("[Ahrens] Was ist neu?")
+    letzthafen = False
+
+    while True:
+        punkt_id = wegstation_pfosten_waehlen()
+
+        if punkt_id == "eichenruh":
+            return letzthafen
+
+        if punkt_id == "letzthafen":
+            letzthafen = True
+            text_ausgeben(
+                "[Finch] Letzthafen. Drei Teilstriche. Genau wie beim ersten Mal."
+            )
+        else:
+            wert = WEGSTATION_PEILWERTE["register"][punkt_id]
+            text_ausgeben(f"[Ahrens] Register {wert}. Beide Male {wert}.")
+
+
+def wegstation_gegenpruefungen():
+    offen = [
+        ("Die Scheibe prüfen", (
+            "Du nimmst die Scheibe ab und prüfst den Visierarm. Er hat kein "
+            "Spiel. Du setzt sie wieder auf und peilst den Torbogen an.",
+            "[Finch] Einunddreißig. An der Scheibe liegt es nicht."
+        )),
+        ("Die Kerbe am ersten Pfosten ansehen", (
+            "Du kniest dich vor den ersten Pfosten und fährst mit dem Daumen "
+            "durch die Kerbe. Moos, alte Verwitterung, keine frische Kante.",
+            "[Finch] Der Stein steht noch da. Die Markierung ist dieselbe."
+        )),
+        ("Das Register gegen das erste Blatt halten", (
+            "Finch legt den Finger auf die Zeile im Register, dann auf das "
+            "erste Blatt. Sieben und sieben.",
+            "[Finch] Ein Abschreibfehler hätte beim letzten Mal schon "
+            "dagestanden."
+        ))
+    ]
+
+    text_ausgeben("[Finch] Irgendwo muss der Fehler liegen. Wo fangen wir an?")
+
+    while offen:
+        menue_trenner()
+        print()
+
+        for nummer, (text, _) in enumerate(offen, start=1):
+            print(f"{nummer}. {text}")
+
+        _, zeilen = offen.pop(eingabe_menu(1, len(offen), sonder_tasten=()) - 1)
+        print()
+
+        for zeile in zeilen:
+            text_ausgeben(zeile)
+
+
 def wegstation_messung():
     titel = "Alte Wegstation - Vorhof"
     daten = wegstation_messung_daten()
@@ -50731,10 +61560,19 @@ def wegstation_messung():
             "Winkeleinteilung, ein beweglicher Visierarm. Nichts Besonderes."
         )
         text_ausgeben("[Finch] Genau deshalb nehme ich sie. Ich weiß, was sie kann.")
-        print()
+        text_ausgeben("Er nimmt die Scheibe heraus und hält sie dir hin.")
         text_ausgeben(
-            "Finch richtet die Scheibe zuerst auf den Grenzstein am Rand des "
-            "Königsrings, dann auf die Ecke des Torbogens."
+            "[Finch] Sie führen. Ich brauche die Hände für das Register, und "
+            "Ahrens schreibt ohnehin."
+        )
+        text_ausgeben("[Ahrens] Ich schreibe, was gemessen wird.")
+
+        wegstation_kontrolle_waehlen()
+
+        text_ausgeben(
+            "Du richtest die Scheibe auf den Grenzstein am Rand des "
+            "Königsrings, dann auf die Ecke des Torbogens. Finch sieht dir "
+            "dabei über die Schulter."
         )
         text_ausgeben(
             "[Finch] Kontrollmessung. Grenzstein und Torbogen. Beide Werte "
@@ -50762,15 +61600,23 @@ def wegstation_messung():
         seite_wechseln(titel)
 
         text_ausgeben(
-            "Im Vorhof legt Finch die Scheibe auf die Kerbe des ersten "
-            "Pfostens, visiert, liest ab, schreibt."
+            "Im Vorhof legst du die Scheibe auf die Kerbe des ersten Pfostens, "
+            "visierst und sagst die Zahl. Finch liest den Wert aus dem "
+            "Register dagegen. Ahrens schreibt beides auf."
         )
         text_ausgeben("Dann der zweite, der dritte, der vierte.")
+
+        wegstation_peiltabelle(["1"])
+        print()
+        wegstation_abweichung_erste()
         text_ausgeben(
             "[Finch] Eichenruh stimmt. Oros stimmt. Der vierte stimmt mit dem "
             "Register überein, was immer er bedeutet."
         )
-        text_ausgeben("Er visiert den zweiten Pfosten noch einmal an.")
+        text_ausgeben(
+            "Er nimmt dir die Scheibe ab und visiert den zweiten Pfosten selbst "
+            "noch einmal an."
+        )
         text_ausgeben("[Finch] Letzthafen nicht. Drei Teilstriche daneben.")
         text_ausgeben(
             "[Finch] Wahrscheinlich ein Abschreibfehler. Register sind oft "
@@ -50811,36 +61657,44 @@ def wegstation_messung():
         "Fehler liegen."
     )
     print()
-    text_ausgeben("Grenzstein, Torbogen.")
+    text_ausgeben("Du peilst Grenzstein und Torbogen an.")
     text_ausgeben("[Finch] Kontrollmessung stimmt. Wie beim letzten Mal.")
     text_ausgeben("[Ahrens] Gerät geprüft. Notiert.")
 
     seite_wechseln(titel)
 
-    text_ausgeben("Erster Pfosten. Finch visiert, liest ab, schreibt nicht.")
-    text_ausgeben("Er visiert noch einmal.")
+    text_ausgeben(
+        "Du gehst von Pfosten zu Pfosten und sagst die Zahlen an. Finch legt "
+        "das erste Blatt neben das Register. Ahrens schreibt."
+    )
+
+    wegstation_peiltabelle(["1", "2"])
+    print()
+    letzthafen_genannt = wegstation_abweichung_zweite()
+
+    text_ausgeben("Finch hört auf zu blättern.")
     text_ausgeben("[Finch] Eichenruh.")
     text_ausgeben("Er schweigt einen Moment.")
     text_ausgeben(
         "[Finch] Zwei Teilstriche daneben. Beim letzten Mal hat es gestimmt."
     )
-    text_ausgeben("Zweiter Pfosten.")
-    text_ausgeben(
-        "[Finch] Letzthafen. Drei Teilstriche. Genau wie beim ersten Mal."
-    )
-    text_ausgeben("Dritter, vierter.")
+
+    if not letzthafen_genannt:
+        text_ausgeben(
+            "[Finch] Letzthafen. Drei Teilstriche. Genau wie beim ersten Mal."
+        )
+
     text_ausgeben("[Finch] Oros stimmt. Der vierte stimmt.")
 
     seite_wechseln(titel)
 
+    wegstation_gegenpruefungen()
+
+    print()
+    text_ausgeben("Du misst den ersten Pfosten ein drittes Mal. Neun.")
     text_ausgeben(
-        "Er nimmt die Scheibe ab, prüft den Visierarm, setzt sie wieder auf. "
-        "Misst den ersten Pfosten ein drittes Mal."
-    )
-    text_ausgeben("[Finch] Der Stein steht noch da. Die Markierung ist dieselbe.")
-    text_ausgeben(
-        "[Finch] Aber die Zuordnung stimmt nicht mehr. Ich habe sie zweimal "
-        "überprüft."
+        "[Finch] Die Zuordnung stimmt nicht mehr. Wir haben sie von drei "
+        "Seiten geprüft."
     )
     text_ausgeben(
         "[Finch] Das Gerät stimmt. Die Referenz stimmt. Und trotzdem zeigt "
@@ -51088,6 +61942,7 @@ def alte_wegstation():
         dungeon_status[
             "aktueller_raum"
         ] = eintrag_id
+        frist_handlung(1)
 
         return
 
@@ -51312,6 +62167,12 @@ def marktplatz():
 
     print(f"{verlassen_option}. Marktplatz verlassen")
 
+    lieferung_option = None
+
+    if brunnfeld_hilda_offen():
+        lieferung_option = verlassen_option + 1
+        print(f"{lieferung_option}. Hilda um eine Lieferung nach Brunnfeld bitten [!]")
+
     print()
     print("[S] Status")
     print("[I] Inventar")
@@ -51321,7 +62182,7 @@ def marktplatz():
 
     markt_auswahl = eingabe_menu(
         1,
-        verlassen_option,
+        lieferung_option or verlassen_option,
         sonder_tasten=("s", "i", "j", "t", "q")
     )
 
@@ -51372,6 +62233,10 @@ def marktplatz():
             tomas_daten[
                 "direkte_besuche"
             ] = 0
+
+    if lieferung_option and markt_auswahl == lieferung_option:
+        brunnfeld_hilda_lieferung()
+        return
 
     if markt_auswahl == 1:
         dialog_hilda()
@@ -54726,8 +65591,64 @@ REVIERHERREN = {
         "titel": "Der Einscherer",
         "zurueck": "Du weichst über die Steine zurück. Der Einscherer zieht sich ins Wrack zurück.",
         "taste": "Zum Wrackstrand"
+    },
+    "ried": {
+        "herr": "Schwarzgeweih",
+        "texte": (
+            "Das Schilf vor dir hört auf, sich im Wind zu bewegen. Zwischen den "
+            "ersten Bäumen steht ein Elch, so hoch wie der Unterstand. Sein "
+            "Geweih sieht aus wie verbrannte Äste.",
+            "Er senkt den Kopf nicht. Er sieht dich nur an."
+        ),
+        "titel": "Schwarzgeweih",
+        "zurueck": "Du weichst ins Schilf zurück. Schwarzgeweih folgt dir nicht.",
+        "taste": "Ins Ried"
     }
 }
+
+
+def revierherr_moeglich(gebiet, jagd_nummer):
+    # Feste Bedingungen ohne Wurf: ab der dritten Jagd, Revierherr noch nicht erlegt,
+    # keine Hybridprobe offen. Danach entscheidet in revierherr_pruefen ein Wurf (8 %).
+    daten = REVIERHERREN.get(gebiet)
+    buch = spieler.get("jagdbuch", {})
+    return not (
+        daten is None
+        or buch.get(daten["herr"], {}).get("beute") is True
+        or jagd_nummer <= 2
+        or hybrid_probe_offen(spieler)
+    )
+
+
+# WM-D2, Fährtenlesen: ältere Spuren, wenn der Revierherr dort grundsätzlich erscheinen kann.
+# Kein Wurf, keine Ankündigung; ohne Hinweis keine Entwarnung.
+FAEHRTEN_REVIERSPUREN = {
+    "wildspur": "Zwischen den gewöhnlichen Fährten erkennst du ältere, ungewöhnlich breite "
+                "Pfotenabdrücke. Sie könnten zu einem größeren Wolf gehören.",
+    "felsterrassen": "Im Geröll erkennst du ältere, ungewöhnlich breite Schleifspuren. Sie könnten "
+                     "von einem größeren Panzertier stammen.",
+    "brandschneise": "In der Asche erkennst du eine ältere, ungewöhnlich breite Schleifspur. Sie könnte "
+                     "von einem größeren Salamander stammen.",
+    "wrackstrand": "Im Sand erkennst du ältere, ungewöhnlich tiefe Schleifspuren. Sie könnten von einem "
+                   "größeren Krebs stammen.",
+    "pfad": "Im Nebel erkennst du ältere, ungewöhnlich große Hufabdrücke. Sie könnten zu einem "
+            "größeren Hirsch gehören.",
+    "ried": "Im Schlamm erkennst du ältere, ungewöhnlich tiefe Hufabdrücke. Sie könnten zu einem "
+            "größeren Tier gehören.",
+}
+
+
+def faehrten_revierhinweis(gebiet):
+    if not faehrtensteller_aktiv(spieler):
+        return
+    zaehler = spieler.get("revier_jagden", {})
+    jagden = zaehler.get(gebiet, 0) if isinstance(zaehler, dict) else 0
+    if revierherr_moeglich(gebiet, jagden + 1):
+        print("[Fährtenlesen] " + FAEHRTEN_REVIERSPUREN[gebiet])
+
+
+def faehrten_vorsatz(gelesen):
+    return "[Fährtenlesen] " if gelesen else ""
 
 
 def revierherr_pruefen(gebiet, gegner_typ):
@@ -54735,12 +65656,8 @@ def revierherr_pruefen(gebiet, gegner_typ):
     zaehler[gebiet] = zaehler.get(gebiet, 0) + 1
 
     daten = REVIERHERREN.get(gebiet)
-    buch = spieler.get("jagdbuch", {})
     if (
-        daten is None
-        or buch.get(daten["herr"], {}).get("beute") is True
-        or zaehler[gebiet] <= 2
-        or hybrid_probe_offen(spieler)
+        not revierherr_moeglich(gebiet, zaehler[gebiet])
         or random.randint(1, 100) > 8
     ):
         return gegner_typ
@@ -54807,8 +65724,13 @@ def wildspur_jagd_vorbereiten():
             )
         )
 
+        # WM-D2: Fährtenlesen erkennt die Spuren immer.
+        faehrten_gelesen = not faehrten_erkannt and faehrtensteller_aktiv(spieler)
+        faehrten_erkannt = faehrten_erkannt or faehrten_gelesen
+
         if faehrten_erkannt:
-            print("Du kannst die Fährten unterscheiden.")
+            print(faehrten_vorsatz(faehrten_gelesen) + "Du kannst die Fährten unterscheiden.")
+            faehrten_revierhinweis("wildspur")
             print()
             print("1. Den Pfotenabdrücken folgen - Wolf [1 Schritt]")
             print("2. Den tiefen Hufspuren folgen - Keiler [1 Schritt]")
@@ -57692,6 +68614,9 @@ def lagerfeuer_nacht():
     if auswahl == 2:
         return False
 
+    if not frist_schlafen_erlaubt():
+        return False
+
     item_entfernen("holz", holz_kosten)
 
     if spieler.get("waffe") and random.random() < 0.2:
@@ -59399,6 +70324,15 @@ while spieler["spiel_laeuft"] or nach_game_over_zum_hauptmenue():
         continue
     elif spieler["ort"] == "verlassenes_dorf":
         verlassenes_dorf()
+        continue
+    elif spieler["ort"] == "versunkene_chronik":
+        versunkene_chronik()
+        continue
+    elif spieler["ort"] == "archiv_schatten":
+        archiv_schatten()
+        continue
+    elif spieler["ort"] == "brunnfeld":
+        brunnfeld()
         continue
 
     if menu_auswahl == "s":
