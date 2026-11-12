@@ -49,6 +49,30 @@ self.pause_abwarten = (sekunden) => {
   });
 };
 self.spalten = () => spaltenzahl;
+// Übersetzter Spielcode: Python braucht für main.py bei jedem Start mehrere Sekunden zum Übersetzen. Das Ergebnis wird
+// im Browser abgelegt (Schlüssel aus Pyodide-Version und Prüfsumme der Datei) und beim nächsten Start wiederverwendet.
+// Ändert sich main.py, ändert sich der Schlüssel, und es wird neu übersetzt. Ohne Cache-Speicher läuft alles wie bisher.
+let bytecodeSchluessel = null;
+async function bytecodeVorbereiten() {
+  try {
+    const quelle = pyodide.FS.readFile("/void/main.py");
+    const summe = [...new Uint8Array(await crypto.subtle.digest("SHA-256", quelle))].map((b) => b.toString(16).padStart(2, "0")).join("");
+    bytecodeSchluessel = "bytecode/main-" + pyodide.version + "-" + summe;
+    const treffer = await (await caches.open("void-bytecode")).match(bytecodeSchluessel);
+    if (treffer) pyodide.FS.writeFile("/web/main.bc", new Uint8Array(await treffer.arrayBuffer()));
+  } catch (e) { bytecodeSchluessel = null; }
+}
+self.bytecode_merken = () => {
+  if (!bytecodeSchluessel) return;
+  (async () => {
+    try {
+      const daten = pyodide.FS.readFile("/web/main.bc");
+      const speicher = await caches.open("void-bytecode");
+      for (const alt of await speicher.keys()) await speicher.delete(alt);
+      await speicher.put(bytecodeSchluessel, new Response(daten, { headers: { "Content-Type": "application/octet-stream" } }));
+    } catch (e) {}
+  })();
+};
 self.hud_melden = (s) => postMessage({ typ: "hud", daten: JSON.parse(s) });
 self.gegner_melden = (name) => postMessage({ typ: "gegner", name });
 self.ziele_melden = (s) => postMessage({ typ: "ziele", daten: JSON.parse(s) });
@@ -87,6 +111,7 @@ async function starten(m) {
     pyodide.FS.writeFile("/void/" + name, text, { encoding: "utf8" });
     stand[name] = text;
   }
+  await bytecodeVorbereiten();
   const raus = { write: (buf) => { postMessage({ typ: "text", text: dec.decode(buf, { stream: true }) }); return buf.length; }, isatty: true };
   pyodide.setStdout(raus);
   pyodide.setStderr(raus);
@@ -183,12 +208,23 @@ def _hud():
         # Tageszeit und Wetter berechnet das Spiel selbst (aus Spielzeit und Schlaf-Versatz); spielzeit_text() frischt sie auf.
         zeit_text = m.spielzeit_text() if hasattr(m, "spielzeit_text") else ""
         tageszeit, wetter = s.get("tageszeit", "Tag"), s.get("wetter", "Klar")
+        # Kapitel 8: Solange jemand freiwillig an der Kante hält, zeigt der Kopf den Satz des Spiels dazu.
+        # Nur lesen, und nur wenn der Spielstand schon eine aktive Bindung hat.
+        frist, frist_eng = "", False
+        try:
+            bindung = (s.get("kapitel8") or {}).get("bindung")
+            if isinstance(bindung, dict) and bindung.get("aktiv") is True and hasattr(m, "archiv_frist_satz"):
+                frist = m.archiv_frist_satz() or ""
+                if frist and not (s.get("kapitel8") or {}).get("amboss_eingebunden"):
+                    frist_eng = m.frist_rest() <= getattr(m, "FRIST_WARNUNG", 0)
+        except Exception:
+            frist, frist_eng = "", False
         js.hud_melden(json.dumps({
             "name": s.get("name", ""), "ort": s.get("ort", ""),
             "hp": s.get("lebenspunkte", 0), "hp_max": m.spieler_max_lebenspunkte(),
             "gold": s.get("gold", 0), "diamanten": s.get("diamanten", 0),
             "spielzeit": zeit_text,
-            "tageszeit": tageszeit, "wetter": wetter,
+            "tageszeit": tageszeit, "wetter": wetter, "frist": frist, "frist_eng": frist_eng,
             "besiegt": s.get("besiegte_gegner", 0), "erfolge": len(s.get("erfolge_freigeschaltet", [])),
             "erfolge_max": len(getattr(m, "ERFOLGE", {})), "jagd": len(s.get("jagdbuch", {})),
             "level": f["level"], "exp": f["exp_im_level"], "exp_ziel": f["aufstiegskosten"],
@@ -219,8 +255,37 @@ time.sleep = _sleep
 os.chdir("/void")
 sys.path.insert(0, "/void")
 sys.argv = ["main.py"]
+def _spiel_code():
+    # Übersetzten Code aus dem Zwischenspeicher nehmen; sonst übersetzen und für den nächsten Start ablegen.
+    import marshal
+    try:
+        with open("/web/main.bc", "rb") as f:
+            code = marshal.loads(f.read())
+        if hasattr(code, "co_code"):
+            return code
+    except Exception:
+        pass
+    with open("/void/main.py", "rb") as f:
+        code = compile(f.read(), "/void/main.py", "exec")
+    try:
+        with open("/web/main.bc", "wb") as f:
+            f.write(marshal.dumps(code))
+        js.bytecode_merken()
+    except Exception:
+        pass
+    return code
+
+_lauf = getattr(runpy, "_run_module_code", None)
 try:
-    runpy.run_path("/void/main.py", run_name="__main__")
+    _code = _spiel_code() if _lauf else None
+except Exception:
+    _code = None
+try:
+    if _code is not None:
+        # Derselbe Weg, den runpy.run_path geht, nur ohne erneutes Übersetzen.
+        _lauf(_code, None, "__main__", pkg_name="", script_name="/void/main.py")
+    else:
+        runpy.run_path("/void/main.py", run_name="__main__")
 except SystemExit:
     pass
 `);

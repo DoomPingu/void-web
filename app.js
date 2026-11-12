@@ -97,7 +97,7 @@ const UNI = /^(universitaet_oros|oros_)/, CHRONIK = /^versunkene_chronik/, SCHAT
 // Unterwegs auf dem Läuferpfad meldet das Spiel wechselnde Orte; die Pfad-Titel gelten deshalb überall.
 const PFAD = /./;
 const TITEL_ORTE = [
-  [/universit.t von oros.*lehrhallen/i, "oros_lehrhallen", UNI], [/universit.t von oros.*archiv/i, "oros_archiv", UNI],
+  [/universit.t von oros.*felsterrassen/i, "felsterrassen", UNI], [/universit.t von oros.*lehrhallen/i, "oros_lehrhallen", UNI], [/universit.t von oros.*archiv/i, "oros_archiv", UNI],
   [/universit.t von oros.*(zentrale halle|krankenstube|amtsstube|forschungsr)/i, "oros_zentrale_halle", UNI], [/universit.t von oros/i, "oros_haupttor", UNI],
   [/versunkene chronik.*ringhof/i, "chronik_ringhof", CHRONIK], [/versunkene chronik.*schreibstube/i, "chronik_schreibstube", CHRONIK],
   [/versunkene chronik.*bandregale/i, "chronik_bandregale", CHRONIK], [/versunkene chronik/i, "", null],
@@ -263,7 +263,13 @@ function hudZeigen(d) {
   hintergrundSetzen(ortMitTitel(d.ort));
   if (!hudEl.firstChild) {
     hudEl.innerHTML = '<div class="zeile"><span class="ort"></span><span class="gold"></span></div>' +
-      '<div class="balken" id="hp"><i></i><span></span></div><div class="balken" id="xp"><i></i><span></span></div>';
+      '<div class="balken" id="hp"><i></i><span></span></div><div class="balken" id="xp"><i></i><span></span></div><div class="frist" role="status"></div>';
+  }
+  const fristEl = hudEl.querySelector(".frist");
+  if (fristEl) {
+    fristEl.textContent = d.frist ? "⏳ " + d.frist : "";
+    fristEl.classList.toggle("an", !!d.frist);
+    fristEl.classList.toggle("eng", !!d.frist_eng);
   }
   const ort = ortAnzeige(d.ort);
   const himmel = himmelSymbol(d.tageszeit, d.wetter);
@@ -421,16 +427,33 @@ function knoepfeBauen() {
   const nurAuswahl = nichtLeer.every((z) => /^\s*(\d{1,2}[.)]|\[[A-Za-z]\])\s/.test(z) || /^Auswahl\b|^\s*>/.test(z) || /^\s{2,}\S/.test(z));
   const gespraech = !aktuellerGegner && !istStart && (hatRede || (letzteRede && nurAuswahl));
   letzteRede = gespraech && (hatRede || nurAuswahl);
-  for (const e of normale) {
+  // Im Kampf stehen die Techniken der Klasse ("K. Deckung halten [bereit]") unter einer eigenen Überschrift.
+  const istTechnik = (e) => !!aktuellerGegner && !e.sonder && !e.weiter && /^[a-z]$/.test(e.wert);
+  const NICHT_BEREIT = /^(noch \d+ Runden?|keine .+|kein .+|schon geweckt|nicht benommen|bereits studiert|erst .+|verbraucht|0\/\d+ Ladungen)$/;
+  let technikKopf = false;
+  // Erst die Grundaktionen (Angreifen, Verteidigen, Gegenstand, Fliehen), dann die Techniken.
+  const geordnet = aktuellerGegner ? [...normale.filter((e) => !istTechnik(e)), ...normale.filter(istTechnik)] : normale;
+  for (const e of geordnet) {
     const b = document.createElement("button");
     b.type = "button";
     const { text, detail: d0, neu } = knopfTeile(e);
+    if (istTechnik(e)) {
+      if (!technikKopf) {
+        technikKopf = true;
+        const kopfzeile = document.createElement("div");
+        kopfzeile.className = "gruppe";
+        kopfzeile.textContent = "Techniken";
+        knoepfeEl.append(kopfzeile);
+      }
+      b.classList.add("technik");
+      if (NICHT_BEREIT.test(d0.trim())) b.classList.add("nichtbereit");
+    }
     const detail = zusatzOk ? d0 : "";
     // Am Handy ohne Nummern (die braucht man nur zum Tippen im Terminal-Modus).
     const antwortBlase = gespraech && !e.weiter && !e.sonder && !/^(Nein,\s*)?(Zurück|zurück|Abbrechen|Schließen|Gespräch beenden|Verabschieden|Gehen)\b/.test(text);
     const kopf = e.weiter ? "↵ " : antwortBlase ? "💬 " : (UI.lesen ? "" : (e.sonder ? "[" + e.wert.toUpperCase() + "] " : e.wert.toUpperCase() + ". "));
     b.innerHTML = '<span class="t">' + esc(kopf + text) + (neu ? ' <b class="neu">!</b>' : "") + "</span>" + (detail ? "<small>" + esc(detail) + "</small>" : "");
-    if (e.sonder || (istStart && /Spielstand l.schen/.test(e.text))) b.className = "sonder";
+    if (e.sonder || (istStart && /Spielstand l.schen/.test(e.text))) b.classList.add("sonder");
     // Lange Einträge (Antworten, Beschreibungen) über die ganze Breite, damit nichts abgeschnitten wird.
     if ((kopf + text).length > 28 || antwortBlase) b.classList.add("eine");
     if (antwortBlase) b.classList.add("antwort");
@@ -958,7 +981,8 @@ const NEUES = {
     "<b>Dazu:</b> Kirans Nebenquest in Oros, neue Gegner, die Schieferklinge und Handel in Brunnfeld.",
     "<b>Klassen:</b> Magier lernen bei Selene drei Techniken für den Kampf. Neu sind die Hybride Runenschmied und Fährtensteller. An einzelnen Stellen der Geschichte öffnet deine Klasse einen eigenen Weg.",
     "<b>App:</b> Die Karte zeigt die Chronik, das Archiv der Schatten und Brunnfeld. In der Universität erscheinen die Bilder auch nach dem Riss, und Messtabellen stehen sauber untereinander.",
-    "<b>Ohne fremde Server:</b> Python steckt jetzt in der App selbst. Nach dem ersten Start läuft VOID auch ohne Netz. Das Offline-Paket umfasst etwa 24 MB."
+    "<b>Schneller und eigenständig:</b> Python steckt jetzt in der App selbst. Nach dem ersten Start öffnet sich VOID deutlich schneller und läuft auch ohne Netz. Das Offline-Paket umfasst etwa 24 MB.",
+    "<b>Übersicht:</b> Im Kampf stehen die Techniken deiner Klasse in einer eigenen Gruppe. In Kapitel 8 zeigt der Kopf, wie lange die Frist noch hält."
   ],
   "2026-10-25-29": [
     "<b>Schlafen bis zum Morgen:</b> Ab dem Abend kannst du im Bett zu Hause, in einem Zimmer im Gasthaus (10 Gold) oder auf Reisen am Lagerfeuer (4 Holz, mit Überfallrisiko) die Nacht verschlafen. Danach ist es Morgen, und das Wetter ist ein anderes.",

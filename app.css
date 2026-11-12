@@ -32,6 +32,9 @@
   #hud { display: none; padding: 6px 10px; background: rgba(18,22,27,.85); border-bottom: 1px solid #22272e; font-size: 13px; }
   #hud .zeile { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
   #hud .ort { color: #8fb4e8; font-weight: 600; }
+  #hud .frist { display: none; margin-top: 5px; color: #e5c07b; }
+  #hud .frist.an { display: block; }
+  #hud .frist.eng { color: #e06c75; font-weight: 600; }
   .balken { position: relative; height: 14px; background: #1c222a; border-radius: 7px; overflow: hidden; margin-bottom: 4px; }
   .balken > i { position: absolute; inset: 0 auto 0 0; width: 0; transition: width .4s; }
   .balken > span { position: absolute; inset: 0; text-align: center; font-size: 11px; line-height: 14px; color: #fff; text-shadow: 0 0 2px #000; }
@@ -43,6 +46,9 @@
   #knoepfe button .t { display: block; overflow-wrap: anywhere; }
   #knoepfe button small { display: block; margin-top: 2px; font-size: 13px; color: #c5ccd6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #knoepfe button .neu { color: #e5a13a; }
+  #knoepfe .gruppe { grid-column: 1 / -1; margin-top: 2px; padding: 2px 2px 0; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: #8b949e; }
+  #knoepfe button.technik { background: #1d2433; border-color: #46527a; }
+  #knoepfe button.technik.nichtbereit { opacity: .55; }
   #knoepfe button { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   #knoepfe button.antwort { background: #1d2a3d; border-color: #3b5a86; border-radius: 16px 16px 16px 4px; font-style: italic; }
   .statistik { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 14px 0 6px; padding: 10px 12px; background: #131a24; border: 1px solid #2d3b52; border-radius: 10px; font-size: 14px; }
