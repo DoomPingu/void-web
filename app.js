@@ -87,6 +87,22 @@ function gebietVerlauf(n) {
   const f = g ? g[1] : ["#161c26", "#0b0d10"];
   return "linear-gradient(" + f[0] + ", " + f[1] + ")";
 }
+// Nach dem Riss meldet das Spiel für fast alle Räume der Universität denselben Ort ("universitaet_oros").
+// Der Seitentitel sagt genauer, wo man steht; danach richten sich Bild, Klang und die Tönung.
+let titelOrt = "";
+const TITEL_ORTE = [[/lehrhallen/i, "oros_lehrhallen"], [/archiv/i, "oros_archiv"], [/zentrale halle|krankenstube|amtsstube|forschungsr/i, "oros_zentrale_halle"]];
+const LINIE = /^={10,}\s*$/;
+const UNI_ORT = /^(universitaet_oros|oros_)/;
+function titelMerken(zeilen) {
+  for (let i = zeilen.length - 2; i >= 1; i--) {
+    if (!LINIE.test(zeilen[i - 1]) || !LINIE.test(zeilen[i + 1]) || !/universit.t von oros/i.test(zeilen[i])) continue;
+    const treffer = TITEL_ORTE.find(([re]) => re.test(zeilen[i]));
+    titelOrt = treffer ? treffer[1] : "oros_haupttor";
+    if (UNI_ORT.test(hudOrt)) hintergrundSetzen(titelOrt);
+    return;
+  }
+}
+function ortMitTitel(ort) { return UNI_ORT.test(String(ort)) ? (titelOrt || ort) : ort; }
 function hintergrundSetzen(ort) {
   const n = bildName(ort);
   if (n === aktuellerOrt) return;
@@ -202,32 +218,36 @@ function himmelSymbol(tageszeit, wetter) {
   return (TAGESZEIT_ICON[t] || "") + (WETTER_ICON[w] || "");
 }
 // Der Hintergrund wird draußen je nach Tageszeit und Wetter getönt. Drinnen (Zimmer, Gasthaus, Schmiede, Keller, Tiefen, Oros-Hallen) bleibt er gleich.
-const DRINNEN = /zimmer|gasthaus|schmiede|huette|keller|tiefen|halle|archiv|lehr|kammer|haus|station|raum/;
+const DRINNEN = /zimmer|gasthaus|schmiede|huette|keller|tiefen|halle|archiv|lehr|kammer|haus|station|raum|chronik/;
 const TON_ZEIT = { nacht: "brightness(.5) saturate(.75) hue-rotate(8deg)", abend: "brightness(.82) sepia(.3) saturate(1.1)", morgen: "brightness(.92) sepia(.12)" };
 const TON_WETTER = { regen: "brightness(.82) saturate(.8) hue-rotate(-6deg)", nebel: "brightness(.92) contrast(.82) saturate(.55)", sturm: "brightness(.7) saturate(.7)" };
 function himmelTonen(d) {
-  const drin = DRINNEN.test(bildName(d.ort || ""));
+  const drin = DRINNEN.test(bildName(ortMitTitel(d.ort || "")));
   const st = document.body.style;
   st.setProperty("--ton-zeit", (!drin && TON_ZEIT[String(d.tageszeit || "").toLowerCase()]) || "brightness(1)");
   st.setProperty("--ton-wetter", (!drin && TON_WETTER[String(d.wetter || "").toLowerCase()]) || "brightness(1)");
   if (typeof Klang !== "undefined" && Klang.himmel) Klang.himmel(d.tageszeit, d.wetter, drin);
 }
 let statistik = null;
+// Anzeigenamen für Orte, deren Kennung sich nicht einfach in einen Namen umformen lässt.
+const ORT_ANZEIGE = { spieler_zimmer: "Dein Haus", alte_schmiede: "Alte Schmiede", verlassenes_dorf: "Verlassenes Dorf",
+    lagerkeller: "Alter Lagerkeller", tiefen_messgang: "TIEFEN – Messgang", oros_zentrale_halle: "Oros – Zentrale Halle",
+    versunkene_chronik: "Versunkene Chronik", archiv_schatten: "Archiv der Schatten", brunnfeld: "Brunnfeld",
+    universitaet_oros: "Universität von Oros", oros_haupttor: "Oros – Haupttor", oros_lehrhallen: "Oros – Lehrhallen", oros_archiv: "Oros – Archiv",
+    oros_forschungsraeume: "Oros – Forschungsräume", alte_wegstation: "Alte Wegstation" };
+function ortAnzeige(id) { return ORT_ANZEIGE[id] || String(id || "").replace(/_/g, " ").replace(/(^|\s)\S/g, (c) => c.toUpperCase()); }
 function hudZeigen(d) {
   statistik = d;
   himmelTonen(d);
   document.body.classList.add("imspiel");
   hudOrt = String(d.ort || "");
   spielerName = String(d.name || "");
-  hintergrundSetzen(d.ort);
+  hintergrundSetzen(ortMitTitel(d.ort));
   if (!hudEl.firstChild) {
     hudEl.innerHTML = '<div class="zeile"><span class="ort"></span><span class="gold"></span></div>' +
       '<div class="balken" id="hp"><i></i><span></span></div><div class="balken" id="xp"><i></i><span></span></div>';
   }
-  const ORT_ANZEIGE = { spieler_zimmer: "Dein Haus", alte_schmiede: "Alte Schmiede", verlassenes_dorf: "Verlassenes Dorf",
-    lagerkeller: "Alter Lagerkeller", tiefen_messgang: "TIEFEN – Messgang", oros_zentrale_halle: "Oros – Zentrale Halle",
-    versunkene_chronik: "Versunkene Chronik", archiv_schatten: "Archiv der Schatten", brunnfeld: "Brunnfeld" };
-  const ort = ORT_ANZEIGE[d.ort] || String(d.ort).replace(/_/g, " ").replace(/(^|\s)\S/g, (c) => c.toUpperCase());
+  const ort = ortAnzeige(d.ort);
   const himmel = himmelSymbol(d.tageszeit, d.wetter);
   hudEl.querySelector(".ort").textContent = (himmel ? himmel + " " : "") + d.name + " · " + ort;
   hudEl.querySelector(".gold").textContent = d.gold + " Gold" + (d.diamanten ? " · " + d.diamanten + " Diamanten" : "") + (d.spielzeit ? " · ⏱ " + d.spielzeit : "");
@@ -292,6 +312,7 @@ function knoepfeBauen() {
   document.body.classList.remove("laden");
   knoepfeEl.replaceChildren();
   const zeilen = bildschirmZeilen();
+  titelMerken(zeilen);
   npcSetzen(zeilen);
   kampfLeisteSetzen(zeilen);
   menueKlang(zeilen);
@@ -498,7 +519,7 @@ function leseRendern() {
     if (/^\s*>\s*\S{0,3}\s*$/.test(t)) return "wahl";
     if (/^\s*Schritt\s+\d+\s*\/\s*\d+\s*$/.test(t)) return "schritt";
     if (/^(Körper|Geist|Übersinnliches)\s*\d*:\s*\S/.test(t)) return "attr";
-    if (/^\s{8,}Peilskizze\s+gemessen\s*$/.test(t)) return "peilkopf";
+    if (/^\s{8,}(Peilskizze|Soll|Peilung)\s+(gemessen|zulässig)\s*$/.test(t)) return "peilkopf";
     if (/^\s*✓\s+\S/.test(t)) return "erfolg";
     if (/^\s*\?\s+\?\?\?\s*$/.test(t)) return "gesperrt";
     if (/^\s*Ziel:\s+\S/.test(t)) return "questziel";
@@ -531,7 +552,7 @@ function leseRendern() {
   // Peiltabelle (Finchs Messungen): Zeilen unter der Kopfzeile "Peilskizze / gemessen" gehören zur Tabelle.
   for (let i = 0; i < art.length; i++) {
     if (art[i] !== "peilkopf") continue;
-    for (let j = i + 1; j < art.length && /^\S.{0,27}?\s{2,}\S+\s+\S+\s*$/.test(zeilen[j].text); j++) art[j] = "peilzeile";
+    for (let j = i + 1; j < art.length && /^\S.{0,27}?\s{2,}\S+\s+\S+(?: \S+){0,2}\s*$/.test(zeilen[j].text); j++) art[j] = "peilzeile";
   }
   // Quest-Namen: eine Textzeile direkt über "Ziel: …" oder einem Status-Schild.
   art.forEach((a, i) => {
@@ -612,13 +633,18 @@ function leseRendern() {
     if (a === "peilzeile") return;   // steckt schon in der Tabelle
     if (a === "peilkopf") {
       let zeilenHtml = "";
+      const kopf = t.trim().split(/\s+/);
+      const zahl = /^-?\d+(?:[.,]\d+)?$/;
+      let mitAbw = false;
       for (let j = i + 1; art[j] === "peilzeile"; j++) {
-        const m = zeilen[j].text.trim().match(/^(.+?)\s{2,}(\S+)\s+(\S+)$/);
+        const m = zeilen[j].text.trim().match(/^(.+?)\s{2,}(\S+)\s+(\S.*)$/);
         const alt = parseFloat(m[2]), neu = parseFloat(m[3]);
-        const abw = Number.isFinite(alt) && Number.isFinite(neu) ? neu - alt : null;
+        const abw = zahl.test(m[2]) && zahl.test(m[3]) ? neu - alt : null;
+        if (abw !== null) mitAbw = true;
         zeilenHtml += '<tr class="' + (abw ? "abw" : "") + '"><td>' + esc(m[1]) + "</td><td>" + esc(m[2]) + "</td><td>" + esc(m[3]) + "</td><td>" + (abw === null ? "" : abw === 0 ? "✓" : (abw > 0 ? "+" : "") + abw) + "</td></tr>";
       }
-      html += '<table class="peil"><thead><tr><th></th><th>Skizze</th><th>Gemessen</th><th>Abw.</th></tr></thead><tbody>' + zeilenHtml + "</tbody></table>";
+      const kopfName = (s) => (s === "Peilskizze" ? "Skizze" : s.charAt(0).toUpperCase() + s.slice(1));
+      html += '<table class="peil"><thead><tr><th></th><th>' + esc(kopfName(kopf[0])) + "</th><th>" + esc(kopfName(kopf[1])) + "</th><th>" + (mitAbw ? "Abw." : "") + "</th></tr></thead><tbody>" + zeilenHtml + "</tbody></table>";
       return;
     }
     if (a === "erfolg") {
@@ -839,8 +865,12 @@ KARTE_ORTE.push(
   { id: "lagerkeller", klein: true, name: "Lagerkeller", sym: "📦", x: 100, y: 252, hier: /lagerkeller/i, besucht: /lagerkeller/i, knopf: /Lagerkeller/ },
   { id: "wrackstrand", klein: true, name: "Wrackstrand", sym: "🌊", x: 220, y: 252, hier: /wrackstrand/i, besucht: /wrack/i, knopf: /Wrackstrand/ },
   { id: "edda", klein: true, name: "Eddas Haus", sym: "🏚️", x: 298, y: 252, hier: /edda/i, besucht: /edda/i, knopf: /Edda/ },
-  { id: "archiv", klein: true, name: "Archiv", sym: "📚", x: 220, y: 118, hier: /archiv/i, besucht: /archiv/i, knopf: /Archiv/ },
-  { id: "tiefen", klein: true, name: "Tiefen", sym: "⛏️", x: 298, y: 118, hier: /tiefen/i, besucht: /tiefen/i, knopf: /Tiefen|TIEFEN/ }
+  { id: "archiv", klein: true, name: "Archiv", sym: "📚", x: 220, y: 118, hier: /archiv(?!_schatten)/i, besucht: /archiv(?!_schatten)/i, knopf: /Archiv(?! der Schatten)/ },
+  { id: "tiefen", klein: true, name: "Tiefen", sym: "⛏️", x: 298, y: 118, hier: /tiefen/i, besucht: /tiefen/i, knopf: /Tiefen(?! Ring)|TIEFEN/ },
+  // Kapitel 7 bis 9
+  { id: "chronik", klein: true, name: "Chronik", sym: "📜", x: 138, y: 306, hier: /versunkene_chronik/i, besucht: /versunkene_chronik/i, knopf: /Versunkene Chronik|alten Straße hinter der Schmiede|Tiefen Ring zur Chronik/ },
+  { id: "schattenarchiv", klein: true, name: "Archiv der Schatten", sym: "🕯️", x: 188, y: 36, hier: /archiv_schatten/i, besucht: /archiv_schatten/i, knopf: /Archiv der Schatten/ },
+  { id: "brunnfeld", klein: true, name: "Brunnfeld", sym: "⛲", x: 294, y: 180, hier: /brunnfeld/i, besucht: /brunnfeld/i, knopf: /Läuferpfad – Brunnfeld|Richtung Brunnfeld/ }
 );
 const KARTE_WEGE = [["eichenruh", "koehlerei", "Waldweg"], ["eichenruh", "oros", "Faden der Erinnerung"], ["eichenruh", "dorf", "Pfad des Vergessens"], ["eichenruh", "hafen", "Königsring"]];
 const kartenBlatt = document.getElementById("kartenblatt");
@@ -908,7 +938,8 @@ const NEUES = {
     "<b>Drei neue Kapitel:</b> „Die versunkene Chronik“ über die Nordstraße, „Das Archiv der Schatten“ über den Bleichen Pfad und „Der Weg nach Hause“ über den Läuferpfad nach Brunnfeld.",
     "<b>Neue Orte</b> haben einen eigenen Farbton und Klang, bis es Bilder dafür gibt.",
     "<b>Dazu:</b> Kirans Nebenquest in Oros, neue Gegner, die Schieferklinge und Handel in Brunnfeld.",
-    "<b>Klassen:</b> Magier lernen bei Selene drei Techniken für den Kampf. Neu sind die Hybride Runenschmied und Fährtensteller. An einzelnen Stellen der Geschichte öffnet deine Klasse einen eigenen Weg."
+    "<b>Klassen:</b> Magier lernen bei Selene drei Techniken für den Kampf. Neu sind die Hybride Runenschmied und Fährtensteller. An einzelnen Stellen der Geschichte öffnet deine Klasse einen eigenen Weg.",
+    "<b>App:</b> Die Karte zeigt die Chronik, das Archiv der Schatten und Brunnfeld. In der Universität erscheinen die Bilder auch nach dem Riss, und Messtabellen stehen sauber untereinander."
   ],
   "2026-10-25-29": [
     "<b>Schlafen bis zum Morgen:</b> Ab dem Abend kannst du im Bett zu Hause, in einem Zimmer im Gasthaus (10 Gold) oder auf Reisen am Lagerfeuer (4 Holz, mit Überfallrisiko) die Nacht verschlafen. Danach ist es Morgen, und das Wetter ist ein anderes.",
@@ -1297,7 +1328,7 @@ function zeitText(sek) {
 function slotInfo(text) {
   try {
     const s = JSON.parse(text).spieler || {};
-    const ort = String(s.ort || "").replace(/_/g, " ").replace(/(^|\s)\S/g, (c) => c.toUpperCase());
+    const ort = ortAnzeige(s.ort || "");
     return { titel: (s.name || "Unbenannt") + " · " + (ort || "?"), info: (s.gold ?? 0) + " Gold" + (s.spielzeit ? " · ⏱ " + zeitText(s.spielzeit) : "") };
   } catch (e) { return { titel: "Nicht lesbar", info: "" }; }
 }
