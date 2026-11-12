@@ -7,7 +7,7 @@
 <title>VOID</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="../icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
+<link rel="stylesheet" href="../xterm/xterm.css">
 <style>
   html, body { margin: 0; height: 100%; background: #0b0d10; color: #d7dbe0; font-family: system-ui, sans-serif; }
   body { display: flex; flex-direction: column; }
@@ -30,8 +30,8 @@ setTimeout(() => { const s = document.getElementById("status"); if (s.textConten
   <input id="eingabe" inputmode="text" enterkeyhint="send" placeholder="Eingabe, dann Enter" autocapitalize="off" autocorrect="off" spellcheck="false">
   <button id="senden" type="submit" aria-label="Senden">↵</button>
 </form>
-<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+<script src="../xterm/xterm.js"></script>
+<script src="../xterm/addon-fit.js"></script>
 <script>
 const statusZeile = document.getElementById("status");
 

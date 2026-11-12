@@ -24,3 +24,7 @@ Klang (Dein Haus): "night across the stars 2.0" von **X3nus**, https://freesound
 Klang (Intro/Hauptmenü): "mawkish 1v49" von **Setuniman**, https://freesound.org/people/Setuniman/sounds/723858/, Lizenz CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/): nur für nichtkommerzielle Projekte. Bearbeitet: Mono, Abtastrate halbiert, zur Schleife überblendet.
 
 Klang (Marktplatz): "Ren Faire Ambient 1" von **Alex Kingsley (@alexyquest)**, https://freesound.org/people/alexyquest42/sounds/661290/, Lizenz CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Aufnahme vom Renaissance-Fest in Ávila, Spanien. Unverändert.
+
+Python im Browser: **Pyodide 0.28.3** (https://pyodide.org, Quelltext https://github.com/pyodide/pyodide), Lizenz Mozilla Public License 2.0, Text in `pyodide/LICENSE`. Die Dateien im Ordner `pyodide/` sind unverändert aus der offiziellen Veröffentlichung übernommen. Enthält CPython 3.13 (Python Software Foundation License).
+
+Terminal-Baustein: **xterm.js 5.5.0** und **@xterm/addon-fit 0.10.0** (https://xtermjs.org), Lizenz MIT, Text in `xterm/LICENSE`. Bis auf den entfernten Verweis auf die Quellkarte unverändert.

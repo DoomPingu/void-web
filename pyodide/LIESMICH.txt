@@ -1,0 +1,4 @@
+Pyodide 0.28.3, unverändert von https://cdn.jsdelivr.net/pyodide/v0.28.3/full/ (12.11.2026).
+Dateien: pyodide.js, pyodide.asm.js, pyodide.asm.wasm, python_stdlib.zip, pyodide-lock.json.
+Lizenz: Mozilla Public License 2.0, siehe LICENSE. Quelltext: https://github.com/pyodide/pyodide
+Bei einem Versionswechsel alle fünf Dateien zusammen ersetzen.

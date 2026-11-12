@@ -1,6 +1,6 @@
 // VOID im Browser: das Python-Spiel läuft unverändert in Pyodide.
 // Warten auf Eingaben und Pausen über JSPI (pyodide.ffi.run_sync), keine Sonder-Kopfzeilen nötig.
-importScripts("https://cdn.jsdelivr.net/pyodide/v0.28.3/full/pyodide.js");
+importScripts("../pyodide/pyodide.js");
 
 const SPEICHER = ["void_save_1.json", "void_save_2.json", "void_save_3.json", "void_settings.json"];
 const dec = new TextDecoder();
@@ -47,7 +47,7 @@ self.spalten = () => spaltenzahl;
 
 async function starten(m) {
   postMessage({ typ: "status", text: "Lade Python … (beim ersten Mal etwas länger)" });
-  pyodide = await loadPyodide();
+  pyodide = await loadPyodide({ indexURL: new URL("../pyodide/", self.location.href).href });
   pyodide.FS.mkdirTree("/void");
   pyodide.FS.mkdirTree("/web");
   postMessage({ typ: "status", text: "Lade VOID …" });

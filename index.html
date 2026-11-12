@@ -8,7 +8,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
+<link rel="stylesheet" href="xterm/xterm.css">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -116,7 +116,7 @@ try { if ((JSON.parse(localStorage.getItem("void-ui")) || {}).lesen !== false) d
 
     <h3>Offline und Version</h3>
     <p class="hinweis" id="version"></p>
-    <button id="offline" class="gross" type="button">⬇ Alles für Offline laden (ca. 10 MB)</button>
+    <button id="offline" class="gross" type="button">⬇ Alles für Offline laden (ca. 22 MB)</button>
     <div class="meldung" id="offlineText"></div>
 
     <h3>Spielstand sichern</h3>
@@ -147,8 +147,8 @@ window.__worker = new Worker("worker.js");
 (function () { var h = document.getElementById("hintergrund"); h.style.backgroundImage = 'url("bilder/ort_eichenruh.jpg")'; h.classList.remove("leer"); })();
 </script>
 <script src="klang.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+<script src="xterm/xterm.js"></script>
+<script src="xterm/addon-fit.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

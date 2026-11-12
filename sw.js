@@ -1,7 +1,10 @@
 // Service Worker für VOID: macht die App installierbar und lässt sie auch ohne Netz starten.
-// Eigene Dateien: erst Netz (immer aktuell), sonst Zwischenspeicher. Pyodide vom CDN: Zwischenspeicher zuerst.
+// Eigene Dateien: erst Netz (immer aktuell), sonst Zwischenspeicher. Python (Pyodide) liegt seit App-Stand 2026-11-11-30
+// im Ordner pyodide/ und wird schon beim Einrichten gespeichert. Der CDN-Zweig unten bleibt nur für ältere Seiten im Speicher.
 const VERSION = "void-app-1";
-const SCHALE = ["./", "index.html", "app.css", "app.js", "klang.js", "worker.js", "umbruch.py", "dateien.json", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "klang/LIESMICH.txt"];
+const SCHALE = ["./", "index.html", "app.css", "app.js", "klang.js", "worker.js", "umbruch.py", "dateien.json", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "klang/LIESMICH.txt",
+  "pyodide/pyodide.js", "pyodide/pyodide.asm.js", "pyodide/pyodide.asm.wasm", "pyodide/python_stdlib.zip", "pyodide/pyodide-lock.json",
+  "xterm/xterm.js", "xterm/xterm.css", "xterm/addon-fit.js"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(

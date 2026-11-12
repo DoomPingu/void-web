@@ -1,6 +1,8 @@
 // VOID im Browser: das Python-Spiel läuft unverändert in Pyodide.
 // Warten auf Eingaben und Pausen über JSPI (pyodide.ffi.run_sync), keine Sonder-Kopfzeilen nötig.
-importScripts("https://cdn.jsdelivr.net/pyodide/v0.28.3/full/pyodide.js");
+// Pyodide liegt im Ordner pyodide/ dieser App (Version 0.28.3), nichts wird von fremden Servern geholt.
+importScripts("pyodide/pyodide.js");
+const PYODIDE_ORT = new URL("pyodide/", self.location.href).href;
 
 const SPEICHER = ["void_save_1.json", "void_save_2.json", "void_save_3.json", "void_settings.json"];
 const dec = new TextDecoder();
@@ -52,7 +54,7 @@ self.gegner_melden = (name) => postMessage({ typ: "gegner", name });
 self.ziele_melden = (s) => postMessage({ typ: "ziele", daten: JSON.parse(s) });
 
 // Mit dem Laden sofort beginnen, noch bevor die Seite fertig ist: Python und die Spieldateien werden gleichzeitig geholt.
-const vorabPyodide = loadPyodide();
+const vorabPyodide = loadPyodide({ indexURL: PYODIDE_ORT });
 vorabPyodide.catch(() => {});
 const vorabDateien = (async () => {
   const liste = await (await fetch("dateien.json", { cache: "no-cache" })).json();
