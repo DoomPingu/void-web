@@ -89,20 +89,37 @@ function gebietVerlauf(n) {
 }
 // Nach dem Riss meldet das Spiel für fast alle Räume der Universität denselben Ort ("universitaet_oros").
 // Der Seitentitel sagt genauer, wo man steht; danach richten sich Bild, Klang und die Tönung.
-let titelOrt = "";
-const TITEL_ORTE = [[/lehrhallen/i, "oros_lehrhallen"], [/archiv/i, "oros_archiv"], [/zentrale halle|krankenstube|amtsstube|forschungsr/i, "oros_zentrale_halle"]];
+// Seit Kapitel 7 gilt dasselbe für die Chronik, das Archiv der Schatten, Brunnfeld und den Läuferpfad.
+// Reihenfolge: erst die Räume, dann der Grundort. Ein leerer Name heißt: Bild des Ortes, den das Spiel meldet.
+let titelOrt = "", titelFuer = null;
+// Jeder Eintrag: Muster für den Seitentitel, Bildname, und für welchen gemeldeten Ort er gilt.
+const UNI = /^(universitaet_oros|oros_)/, CHRONIK = /^versunkene_chronik/, SCHATTEN = /^archiv_schatten/, BRUNN = /^brunnfeld/, DORF = /^verlassenes_dorf/;
+// Unterwegs auf dem Läuferpfad meldet das Spiel wechselnde Orte; die Pfad-Titel gelten deshalb überall.
+const PFAD = /./;
+const TITEL_ORTE = [
+  [/universit.t von oros.*lehrhallen/i, "oros_lehrhallen", UNI], [/universit.t von oros.*archiv/i, "oros_archiv", UNI],
+  [/universit.t von oros.*(zentrale halle|krankenstube|amtsstube|forschungsr)/i, "oros_zentrale_halle", UNI], [/universit.t von oros/i, "oros_haupttor", UNI],
+  [/versunkene chronik.*ringhof/i, "chronik_ringhof", CHRONIK], [/versunkene chronik.*schreibstube/i, "chronik_schreibstube", CHRONIK],
+  [/versunkene chronik.*bandregale/i, "chronik_bandregale", CHRONIK], [/versunkene chronik/i, "", null],
+  [/archiv der schatten.*namenswand/i, "archiv_namenswand", SCHATTEN], [/archiv der schatten.*tiefe/i, "archiv_tiefe", SCHATTEN], [/archiv der schatten/i, "", null],
+  [/brunnfeld.*steg/i, "brunnfeld_steg", BRUNN], [/l.uferpfad.*der steg/i, "brunnfeld_steg", PFAD], [/brunnfeld.*l.uferhaus/i, "brunnfeld_laeuferhaus", BRUNN],
+  [/brunnfeld.*ried/i, "laeuferpfad_ried", BRUNN], [/l.uferpfad.*ried/i, "laeuferpfad_ried", PFAD], [/brunnfeld/i, "", null],
+  [/l.uferpfad.*unterstand/i, "laeuferpfad_unterstand", PFAD], [/l.uferpfad/i, "laeuferpfad_marken", PFAD],
+  [/rand der senke/i, "rand_der_senke", DORF], [/verlassenes dorf/i, "", null], [/^\s*reise\b/i, "", null]
+];
 const LINIE = /^={10,}\s*$/;
-const UNI_ORT = /^(universitaet_oros|oros_)/;
 function titelMerken(zeilen) {
   for (let i = zeilen.length - 2; i >= 1; i--) {
-    if (!LINIE.test(zeilen[i - 1]) || !LINIE.test(zeilen[i + 1]) || !/universit.t von oros/i.test(zeilen[i])) continue;
+    if (!LINIE.test(zeilen[i - 1]) || !LINIE.test(zeilen[i + 1])) continue;
     const treffer = TITEL_ORTE.find(([re]) => re.test(zeilen[i]));
-    titelOrt = treffer ? treffer[1] : "oros_haupttor";
-    if (UNI_ORT.test(hudOrt)) hintergrundSetzen(titelOrt);
-    return;
+    if (treffer) {
+      titelOrt = treffer[1]; titelFuer = treffer[2];
+      if (hudOrt) hintergrundSetzen(ortMitTitel(hudOrt));
+    }
+    return;   // nur der letzte Titel der Seite zählt; fremde Titel (Status, Gespräche) lassen das Bild stehen
   }
 }
-function ortMitTitel(ort) { return UNI_ORT.test(String(ort)) ? (titelOrt || ort) : ort; }
+function ortMitTitel(ort) { return titelOrt && titelFuer && titelFuer.test(String(ort)) ? titelOrt : ort; }
 function hintergrundSetzen(ort) {
   const n = bildName(ort);
   if (n === aktuellerOrt) return;
@@ -222,7 +239,8 @@ const DRINNEN = /zimmer|gasthaus|schmiede|huette|keller|tiefen|halle|archiv|lehr
 const TON_ZEIT = { nacht: "brightness(.5) saturate(.75) hue-rotate(8deg)", abend: "brightness(.82) sepia(.3) saturate(1.1)", morgen: "brightness(.92) sepia(.12)" };
 const TON_WETTER = { regen: "brightness(.82) saturate(.8) hue-rotate(-6deg)", nebel: "brightness(.92) contrast(.82) saturate(.55)", sturm: "brightness(.7) saturate(.7)" };
 function himmelTonen(d) {
-  const drin = DRINNEN.test(bildName(ortMitTitel(d.ort || "")));
+  const ortName = bildName(ortMitTitel(d.ort || ""));
+  const drin = DRINNEN.test(ortName) && !/ringhof|rand_der_senke|versunkene_chronik$/.test(ortName);
   const st = document.body.style;
   st.setProperty("--ton-zeit", (!drin && TON_ZEIT[String(d.tageszeit || "").toLowerCase()]) || "brightness(1)");
   st.setProperty("--ton-wetter", (!drin && TON_WETTER[String(d.wetter || "").toLowerCase()]) || "brightness(1)");
@@ -936,11 +954,11 @@ document.getElementById("einfuehrungZu").addEventListener("click", introSchliess
 const NEUES = {
   "2026-11-11-30": [
     "<b>Drei neue Kapitel:</b> „Die versunkene Chronik“ über die Nordstraße, „Das Archiv der Schatten“ über den Bleichen Pfad und „Der Weg nach Hause“ über den Läuferpfad nach Brunnfeld.",
-    "<b>Neue Orte</b> haben einen eigenen Farbton und Klang, bis es Bilder dafür gibt.",
+    "<b>Neue Bilder:</b> Chronik, Archiv der Schatten, Brunnfeld und der Läuferpfad haben eigene Bilder für ihre Räume, dazu vier Gegner und zehn Figuren.",
     "<b>Dazu:</b> Kirans Nebenquest in Oros, neue Gegner, die Schieferklinge und Handel in Brunnfeld.",
     "<b>Klassen:</b> Magier lernen bei Selene drei Techniken für den Kampf. Neu sind die Hybride Runenschmied und Fährtensteller. An einzelnen Stellen der Geschichte öffnet deine Klasse einen eigenen Weg.",
     "<b>App:</b> Die Karte zeigt die Chronik, das Archiv der Schatten und Brunnfeld. In der Universität erscheinen die Bilder auch nach dem Riss, und Messtabellen stehen sauber untereinander.",
-    "<b>Ohne fremde Server:</b> Python steckt jetzt in der App selbst. Nach dem ersten Start läuft VOID auch ohne Netz. Das Offline-Paket umfasst etwa 22 MB."
+    "<b>Ohne fremde Server:</b> Python steckt jetzt in der App selbst. Nach dem ersten Start läuft VOID auch ohne Netz. Das Offline-Paket umfasst etwa 24 MB."
   ],
   "2026-10-25-29": [
     "<b>Schlafen bis zum Morgen:</b> Ab dem Abend kannst du im Bett zu Hause, in einem Zimmer im Gasthaus (10 Gold) oder auf Reisen am Lagerfeuer (4 Holz, mit Überfallrisiko) die Nacht verschlafen. Danach ist es Morgen, und das Wetter ist ein anderes.",
@@ -1400,7 +1418,7 @@ function punktSetzen() {
 }
 // Version, Offline-Speicher und Update-Hinweis.
 const APP_STAND = "2026-11-11-30";
-const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_arvid.jpg","bilder/npc_bjorn.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_bachlauf.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.ogg","klang/feuer.ogg","klang/hoehle.ogg","klang/intro.ogg","klang/kampf.ogg","klang/kueste.ogg","klang/markt.m4a","klang/taverne.ogg","klang/wald.ogg","klang/wind.ogg","klang/zimmer.ogg"];
+const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bache.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_haltender.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_schlickbeisser.jpg","bilder/gegner_schwarzgeweih.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_alter_mann.jpg","bilder/npc_arvid.jpg","bilder/npc_berit.jpg","bilder/npc_bjorn.jpg","bilder/npc_bruno.jpg","bilder/npc_der_haltende.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hannes.jpg","bilder/npc_hedda.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_ilka.jpg","bilder/npc_jonte.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_marit.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_oswin.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_sanna.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_archiv_namenswand.jpg","bilder/ort_archiv_schatten.jpg","bilder/ort_archiv_tiefe.jpg","bilder/ort_bachlauf.jpg","bilder/ort_bossraum.jpg","bilder/ort_brunnfeld.jpg","bilder/ort_brunnfeld_laeuferhaus.jpg","bilder/ort_brunnfeld_steg.jpg","bilder/ort_chronik_bandregale.jpg","bilder/ort_chronik_ringhof.jpg","bilder/ort_chronik_schreibstube.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_laeuferpfad_marken.jpg","bilder/ort_laeuferpfad_ried.jpg","bilder/ort_laeuferpfad_unterstand.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_rand_der_senke.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_versunkene_chronik.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.ogg","klang/feuer.ogg","klang/hoehle.ogg","klang/intro.ogg","klang/kampf.ogg","klang/kueste.ogg","klang/markt.m4a","klang/taverne.ogg","klang/wald.ogg","klang/wind.ogg","klang/zimmer.ogg"];
 // Python (Pyodide) liegt in der App selbst und gehört zum Offline-Paket.
 const PYODIDE_DATEIEN = ["pyodide/pyodide.js", "pyodide/pyodide.asm.js", "pyodide/pyodide.asm.wasm", "pyodide/python_stdlib.zip", "pyodide/pyodide-lock.json", "xterm/xterm.js", "xterm/xterm.css", "xterm/addon-fit.js"];
 async function offlineListe() {

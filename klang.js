@@ -17,7 +17,10 @@ const Klang = (() => {
     eichenruh: "wind", marktplatz: "markt", verlassenes_dorf: "wind", wald: "wald", waldlichtung: "wald",
     bachlauf: "wald", koehlerei: "feuer", pfad_des_vergessens: "wald", wrackstrand: "kueste",
     felsterrassen: "wind", versorgungskehre: "wind", tiefen: "hoehle", lagerfeuer: "feuer",
-    versunkene_chronik: "drinnen", archiv_schatten: "hoehle", brunnfeld: "wind",
+    versunkene_chronik: "wind", archiv_schatten: "hoehle", brunnfeld: "wind",
+    chronik_ringhof: "wind", chronik_schreibstube: "drinnen", chronik_bandregale: "drinnen",
+    archiv_namenswand: "hoehle", archiv_tiefe: "hoehle", brunnfeld_steg: "wind", brunnfeld_laeuferhaus: "drinnen",
+    laeuferpfad_ried: "wind", laeuferpfad_unterstand: "wald", laeuferpfad_marken: "wald", rand_der_senke: "wind",
   };
 
   function sicher(f) { try { return f(); } catch (e) { console.warn("Klang:", e); return null; } }
