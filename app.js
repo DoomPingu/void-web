@@ -150,6 +150,7 @@ document.addEventListener("click", (e) => {
   if (ziel && ziel.closest("#hud .ort") && !document.getElementById("hintergrund").classList.contains("leer")) { document.body.classList.add("bildschau"); return; }
   if (ziel && ziel.closest("#gegner img")) { document.getElementById("gegner").classList.toggle("gross"); if (typeof anpassen === "function") anpassen(); }
 }, true);
+const GEGNER_ERSATZ = { schmuggler: "kohlenschmuggler" };
 let aktuellerGegner = "";
 function gegnerSetzen(name) {
   aktuellerGegner = name;
@@ -166,11 +167,14 @@ function gegnerSetzen(name) {
   box.style.display = "flex";
   img.style.display = "none";
   anpassen();
-  bildLaden("gegner_" + bildName(name), (src) => {
+  const zeigen = (src) => {
     if (name !== aktuellerGegner) return;
     if (src) { img.src = src; img.style.display = "block"; }
     anpassen();
-  });
+  };
+  // Fehlt ein eigenes Bild, hilft bei manchen Gegnern ein verwandtes aus (Schmuggler: Kohlenschmuggler).
+  const ersatz = GEGNER_ERSATZ[bildName(name)];
+  bildLaden("gegner_" + bildName(name), (src) => (src || !ersatz ? zeigen(src) : bildLaden("gegner_" + ersatz, zeigen)));
 }
 
 // Kampfzeile "Du: 80/100 HP | Wolf: 25/40 HP": Gegner-Balken oben, eigener HP-Balken während des Kampfs.
@@ -995,13 +999,10 @@ document.getElementById("einfuehrungZu").addEventListener("click", introSchliess
 // "Was ist neu": einmal nach jedem Update, falls für den Stand ein Text hinterlegt ist.
 const NEUES = {
   "2026-11-11-30": [
-    "<b>Drei neue Kapitel:</b> „Die versunkene Chronik“ über die Nordstraße, „Das Archiv der Schatten“ über den Bleichen Pfad und „Der Weg nach Hause“ über den Läuferpfad nach Brunnfeld.",
-    "<b>Neue Bilder:</b> Chronik, Archiv der Schatten, Brunnfeld und der Läuferpfad haben eigene Bilder für ihre Räume, dazu vier Gegner und zehn Figuren. Ein Tipp auf den Ortsnamen zeigt das Bild allein, ein Tipp auf das Gegnerbild vergrößert es.",
-    "<b>Dazu:</b> Kirans Nebenquest in Oros, neue Gegner, die Schieferklinge und Handel in Brunnfeld.",
-    "<b>Klassen:</b> Magier lernen bei Selene drei Techniken für den Kampf. Neu sind die Hybride Runenschmied und Fährtensteller. An einzelnen Stellen der Geschichte öffnet deine Klasse einen eigenen Weg.",
-    "<b>App:</b> Die Karte zeigt die Chronik, das Archiv der Schatten und Brunnfeld. In der Universität erscheinen die Bilder auch nach dem Riss, und Messtabellen stehen sauber untereinander.",
-    "<b>Schneller und eigenständig:</b> Python steckt jetzt in der App selbst. Nach dem ersten Start öffnet sich VOID deutlich schneller und läuft auch ohne Netz. Das Offline-Paket umfasst etwa 24 MB.",
-    "<b>Übersicht:</b> Im Kampf stehen die Techniken deiner Klasse in einer eigenen Gruppe. In Kapitel 8 zeigt der Kopf, wie lange die Frist noch hält."
+    "<b>Drei neue Kapitel:</b> „Die versunkene Chronik“, „Das Archiv der Schatten“ und „Der Weg nach Hause“ mit dem Dorf Brunnfeld, dazu Kirans Nebenquest in Oros.",
+    "<b>Klassen:</b> Magier lernen drei Techniken, neu sind Runenschmied und Fährtensteller. An einzelnen Stellen der Geschichte öffnet deine Klasse einen eigenen Weg.",
+    "<b>Neue Bilder:</b> Orte, Räume, Gegner und Figuren der neuen Kapitel. Tippe auf den Ortsnamen für das ganze Bild und auf das Gegnerbild zum Vergrößern.",
+    "<b>App:</b> Sie startet nach dem ersten Mal deutlich schneller und läuft ohne fremde Server. Die Karte kennt die neuen Orte, der Kopf zeigt die Frist aus Kapitel 8, und Kampftechniken stehen in einer eigenen Gruppe."
   ],
   "2026-10-25-29": [
     "<b>Schlafen bis zum Morgen:</b> Ab dem Abend kannst du im Bett zu Hause, in einem Zimmer im Gasthaus (10 Gold) oder auf Reisen am Lagerfeuer (4 Holz, mit Überfallrisiko) die Nacht verschlafen. Danach ist es Morgen, und das Wetter ist ein anderes.",
@@ -1497,9 +1498,25 @@ async function offlineLaden() {
   };
   await Promise.all([arbeiter(), arbeiter(), arbeiter(), arbeiter()]);
   offlineLaeuft = false;
+  if (!fehler) { UI.offlineStand = APP_STAND; uiSichern(); }
   t.textContent = fehler ? "Fertig, aber " + fehler + " Dateien fehlen. Später mit Netz noch einmal versuchen."
     : "Fertig: " + liste.length + " Dateien gespeichert. Die App läuft jetzt auch ohne Netz.";
 }
+// Ist die App installiert, holt sie das Offline-Paket einmal je App-Stand von selbst: erst eine Weile nach dem Start,
+// nur wenn der Service Worker die Seite schon bedient, und nicht bei Datensparmodus oder Mobilfunk (soweit der Browser
+// das verrät). Der Knopf in den Einstellungen bleibt für alle anderen Fälle.
+function offlineVonSelbst() {
+  try {
+    const installiert = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+    const netz = navigator.connection || {};
+    const sparsam = netz.saveData === true || netz.type === "cellular" || /(^|-)2g$|3g/.test(netz.effectiveType || "");
+    if (!installiert || sparsam || UI.offlineStand === APP_STAND || !window.caches) return false;
+    if (!navigator.serviceWorker || !navigator.serviceWorker.controller || navigator.onLine === false) return false;
+    offlineLaden();
+    return true;
+  } catch (e) { return false; }
+}
+setTimeout(offlineVonSelbst, 25000);
 async function updatePruefen() {
   try {
     const text = await (await fetch("app.js", { cache: "no-store" })).text();
