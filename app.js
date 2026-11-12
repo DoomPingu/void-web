@@ -142,6 +142,14 @@ function hintergrundSetzen(ort) {
   };
   versuchen(0);
 }
+// Bildschau: Tipp auf den Ortsnamen zeigt das Ortsbild allein; Tipp auf das Gegnerbild vergrößert es.
+function bildschauAus() { document.body.classList.remove("bildschau"); }
+document.addEventListener("click", (e) => {
+  if (document.body.classList.contains("bildschau")) { bildschauAus(); e.preventDefault(); e.stopPropagation(); return; }
+  const ziel = e.target instanceof Element ? e.target : null;
+  if (ziel && ziel.closest("#hud .ort") && !document.getElementById("hintergrund").classList.contains("leer")) { document.body.classList.add("bildschau"); return; }
+  if (ziel && ziel.closest("#gegner img")) { document.getElementById("gegner").classList.toggle("gross"); if (typeof anpassen === "function") anpassen(); }
+}, true);
 let aktuellerGegner = "";
 function gegnerSetzen(name) {
   aktuellerGegner = name;
@@ -153,6 +161,7 @@ function gegnerSetzen(name) {
   box.querySelector(".balken.du").style.visibility = "hidden";
   box.querySelector(".kampfchips").replaceChildren();
   kampfBlutet = false;
+  box.classList.remove("gross");
   if (!name) { box.style.display = "none"; anpassen(); return; }
   box.style.display = "flex";
   img.style.display = "none";
@@ -203,11 +212,13 @@ function npcPlatzhalter(name) {
     '<text x="28" y="37" font-size="26" font-family="sans-serif" font-weight="700" text-anchor="middle" fill="' + farbe + '">' + esc(name.trim().charAt(0).toUpperCase()) + "</text></svg>";
   return "data:image/svg+xml," + encodeURIComponent(svg);
 }
+// Marken in eckigen Klammern, die keine sprechende Figur sind: Proben auf eine Veranlagung, Fähigkeiten, der Entwickler.
+const KEIN_SPRECHER = /^(Körper|Geist|Übersinnliches|Stärke|Ausdauer|Geschick|Zähigkeit|Wissen|Wahrnehmung|Willenskraft|Empathie|Sensibilität|Resonanz|Kontrolle|Anker|Fährtenlesen|Lauschen|Entwickler)$/;
 function npcSetzen(zeilen) {
   let name = "";
   for (const z of zeilen) {
     const m = z.match(/^\s*\[([A-Za-zÄÖÜäöü][^\]]{2,22})\]\s/);
-    if (m && m[1] !== "Beliebige Taste") name = m[1];
+    if (m && m[1] !== "Beliebige Taste" && !KEIN_SPRECHER.test(m[1])) name = m[1];
   }
   if (name === aktuellerNpc) return;
   aktuellerNpc = name;
@@ -337,6 +348,8 @@ function knoepfeBauen() {
   knoepfeEl.replaceChildren();
   const zeilen = bildschirmZeilen();
   titelMerken(zeilen);
+  // Großes Gegnerbild nur auf der Vorbereitungsseite, also solange das Spiel auf "Kampf beginnen" wartet.
+  document.body.classList.toggle("kampfstart", /Kampf zu beginnen/.test([...zeilen].reverse().find((z) => z.trim()) || ""));
   npcSetzen(zeilen);
   kampfLeisteSetzen(zeilen);
   menueKlang(zeilen);
@@ -423,7 +436,7 @@ function knoepfeBauen() {
   // Gespräch: Enthält die Seite Sprecher-Zeilen "[Name] Text" (Name mit mind. 2 Zeichen, kein [S]/[Q]), erscheinen die
   // Auswahlmöglichkeiten als Sprechblasen-Antworten. Ausgenommen: Weiter, Zurück-/Abbrechen-Einträge und Kämpfe.
   // Die Antwortseite selbst enthält oft nur die Auswahl; dann gilt die Seite davor (letzteRede).
-  const hatRede = zeilen.some((z) => /^\s*\[[^\]\d]{2,24}\]\s+\S/.test(z));
+  const hatRede = zeilen.some((z) => { const m = z.match(/^\s*\[([^\]\d]{2,24})\]\s+\S/); return !!m && !KEIN_SPRECHER.test(m[1]); });
   const nurAuswahl = nichtLeer.every((z) => /^\s*(\d{1,2}[.)]|\[[A-Za-z]\])\s/.test(z) || /^Auswahl\b|^\s*>/.test(z) || /^\s{2,}\S/.test(z));
   const gespraech = !aktuellerGegner && !istStart && (hatRede || (letzteRede && nurAuswahl));
   letzteRede = gespraech && (hatRede || nurAuswahl);
@@ -567,6 +580,7 @@ function leseRendern() {
     if (/^\s*\[(ABGESCHLOSSEN|Abgeschlossen|Offen)\]\s*$/.test(t)) return "badge";
     if (/^\s*[─\-]{3,}\s*Runde\s+\d+\s*[─\-]{3,}\s*$/.test(t)) return "runde";
     const m = t.match(/^\s*\[([A-ZÄÖÜ][\wäöüß' ?-]{1,22})\]\s+\S/);
+    if (m && KEIN_SPRECHER.test(m[1])) return "probe";
     if (m && !/^(Beliebige Taste)$/.test(m[1])) return "rede";
     if (/^\s*(\d{1,2}[.)]|\[[A-Za-z]\]|[A-Z][.)])\s/.test(t) || /^(Auswahl|Eingabe)\b/.test(t) || /^\s*\[Beliebige Taste\]/.test(t)) return "wahl";
     if (/^\s*===\s*.+\s*===\s*$/.test(t)) return "abschnitt";
@@ -653,6 +667,11 @@ function leseRendern() {
     if ((a === "erzaehl" || a === "abschnitt") && art[i - 1] === "hr" && art[i + 1] === "hr") {
       const f = zeilenFarbe(z);
       html += '<p class="titel"' + (f ? ' style="color:' + f + '"' : "") + ">" + esc(t.trim()) + "</p>";
+      return;
+    }
+    if (a === "probe") {
+      const m = t.match(/^\s*\[([^\]]+)\]\s+(.*)$/);
+      html += '<p class="probe"><b>' + esc(m[1]) + "</b>" + esc(m[2]) + "</p>";
       return;
     }
     if (a === "rede") {
@@ -977,7 +996,7 @@ document.getElementById("einfuehrungZu").addEventListener("click", introSchliess
 const NEUES = {
   "2026-11-11-30": [
     "<b>Drei neue Kapitel:</b> „Die versunkene Chronik“ über die Nordstraße, „Das Archiv der Schatten“ über den Bleichen Pfad und „Der Weg nach Hause“ über den Läuferpfad nach Brunnfeld.",
-    "<b>Neue Bilder:</b> Chronik, Archiv der Schatten, Brunnfeld und der Läuferpfad haben eigene Bilder für ihre Räume, dazu vier Gegner und zehn Figuren.",
+    "<b>Neue Bilder:</b> Chronik, Archiv der Schatten, Brunnfeld und der Läuferpfad haben eigene Bilder für ihre Räume, dazu vier Gegner und zehn Figuren. Ein Tipp auf den Ortsnamen zeigt das Bild allein, ein Tipp auf das Gegnerbild vergrößert es.",
     "<b>Dazu:</b> Kirans Nebenquest in Oros, neue Gegner, die Schieferklinge und Handel in Brunnfeld.",
     "<b>Klassen:</b> Magier lernen bei Selene drei Techniken für den Kampf. Neu sind die Hybride Runenschmied und Fährtensteller. An einzelnen Stellen der Geschichte öffnet deine Klasse einen eigenen Weg.",
     "<b>App:</b> Die Karte zeigt die Chronik, das Archiv der Schatten und Brunnfeld. In der Universität erscheinen die Bilder auch nach dem Riss, und Messtabellen stehen sauber untereinander.",
