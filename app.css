@@ -264,7 +264,7 @@
   #kartenblatt h2 button { font: inherit; font-size: 14px; color: #e6e8eb; background: #1a2230; border: 1px solid #2d3b52; border-radius: 8px; padding: 6px 12px; }
   #kartenblatt .hinweis { color: #9aa3ae; font-size: 13px; min-height: 2.6em; margin: 4px 0 0; }
   #karteninhalt svg { width: 100%; height: auto; display: block; background: radial-gradient(circle at 50% 50%, #1b2431, #10151c); border: 1px solid #232b36; border-radius: 12px; }
-  #karteninhalt .weg { stroke: #3a4a63; stroke-width: 2; stroke-dasharray: 5 5; }
+  #karteninhalt .weg { fill: none; stroke: #3a4a63; stroke-width: 2; stroke-dasharray: 5 5; stroke-linecap: round; }
   #karteninhalt .wegname { fill: #6f7c90; font-size: 9px; text-anchor: middle; }
   #karteninhalt .ort { cursor: pointer; }
   #karteninhalt .ort circle { fill: #1a2230; stroke: #4a5a75; stroke-width: 2; }
@@ -272,7 +272,17 @@
   #karteninhalt .ort.bekannt circle { stroke: #6a8fe0; }
   #karteninhalt .ort.nah circle { stroke: #e5c07b; stroke-width: 3; }
   #karteninhalt .ort.hier circle { fill: #2b5d9b; stroke: #8fb4e8; stroke-width: 3; }
-  #karteninhalt .ort text { fill: #e6e8eb; font-size: 11px; text-anchor: middle; pointer-events: none; }
+  #karteninhalt .ort text { fill: #e6e8eb; font-size: 11px; text-anchor: middle; pointer-events: none; paint-order: stroke; stroke: #10151c; stroke-width: 3px; }
+  #karteninhalt .ort .sym { stroke: none; }
+  #karteninhalt .wegname { paint-order: stroke; stroke: #10151c; stroke-width: 3px; }
+  #karteninhalt .nord { fill: #6f7c90; font-size: 10px; text-anchor: middle; }
+  #karteninhalt .nordpfeil { fill: none; stroke: #6f7c90; stroke-width: 1.5; }
+  #kartennah { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+  #kartennah b { flex: 0 0 100%; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: #8b949e; font-weight: 600; }
+  #kartennah .nahort { font: inherit; font-size: 14px; padding: 7px 11px; color: #e6e8eb; background: #1a2230; border: 1.5px solid #4a5a75; border-radius: 999px; }
+  #kartennah .nahort.bekannt { border-color: #6a8fe0; }
+  #kartennah .nahort.nah { border-color: #e5c07b; border-width: 2px; }
+  #kartennah .nahort.hier { background: #2b5d9b; border-color: #8fb4e8; }
   #karteninhalt .ort.unbekannt text { fill: #6f7c90; }
   #karteninhalt .ort .sym { font-size: 16px; }
   #karteninhalt .ort.klein text { font-size: 9px; }

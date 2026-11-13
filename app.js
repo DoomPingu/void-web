@@ -912,58 +912,83 @@ document.getElementById("zielZu").addEventListener("click", zielBlattSchliessen)
 
 // Karte: die fünf Hauptorte. Ein Tipp auf einen von hier erreichbaren Ort drückt den passenden Knopf im Spiel.
 let hudOrt = "", spielerName = "";
+// Karte nach Himmelsrichtung: Oros im Norden, Letzthafen im Osten, das Verlassene Dorf im Süden, die Chronik in der
+// Senke südwestlich dahinter, die Nordstraße als Bogen im Westen. Orte der Kapitel 7 bis 9 ("spaet") erscheinen erst,
+// wenn du dort warst oder ein Weg dorthin offen ist. Kleine Orte ("klein") stehen als Zeile unter der Karte.
+// t: wo der Name steht (dx, dy, Ausrichtung).
 const KARTE_ORTE = [
-  { id: "eichenruh", name: "Eichenruh", sym: "🏘️", x: 160, y: 185, hier: /eichenruh|spieler_zimmer|gasthaus|marktplatz|^schmiede|bjorns/i, besucht: /eichenruh/i, knopf: /Eichenruh/ },
-  { id: "koehlerei", name: "Köhlerei", sym: "🔥", x: 62, y: 80, hier: /k[oö]e?hlerei|brandschneise/i, besucht: /k[oö]e?hlerei/i, knopf: /K[öo]e?hlerei/ },
-  { id: "oros", name: "Oros", sym: "🏛️", x: 258, y: 80, hier: /oros|tiefen|universit/i, besucht: /oros|tiefen|universit/i, knopf: /Oros|Universit|Faden/ },
-  { id: "dorf", name: "Verlassenes Dorf", sym: "🏚️", x: 62, y: 290, hier: /verlassenes_dorf|verlassenes dorf|alte_schmiede|alte schmiede|lagerkeller|huette/i, besucht: /dorf|alte_schmiede|lagerkeller/i, knopf: /Dorf|Pfad des Vergessens/ },
-  { id: "hafen", name: "Letzthafen", sym: "⚓", x: 258, y: 290, hier: /letzthafen|wrackstrand|edda|namenstein|leuchtfeuer|klippe/i, besucht: /letzthafen|hafen|wrack|edda/i, knopf: /Letzthafen|K[öo]nigsring/ }
+  { id: "eichenruh", name: "Eichenruh", sym: "🏘️", x: 160, y: 248, t: [-28, 30, "end"], hier: /eichenruh|spieler_zimmer|gasthaus|marktplatz|^schmiede|bjorns/i, besucht: /eichenruh/i, knopf: /Eichenruh/ },
+  { id: "koehlerei", name: "Köhlerei", sym: "🔥", x: 66, y: 222, t: [0, 38, "middle"], hier: /k[oö]e?hlerei|brandschneise/i, besucht: /k[oö]e?hlerei/i, knopf: /K[öo]e?hlerei/ },
+  { id: "oros", name: "Oros", sym: "🏛️", x: 160, y: 118, t: [30, 4, "start"], hier: /oros|tiefen|universit/i, besucht: /oros|tiefen|universit/i, knopf: /Oros|Universit|Faden/ },
+  { id: "dorf", name: "Verlassenes Dorf", sym: "🏚️", x: 160, y: 352, t: [30, 4, "start"], hier: /verlassenes_dorf|verlassenes dorf|alte_schmiede|alte schmiede|lagerkeller|huette/i, besucht: /dorf|alte_schmiede|lagerkeller/i, knopf: /Dorf|Pfad des Vergessens/ },
+  { id: "hafen", name: "Letzthafen", sym: "⚓", x: 272, y: 262, t: [0, 38, "middle"], hier: /letzthafen|wrackstrand|edda|namenstein|leuchtfeuer|klippe/i, besucht: /letzthafen|hafen|wrack|edda/i, knopf: /Letzthafen|K[öo]nigsring/ },
+  { id: "chronik", spaet: true, name: "Versunkene Chronik", sym: "📜", x: 62, y: 372, t: [0, 38, "middle"], hier: /versunkene_chronik/i, besucht: /versunkene_chronik/i, knopf: /Versunkene Chronik|alten Straße hinter der Schmiede|Tiefen Ring zur Chronik/ },
+  { id: "schattenarchiv", spaet: true, name: "Archiv der Schatten", sym: "🕯️", x: 160, y: 36, t: [30, 4, "start"], hier: /archiv_schatten/i, besucht: /archiv_schatten/i, knopf: /Archiv der Schatten/ },
+  { id: "brunnfeld", spaet: true, name: "Brunnfeld", sym: "⛲", x: 268, y: 150, t: [0, 38, "middle"], hier: /brunnfeld/i, besucht: /brunnfeld/i, knopf: /Läuferpfad . Brunnfeld|Richtung Brunnfeld/ },
+  // Kleine Orte, jeweils mit dem großen Ort, zu dem sie gehören.
+  { id: "gasthaus", klein: true, bei: "eichenruh", name: "Gasthaus", sym: "🍺", hier: /^gasthaus|maras/i, besucht: /gasthaus/i, knopf: /Gasthaus/ },
+  { id: "schmiede", klein: true, bei: "eichenruh", name: "Schmiede", sym: "⚒️", hier: /^schmiede|bjorns/i, besucht: /^schmiede/i, knopf: /Bjorns Schmiede|^Schmiede/ },
+  { id: "markt", klein: true, bei: "eichenruh", name: "Markt", sym: "🧺", hier: /marktplatz/i, besucht: /marktplatz/i, knopf: /Marktplatz/ },
+  { id: "haus", klein: true, bei: "eichenruh", name: "Dein Haus", sym: "🏠", hier: /spieler_zimmer|dein haus/i, besucht: /spieler_zimmer/i, knopf: /Nach Hause/ },
+  { id: "wegstation", klein: true, bei: "eichenruh", name: "Alte Wegstation", sym: "🧭", hier: /wegstation/i, besucht: /wegstation/i, knopf: /Wegstation/ },
+  { id: "alteschmiede", klein: true, bei: "dorf", name: "Alte Schmiede", sym: "⚒️", hier: /alte_schmiede|alte schmiede/i, besucht: /alte_schmiede/i, knopf: /Alte Schmiede/ },
+  { id: "lagerkeller", klein: true, bei: "dorf", name: "Lagerkeller", sym: "📦", hier: /lagerkeller/i, besucht: /lagerkeller/i, knopf: /Lagerkeller/ },
+  { id: "wrackstrand", klein: true, bei: "hafen", name: "Wrackstrand", sym: "🌊", hier: /wrackstrand/i, besucht: /wrack/i, knopf: /Wrackstrand/ },
+  { id: "edda", klein: true, bei: "hafen", name: "Eddas Haus", sym: "🏚️", hier: /edda/i, besucht: /edda/i, knopf: /Edda/ },
+  { id: "archiv", klein: true, bei: "oros", name: "Archiv", sym: "📚", hier: /archiv(?!_schatten)/i, besucht: /archiv(?!_schatten)/i, knopf: /Archiv(?! der Schatten)/ },
+  { id: "tiefen", klein: true, bei: "oros", name: "Tiefen", sym: "⛏️", hier: /tiefen/i, besucht: /tiefen/i, knopf: /Tiefen(?! Ring)|TIEFEN/ }
 ];
-// Kleine Orte: erscheinen erst, wenn du dort warst oder sie von hier aus erreichbar sind.
-KARTE_ORTE.push(
-  { id: "gasthaus", klein: true, name: "Gasthaus", sym: "🍺", x: 118, y: 142, hier: /^gasthaus|maras/i, besucht: /gasthaus/i, knopf: /Gasthaus/ },
-  { id: "schmiede", klein: true, name: "Schmiede", sym: "⚒️", x: 202, y: 142, hier: /^schmiede|bjorns/i, besucht: /^schmiede/i, knopf: /Bjorns Schmiede|^Schmiede/ },
-  { id: "markt", klein: true, name: "Markt", sym: "🧺", x: 118, y: 232, hier: /marktplatz/i, besucht: /marktplatz/i, knopf: /Marktplatz/ },
-  { id: "haus", klein: true, name: "Haus", sym: "🏠", x: 202, y: 232, hier: /spieler_zimmer|dein haus/i, besucht: /spieler_zimmer/i, knopf: /Nach Hause/ },
-  { id: "alteschmiede", klein: true, name: "Alte Schmiede", sym: "⚒️", x: 24, y: 252, hier: /alte_schmiede|alte schmiede/i, besucht: /alte_schmiede/i, knopf: /Alte Schmiede/ },
-  { id: "lagerkeller", klein: true, name: "Lagerkeller", sym: "📦", x: 100, y: 252, hier: /lagerkeller/i, besucht: /lagerkeller/i, knopf: /Lagerkeller/ },
-  { id: "wrackstrand", klein: true, name: "Wrackstrand", sym: "🌊", x: 220, y: 252, hier: /wrackstrand/i, besucht: /wrack/i, knopf: /Wrackstrand/ },
-  { id: "edda", klein: true, name: "Eddas Haus", sym: "🏚️", x: 298, y: 252, hier: /edda/i, besucht: /edda/i, knopf: /Edda/ },
-  { id: "archiv", klein: true, name: "Archiv", sym: "📚", x: 220, y: 118, hier: /archiv(?!_schatten)/i, besucht: /archiv(?!_schatten)/i, knopf: /Archiv(?! der Schatten)/ },
-  { id: "tiefen", klein: true, name: "Tiefen", sym: "⛏️", x: 298, y: 118, hier: /tiefen/i, besucht: /tiefen/i, knopf: /Tiefen(?! Ring)|TIEFEN/ },
-  // Kapitel 7 bis 9
-  { id: "chronik", klein: true, name: "Chronik", sym: "📜", x: 138, y: 306, hier: /versunkene_chronik/i, besucht: /versunkene_chronik/i, knopf: /Versunkene Chronik|alten Straße hinter der Schmiede|Tiefen Ring zur Chronik/ },
-  { id: "schattenarchiv", klein: true, name: "Archiv der Schatten", sym: "🕯️", x: 188, y: 36, hier: /archiv_schatten/i, besucht: /archiv_schatten/i, knopf: /Archiv der Schatten/ },
-  { id: "brunnfeld", klein: true, name: "Brunnfeld", sym: "⛲", x: 294, y: 180, hier: /brunnfeld/i, besucht: /brunnfeld/i, knopf: /Läuferpfad – Brunnfeld|Richtung Brunnfeld/ }
-);
-const KARTE_WEGE = [["eichenruh", "koehlerei", "Waldweg"], ["eichenruh", "oros", "Faden der Erinnerung"], ["eichenruh", "dorf", "Pfad des Vergessens"], ["eichenruh", "hafen", "Königsring"]];
+// Wege: von, nach (Ort oder Punkt), Name, Linie (leer = gerade), Lage des Namens [x, y, Drehung].
+const KARTE_WEGE = [
+  { von: "eichenruh", nach: "koehlerei", name: "Waldweg", n: [116, 228, 15] },
+  { von: "eichenruh", nach: "oros", name: "Faden der Erinnerung", n: [152, 192, 0, "end"] },
+  { von: "eichenruh", nach: "dorf", name: "Pfad des Vergessens", n: [152, 306, 0, "end"] },
+  { von: "eichenruh", nach: "hafen", name: "Königsring", n: [220, 248, 7] },
+  { von: "dorf", nach: "chronik", name: "Tiefer Ring", n: [112, 353, -11] },
+  { von: "chronik", nach: "oros", name: "Nordstraße", d: "M62,350 C0,300 20,120 138,118", n: [84, 121, -17] },
+  { von: "oros", nach: "schattenarchiv", name: "Bleicher Pfad", n: [152, 80, 0, "end"] },
+  { von: "oros", nach: "brunnfeld", name: "Läuferpfad", d: "M160,184 Q216,188 250,163", n: [214, 199, -9] }
+];
 const kartenBlatt = document.getElementById("kartenblatt");
 function kartenSchliessen() { kartenBlatt.classList.remove("offen"); kartenBlatt.setAttribute("aria-hidden", "true"); }
 function kartenWerte() {
   let besucht = [];
   try { const n = weiterSlot(); if (n) besucht = [].concat(JSON.parse(spielstaende()[n]).spieler.besuchte_orte || []).map(String); } catch (e) {}
   const knoepfe = knoepfeEl.style.display === "none" ? [] : [...knoepfeEl.querySelectorAll("button")].filter((b) => !b.closest(".ikonen"));
-  const hierKlein = KARTE_ORTE.find((o) => o.klein && o.hier.test(hudOrt));
+  // Der Knopf zeigt Name und Zusatz getrennt; für die Zuordnung zählt der ganze Eintrag ("Läuferpfad – Brunnfeld").
+  const knopfText = (b) => b.dataset.voll || b.textContent;
   return KARTE_ORTE.map((o) => {
-    const hier = hierKlein ? o === hierKlein : (!o.klein && o.hier.test(hudOrt));
-    const knopf = hier ? null : knoepfe.find((b) => o.knopf.test(b.textContent));
+    const hier = o.hier.test(hudOrt);
+    const knopf = hier ? null : knoepfe.find((b) => o.knopf.test(knopfText(b)));
     const bekannt = besucht.some((s) => o.besucht.test(s));
-    return { o, hier, knopf, klasse: hier ? "hier" : knopf ? "nah" : bekannt ? "bekannt" : "unbekannt", sichtbar: hier || !!knopf || bekannt };
+    return { o, hier, knopf, bekannt, klasse: hier ? "hier" : knopf ? "nah" : bekannt ? "bekannt" : "unbekannt", sichtbar: hier || !!knopf || bekannt };
   });
 }
 function kartenZeichnen() {
   const w = kartenWerte();
-  const von = (id) => KARTE_ORTE.find((o) => o.id === id);
-  const linien = KARTE_WEGE.map(([a, b, n]) => {
-    const A = von(a), B = von(b);
-    return '<line class="weg" x1="' + A.x + '" y1="' + A.y + '" x2="' + B.x + '" y2="' + B.y + '"/><text class="wegname" x="' + ((A.x + B.x) / 2 + (B.x > A.x ? 14 : -14)) + '" y="' + ((A.y + B.y) / 2) + '">' + esc(n) + "</text>";
+  const wert = (id) => w.find((x) => x.o.id === id);
+  const gross = w.filter(({ o, sichtbar }) => !o.klein && (!o.spaet || sichtbar));
+  const da = (id) => gross.some((x) => x.o.id === id);
+  const linien = KARTE_WEGE.filter((weg) => da(weg.von) && da(weg.nach)).map((weg) => {
+    const A = wert(weg.von).o, B = wert(weg.nach).o;
+    const [nx, ny, dreh, anker] = weg.n;
+    return '<path class="weg" d="' + (weg.d || "M" + A.x + "," + A.y + " L" + B.x + "," + B.y) + '"/>' +
+      '<text class="wegname" x="' + nx + '" y="' + ny + '"' + (anker ? ' style="text-anchor:' + anker + '"' : "") + (dreh ? ' transform="rotate(' + dreh + " " + nx + " " + ny + ')"' : "") + ">" + esc(weg.name) + "</text>";
   }).join("");
-  const orte = w.filter(({ o, sichtbar }) => !o.klein || sichtbar).map(({ o, klasse, sichtbar }) =>
-    '<g class="ort ' + klasse + (o.klein ? " klein" : "") + '" data-id="' + o.id + '"><circle cx="' + o.x + '" cy="' + o.y + '" r="' + (o.klein ? 14 : 24) + '"/><text class="sym" x="' + o.x + '" y="' + (o.y + (o.klein ? 4 : 6)) + '">' + (sichtbar ? o.sym : "?") +
-    '</text><text x="' + o.x + '" y="' + (o.y + (o.klein ? 27 : 42)) + '">' + (sichtbar ? esc(o.name) : "Unbekannt") + "</text></g>").join("");
-  document.getElementById("karteninhalt").innerHTML = '<svg viewBox="0 0 320 350" role="img" aria-label="Karte">' + linien + orte + "</svg>";
+  const orte = gross.map(({ o, klasse, sichtbar }) =>
+    '<g class="ort ' + klasse + '" data-id="' + o.id + '"><circle cx="' + o.x + '" cy="' + o.y + '" r="22"/><text class="sym" x="' + o.x + '" y="' + (o.y + 6) + '">' + (sichtbar ? o.sym : "?") +
+    '</text><text class="name" x="' + (o.x + o.t[0]) + '" y="' + (o.y + o.t[1]) + '" style="text-anchor:' + o.t[2] + '">' + (sichtbar ? esc(o.name) : "Unbekannt") + "</text></g>").join("");
+  // Kleine Orte: was hier ist, wohin gerade ein Weg führt, und was du in dieser Gegend schon kennst.
+  const gegend = (gross.find((x) => x.hier) || {}).o;
+  const nah = w.filter(({ o, hier, knopf, bekannt }) => o.klein && (hier || knopf || (bekannt && gegend && o.bei === gegend.id)));
+  const zeile = nah.length ? '<div id="kartennah"><b>' + (gegend ? "In " + esc(gegend.name) : "In der Nähe") + "</b>" +
+    nah.map(({ o, klasse }) => '<button type="button" class="nahort ' + klasse + '" data-id="' + o.id + '">' + o.sym + " " + esc(o.name) + "</button>").join("") + "</div>" : "";
+  // Der Ausschnitt richtet sich nach den gezeichneten Orten: am Anfang ist die Karte klein, später wächst sie.
+  const oben = Math.min(...gross.map((x) => x.o.y)) - 46, unten = Math.max(...gross.map((x) => x.o.y)) + 52;
+  document.getElementById("karteninhalt").innerHTML = '<svg viewBox="0 ' + oben + " 320 " + (unten - oben) + '" role="img" aria-label="Karte">' +
+    '<text class="nord" x="302" y="' + (oben + 18) + '">N</text><path class="nordpfeil" d="M302,' + (oben + 22) + " L302," + (oben + 40) + " M297," + (oben + 28) + " L302," + (oben + 22) + " L307," + (oben + 28) + '"/>' + linien + orte + "</svg>" + zeile;
   document.getElementById("kartenhinweis").textContent = hudOrt && !w.some((x) => x.hier) ? "Du bist unterwegs. Tippe auf einen Ort, wenn ein Weg dorthin offen ist." : "Tippe auf einen gelb umrandeten Ort, um dorthin zu reisen.";
-  document.querySelectorAll("#karteninhalt .ort").forEach((g) => g.addEventListener("click", () => {
+  document.querySelectorAll("#karteninhalt .ort, #karteninhalt .nahort").forEach((g) => g.addEventListener("click", () => {
     const eintrag = kartenWerte().find((x) => x.o.id === g.dataset.id);
     if (eintrag.hier) { document.getElementById("kartenhinweis").textContent = "Du bist schon hier."; return; }
     if (eintrag.knopf) { kartenSchliessen(); eintrag.knopf.click(); return; }
