@@ -22550,7 +22550,7 @@ def spielmenue():
             else:
                 warte_auf_taste()
 
-
+def prolog_haus():
     prolog_status = spieler.get(
         "prolog_status",
         "dorf_freigeschaltet"
