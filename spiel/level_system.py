@@ -93,10 +93,10 @@ EXP_QUELLEN = {
         "bedingung": (("jagdbuch", "Steinvater", "beute"), True)
     },
     "revierherr_einscherer": {
-        "name": "Revierherr: Einscherer",
+        "name": "Revierherr: Kielbrecher",
         "exp": 30,
         "limit": 1,
-        "bedingung": (("jagdbuch", "Einscherer", "beute"), True)
+        "bedingung": (("jagdbuch", "Kielbrecher", "beute"), True)
     },
     "revierherr_blasser_hirsch": {
         "name": "Revierherr: Blasser Hirsch",

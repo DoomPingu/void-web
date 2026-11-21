@@ -96,6 +96,21 @@
   .lesestil .sprech { display: flex; align-items: flex-end; gap: .55em; margin: .2em 0 .45em; }
   .lesestil .sprech .av { flex: 0 0 1.9em; height: 1.9em; display: grid; place-items: center; border-radius: 50%; border: 2px solid var(--c, #8fb4e8); color: var(--c, #8fb4e8); background: rgba(255,255,255,.04); font-weight: 700; font-size: .85em; }
   .lesestil .sprech .av.leer { visibility: hidden; }
+  .lesestil .planrahmen { margin: .5em 0 .7em; padding: 10px 4px; overflow-x: auto; text-align: center; background: rgba(16,21,28,.72); border: 1px solid #232b36; border-radius: 12px; }
+  .lesestil svg.plan { max-width: 100%; height: auto; vertical-align: top; }
+  .lesestil svg.plan .linie { fill: none; stroke: #5a6b88; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .lesestil svg.plan .raum rect { fill: #1a2230; stroke: #6a8fe0; stroke-width: 1.5; }
+  .lesestil svg.plan .raum text { fill: #e6e8eb; text-anchor: middle; font-family: system-ui, sans-serif; font-weight: 600; text-shadow: none; }
+  .lesestil svg.plan .raum.hier rect { fill: #2b5d9b; stroke: #cfe0ff; stroke-width: 2.5; }
+  .lesestil svg.plan .raum.hier text { fill: #fff; }
+  .lesestil svg.plan .raum.offen rect { fill: #12171e; stroke: #4a5a75; stroke-dasharray: 4 3; }
+  .lesestil svg.plan .raum.offen text { fill: #8b97a8; }
+  .lesestil svg.plan .frei { fill: #8b97a8; font-size: 10px; text-anchor: middle; }
+  .lesestil .planleg { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: .3em 0 .5em; font-size: .82em; color: #aab2bd; }
+  .lesestil .planleg span { display: inline-flex; align-items: center; gap: 6px; }
+  .lesestil .planleg i { display: inline-grid; place-items: center; width: 22px; height: 15px; border-radius: 4px; font-style: normal; font-size: 10px; color: #8b97a8; background: #1a2230; border: 1.5px solid #6a8fe0; }
+  .lesestil .planleg i.hier { background: #2b5d9b; border-color: #cfe0ff; }
+  .lesestil .planleg i.offen { background: #12171e; border-color: #4a5a75; border-style: dashed; }
   .lesestil .probe { margin: .2em 0 .45em; padding: .4em .7em; color: #dfe4ea; background: rgba(229,192,123,.08); border-left: 3px solid #e5c07b; border-radius: 4px; }
   .lesestil .probe b { margin-right: .5em; font-size: .8em; letter-spacing: .04em; text-transform: uppercase; color: #e5c07b; }
   .lesestil .sprech .blase { max-width: 88%; padding: .45em .85em; color: #eef1f5; background: rgba(255,255,255,.075); border-radius: 14px 14px 14px 4px; }
@@ -262,10 +277,12 @@
   #kartenblatt .blatt { width: 100%; max-height: 90vh; overflow-y: auto; box-sizing: border-box; background: #141a22; border-radius: 16px 16px 0 0; padding: 14px 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
   #kartenblatt h2 { margin: 0 0 6px; font-size: 18px; display: flex; justify-content: space-between; align-items: center; }
   #kartenblatt h2 button { font: inherit; font-size: 14px; color: #e6e8eb; background: #1a2230; border: 1px solid #2d3b52; border-radius: 8px; padding: 6px 12px; }
-  #kartenblatt .hinweis { color: #9aa3ae; font-size: 13px; min-height: 2.6em; margin: 4px 0 0; }
-  #karteninhalt svg { width: 100%; height: auto; display: block; background: radial-gradient(circle at 50% 50%, #1b2431, #10151c); border: 1px solid #232b36; border-radius: 12px; }
+  #kartenblatt .hinweis { color: #9aa3ae; font-size: 13px; min-height: 1.4em; margin: 6px 0 0; }
+  #karteninhalt svg { width: 100%; height: auto; max-height: 56vh; display: block; background: radial-gradient(circle at 50% 50%, #1b2431, #10151c); border: 1px solid #232b36; border-radius: 12px; }
   #karteninhalt .weg { fill: none; stroke: #3a4a63; stroke-width: 2; stroke-dasharray: 5 5; stroke-linecap: round; }
   #karteninhalt .wegname { fill: #6f7c90; font-size: 9px; text-anchor: middle; }
+  #karteninhalt .weg.verloren { stroke: #2b3649; stroke-dasharray: 1 7; }
+  #karteninhalt .wegname.verloren { fill: #4f5b70; font-style: italic; }
   #karteninhalt .ort { cursor: pointer; }
   #karteninhalt .ort circle { fill: #1a2230; stroke: #4a5a75; stroke-width: 2; }
   #karteninhalt .ort.unbekannt circle { fill: #12171e; stroke: #2a3340; stroke-dasharray: 3 3; }

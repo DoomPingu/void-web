@@ -113,6 +113,7 @@ import time
 import os
 import sys
 from kampfsystem import kampf_starten as kampfsystem_kampf_starten
+from kampfsystem import kampf_verlauf_anzeigen as kampfsystem_verlauf_anzeigen
 from rezept_system import (
     rezept_ist_gelernt as system_rezept_ist_gelernt,
     rezept_lernen as system_rezept_lernen,
@@ -1162,6 +1163,14 @@ def himmel_berechnen(sekunden):
     return tageszeit, wetter
 
 
+def uhrzeit_text(sekunden):
+    # Der Spieltag beginnt um 6:00 Uhr (Tag) und dauert TAG_DAUER Sekunden.
+    teil = (int(sekunden or 0) % TAG_DAUER) / TAG_DAUER
+    minuten_gesamt = int((teil * 24 * 60 + 6 * 60) % (24 * 60))
+
+    return f"{minuten_gesamt // 60:02d}:{minuten_gesamt % 60:02d} Uhr"
+
+
 def schlaf_moeglich():
     # Geschlafen wird erst ab dem Abend; tagsüber ist es zu früh.
     spielzeit_aktualisieren()
@@ -1295,7 +1304,12 @@ def himmel_zeile_anzeigen(titel):
         return
 
     # Zeit nachführen, damit auch die erste Seite nach dem Laden stimmt.
-    spielzeit_aktualisieren()
+    sekunden = spielzeit_aktualisieren()
+
+    text_ausgeben(
+        f"{spieler.get('tageszeit', 'Tag')}, {uhrzeit_text(sekunden)}",
+        art="menue"
+    )
 
     zeile = himmel_zeile(
         spieler.get("tageszeit", "Tag"),
@@ -9636,7 +9650,7 @@ def dialog_schreiber_letzthafen():
             ):
                 print(
                     f"{naechste_option}. "
-                    "Mareks Einträge erneut ansehen"
+                    "Mareks Einträge ansehen [Wiederholen]"
                 )
 
             elif (
@@ -9681,7 +9695,11 @@ def dialog_schreiber_letzthafen():
 
         print(
             f"{naechste_option}. "
-            "Was wird hier alles aufbewahrt?"
+            + dialog_option(
+                "schreiber_letzthafen",
+                "aufzeichnungen",
+                "Was wird hier alles aufbewahrt?"
+            )
         )
 
         naechste_option += 1
@@ -11571,6 +11589,13 @@ def letzthafen_edda_truhe():
             "Jede Scheibe rastet spürbar in ihrer Position ein."
         )
 
+        if wiegenlied.get("truhe_letzter_versuch"):
+            print()
+            print(
+                "Letzter Versuch: "
+                + " → ".join(wiegenlied["truhe_letzter_versuch"])
+            )
+
         wiegenlied[
             "truhe_untersucht"
         ] = True
@@ -11699,6 +11724,8 @@ def letzthafen_edda_truhe():
 
             if abgebrochen:
                 continue
+
+            wiegenlied["truhe_letzter_versuch"] = list(reihenfolge)
 
             ort_titel(
                 "Eddas Haus - Alte Truhe"
@@ -11842,6 +11869,13 @@ def letzthafen_edda_truhe():
                     print(
                         f"- {hinweis}"
                     )
+
+            if wiegenlied.get("truhe_letzter_versuch"):
+                print()
+                print(
+                    "Letzter Versuch: "
+                    + " → ".join(wiegenlied["truhe_letzter_versuch"])
+                )
 
             warte_auf_taste(
                 "Zurück"
@@ -12427,9 +12461,9 @@ def letzthafen_wrackstrand_jagd():
 
         print()
 
-        if gegner_typ == "Einscherer":
+        if gegner_typ == "Kielbrecher":
             text_ausgeben(
-                "Der Einscherer hebt seine gewaltige Schere."
+                "Der Kielbrecher hebt seine gewaltige Schere."
             )
         elif gegner_typ == "Gezeitenkrebs":
             text_ausgeben(
@@ -14704,6 +14738,35 @@ def speicherplatz_text(slot):
         f"{name} - {ort}"
     )
 
+def jagdbuch_namen_angleichen(spieler_daten):
+    # Der Revierherr am Wrackstrand hieß bis Alpha 3.4.6 „Einscherer“.
+    # Ältere Spielstände führen ihn im Jagdbuch noch unter diesem Namen.
+    if not isinstance(spieler_daten, dict):
+        return
+
+    buch = spieler_daten.get("jagdbuch")
+
+    if not isinstance(buch, dict) or "Einscherer" not in buch:
+        return
+
+    alt = buch.pop("Einscherer")
+    neu = buch.get("Kielbrecher")
+
+    if not isinstance(neu, dict):
+        buch["Kielbrecher"] = alt
+        return
+
+    if not isinstance(alt, dict):
+        return
+
+    for kennung in alt.get("verhalten", []):
+        if kennung not in neu.setdefault("verhalten", []):
+            neu["verhalten"].append(kennung)
+
+    if alt.get("beute") is True:
+        neu["beute"] = True
+
+
 def spiel_laden(slot=None):
     global AKTIVER_SPEICHER_SLOT
 
@@ -15082,6 +15145,10 @@ def spiel_laden(slot=None):
         )
 
     geladener_spieler["spiel_laeuft"] = True
+
+    jagdbuch_namen_angleichen(
+        geladener_spieler
+    )
     attribut_system_sicherstellen(
         geladener_spieler
     )
@@ -16118,6 +16185,7 @@ def neuer_spieler(name):
         "ort_nachricht": None,
         "reise": None,
         "textverlauf": [],
+        "inventar_gesehen": [],
         "besiegte_gegner": 0,        
         "attribute": {
             "koerper": 1,
@@ -16292,11 +16360,12 @@ def optionen():
         print("3. Bildschirm leeren")
         print("4. Spielername-Farbe")
         print("5. Stimmungshinweise")
-        print("6. Zurück")
+        print("6. Neuigkeiten")
+        print("7. Zurück")
 
         optionen_auswahl = eingabe_menu(
             1,
-            6,
+            7,
             sonder_tasten=()
         )
 
@@ -16533,7 +16602,66 @@ def optionen():
             warte_auf_taste()
 
         elif optionen_auswahl == 6:
+            update_historie_anzeigen()
+
+        elif optionen_auswahl == 7:
             return
+
+UPDATE_HISTORIE = [
+    (
+        "Alpha 3.4.5",
+        [
+            "Stimmung im Text: Abend, Nacht, Morgen, Regen und Nebel "
+            "erscheinen draußen unter dem Ortsnamen.",
+            "Begegnungen auf Reisen sind nachts und im Nebel etwas häufiger."
+        ]
+    ),
+    (
+        "Alpha 3.4.4",
+        [
+            "Tag und Nacht: Ein Spieltag dauert 40 Minuten Spielzeit.",
+            "Das Wetter wechselt alle 15 Minuten, Nebel nimmt die Sicht.",
+            "In den TIEFEN und der Alten Wegstation gelten weder "
+            "Tageszeit noch Wetter."
+        ]
+    ),
+    (
+        "Alpha 3.4.3",
+        [
+            "Texte der Hauptgeschichte überarbeitet, Dorfbewohner "
+            "klingen unterscheidbarer."
+        ]
+    ),
+    (
+        "Alpha 3.4.2",
+        [
+            "Spielstart, Build-Auswahl und viele Ortstexte überarbeitet."
+        ]
+    ),
+    (
+        "Alpha 3.4.1",
+        [
+            "Schnellreise auf allen Hauptstrecken nach der ersten "
+            "vollständigen Reise.",
+            "Die Spielzeit steht im Status."
+        ]
+    )
+]
+
+
+def update_historie_anzeigen():
+    ort_titel("Neuigkeiten")
+
+    for version, zeilen in UPDATE_HISTORIE:
+        design_text(version, design="wichtig", art="menue")
+
+        for zeile in zeilen:
+            print(f"- {zeile}")
+
+        print()
+
+    warte_auf_taste("Zurück")
+
 
 def spiel_intro():
     ort_titel("Void")
@@ -17502,6 +17630,14 @@ def exp_belohnungen_pruefen():
     fortschritt = level_fortschritt(spieler)
 
     print(f"Level: {fortschritt['level']}")
+
+    if fortschritt["aufstiegskosten"] is not None:
+        print(
+            f"EXP zum nächsten Level: {fortschritt['exp_im_level']}"
+            f"/{fortschritt['aufstiegskosten']}"
+            f" (noch {fortschritt['exp_bis_aufstieg']})"
+        )
+
     print(
         f"Freie Talentpunkte: "
         f"{talentpunkte_verfuegbar(spieler)}"
@@ -18735,8 +18871,8 @@ def bjorn_krieger_ausbildung():
     if auswahl != 2:
         if auswahl == 1:
             text_ausgeben(
-                "[Bjorn] Deckung hält dich am Leben. Aber erkenne auch, "
-                "wann du handeln kannst. Versuch es später erneut."
+                "[Bjorn] Deckung hält dich am Leben. Aber wer nur wartet, "
+                "gewinnt nicht. Warte auf die Lücke, dann schlag zu."
             )
             warte_auf_taste("Zurück")
         return
@@ -19025,6 +19161,10 @@ def status():
     print(f"Diamanten: {spieler['diamanten']}")
     print(f"Besiegte Gegner: {spieler['besiegte_gegner']}")
     print(f"Spielzeit: {spielzeit_text()}")
+    print(
+        f"Tageszeit: {spieler.get('tageszeit', 'Tag')}, "
+        f"{uhrzeit_text(spielzeit_aktualisieren())}"
+    )
 
     print()
 
@@ -19506,7 +19646,7 @@ JAGDBUCH_GEBIETE = (
     ("Wald und Wege", ("Wolf", "Keiler", "Bandit", "Graupelz")),
     ("Brandschneise", ("Glutsalamander", "Kohlenschmuggler", "Aschenkönig")),
     ("Felsterrassen", ("Schieferpanzer", "Kreischer", "Steinvater")),
-    ("Wrackstrand", ("Gezeitenkrebs", "Wrackplünderer", "Einscherer")),
+    ("Wrackstrand", ("Gezeitenkrebs", "Wrackplünderer", "Kielbrecher")),
     ("Pfad des Vergessens", ("Rudelloser Wolf", "Echohirsch", "Blasser Hirsch")),
     ("Die TIEFEN", ("Schachtflatterer", "Schachtkriecher", "Blindmolch", "Schachtspinner")),
     ("Versunkene Chronik", ("Bache",)),
@@ -19666,7 +19806,7 @@ def erfolg_bedingung_erfuellt(erfolg_id):
     if erfolg_id == "aelter_als_stein":
         return buch.get("Steinvater", {}).get("beute") is True
     if erfolg_id == "die_eine_schere":
-        return buch.get("Einscherer", {}).get("beute") is True
+        return buch.get("Kielbrecher", {}).get("beute") is True
     if erfolg_id == "das_echte_tier":
         return "echo_erkannt" in buch.get("Echohirsch", {}).get("verhalten", [])
     if erfolg_id == "der_blasse":
@@ -19674,7 +19814,7 @@ def erfolg_bedingung_erfuellt(erfolg_id):
     if erfolg_id == "herr_der_reviere":
         return all(
             buch.get(herr, {}).get("beute") is True
-            for herr in ("Graupelz", "Aschenkönig", "Steinvater", "Einscherer", "Blasser Hirsch", "Schwarzgeweih")
+            for herr in ("Graupelz", "Aschenkönig", "Steinvater", "Kielbrecher", "Blasser Hirsch", "Schwarzgeweih")
         )
     if erfolg_id == "bekannte_gesichter":
         return len(menschen_getroffen()) == len(MENSCHEN)
@@ -20055,6 +20195,10 @@ def ausbildungsauftraege():
     return auftraege
 
 
+def quest_titel_design(fertig):
+    return "quest_abgeschlossen" if fertig else "wichtig"
+
+
 def quests():
     ort_titel(
         "Questlog/Erfolge - Quests"
@@ -20096,7 +20240,13 @@ def quests():
 
         design_text(
             "Der verlorene Lehrling",
-            design="wichtig",
+            design=quest_titel_design(
+                prolog_status in (
+                    "joris_gerettet",
+                    "koehlerei_lieferung",
+                    "prolog_abgeschlossen"
+                )
+            ),
             art="menue"
         )
 
@@ -20160,7 +20310,9 @@ def quests():
 
         design_text(
             "Zur Köhlerei",
-            design="wichtig",
+            design=quest_titel_design(
+                prolog_status == "prolog_abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -20191,7 +20343,9 @@ def quests():
 
         design_text(
             "Der Schmied des Weges",
-            design="wichtig",
+            design=quest_titel_design(
+                spieler["quest_schmied"] == "abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -20324,7 +20478,9 @@ def quests():
 
         design_text(
             "Faden der Erinnerung",
-            design="wichtig",
+            design=quest_titel_design(
+                quest_oros == "abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -20367,7 +20523,9 @@ def quests():
 
         design_text(
             "Was Oros vergessen hat",
-            design="wichtig",
+            design=quest_titel_design(
+                quest_oros_tiefen == "abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -20480,7 +20638,9 @@ def quests():
 
         design_text(
             "Was die Wege verbindet",
-            design="wichtig",
+            design=quest_titel_design(
+                quest_wege == "abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -20560,7 +20720,9 @@ def quests():
 
         design_text(
             "Was an seine Stelle trat",
-            design="wichtig",
+            design=quest_titel_design(
+                quest_stelle == "abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -20615,7 +20777,9 @@ def quests():
 
         design_text(
             "Die Antwort der Schutzverwaltung",
-            design="wichtig",
+            design=quest_titel_design(
+                quest_schutz == "abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -20674,7 +20838,9 @@ def quests():
 
         design_text(
             "Unter der Mauer",
-            design="wichtig",
+            design=quest_titel_design(
+                quest_mauer == "abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -20707,6 +20873,12 @@ def quests():
             )
 
         elif quest_mauer == "abgeschlossen":
+            design_text(
+                "[ABGESCHLOSSEN]",
+                design="quest_abgeschlossen",
+                art="menue"
+            )
+
             print(MAUER_ABSCHLUSS_TEXT)
             print(mauer_bericht_zeile())
 
@@ -20721,7 +20893,9 @@ def quests():
 
         design_text(
             "Die Wegstation",
-            design="wichtig",
+            design=quest_titel_design(
+                wegstation_quest_status() == "abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -20762,7 +20936,9 @@ def quests():
 
         design_text(
             "Die letzte Abtrennung",
-            design="wichtig",
+            design=quest_titel_design(
+                abtrennung_status() == "abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -20789,7 +20965,9 @@ def quests():
 
         design_text(
             "Die offenen Tore",
-            design="wichtig",
+            design=quest_titel_design(
+                offene_tore_status() == "abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -20824,7 +21002,9 @@ def quests():
 
         design_text(
             "Die Zurückgelassenen",
-            design="wichtig",
+            design=quest_titel_design(
+                zurueckgelassene_status() == "abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -20860,7 +21040,9 @@ def quests():
 
         design_text(
             "Die versunkene Chronik",
-            design="wichtig",
+            design=quest_titel_design(
+                chronik_status() == "abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -20887,7 +21069,9 @@ def quests():
 
         design_text(
             "Das Archiv der Schatten",
-            design="wichtig",
+            design=quest_titel_design(
+                archiv_status() == "abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -20931,7 +21115,9 @@ def quests():
 
         design_text(
             "Die Hütte am Waldrand",
-            design="wichtig",
+            design=quest_titel_design(
+                caelen_status() == "abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -20963,7 +21149,9 @@ def quests():
 
         design_text(
             "Nicht stehen bleiben",
-            design="wichtig",
+            design=quest_titel_design(
+                kiran_status() == "abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -20993,7 +21181,9 @@ def quests():
 
         design_text(
             "Die verschwundene Lieferung",
-            design="wichtig",
+            design=quest_titel_design(
+                spieler["quest_hilda"] == "abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -21041,7 +21231,9 @@ def quests():
 
         design_text(
             "Ein Name fehlt",
-            design="wichtig",
+            design=quest_titel_design(
+                quest_name_fehlt == "abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -21163,7 +21355,9 @@ def quests():
 
         design_text(
             "Das stumme Wiegenlied",
-            design="wichtig",
+            design=quest_titel_design(
+                quest_wiegenlied == "abgeschlossen"
+            ),
             art="menue"
         )
 
@@ -21208,7 +21402,13 @@ def quests():
     ):
         quest_vorhanden = True
         menue_trenner()
-        design_text("Ein Name auf der Liste", design="wichtig", art="menue")
+        design_text(
+            "Ein Name auf der Liste",
+            design=quest_titel_design(
+                spieler.get("quest_oros_listen") == "abgeschlossen"
+            ),
+            art="menue"
+        )
         if oros_listen_verfallen():
             print(
                 "Die alten Listen haben ihre Bedeutung verloren. Rabans "
@@ -21216,6 +21416,12 @@ def quests():
                 "abschließende Entscheidung getroffen."
             )
         elif spieler.get("quest_oros_listen") == "abgeschlossen":
+            design_text(
+                "[ABGESCHLOSSEN]",
+                design="quest_abgeschlossen",
+                art="menue"
+            )
+
             entscheidung = oros_listen_entscheidung_holen()
             if entscheidung == "beweise_vorgelegt":
                 print("Abgeschlossen: Du hast die Belege vorgelegt. Levin wurde entlastet; er und Ida bleiben in Oros.")
@@ -21247,7 +21453,7 @@ def quests():
             spieler.get("quest_oros_listen") != "abgeschlossen"
             and not oros_listen_verfallen()
         ):
-            print("Anlaufstellen: Ida [K], Levin im Archiv [L], Versorgungshof [V].")
+            print("Anlaufstellen: Ida in der Krankenstube, Levin im Archiv, Versorgungshof.")
         print()
 
 
@@ -21419,6 +21625,11 @@ def rezept_lernen(rezept_id):
     return True
 
 def buecherregal():
+    while buecherregal_seite() != "zurueck":
+        pass
+
+
+def buecherregal_seite():
     ort_titel(
         "Dein Haus - Bücherregal"
     )
@@ -21489,7 +21700,7 @@ def buecherregal():
         sonder_tasten=()
     )
     if buch_auswahl == zurueck_nummer:
-        return
+        return "zurueck"
 
     if buch_auswahl == 1:
         ort_titel(
@@ -21784,6 +21995,11 @@ def buecherregal():
                 "östlichen Verlauf des Königsrings."
             )
 
+            text_ausgeben(
+                "Sie läuft in einem flachen Bogen und bricht am "
+                "Rand des Stücks ab."
+            )
+
             print()
 
             design_text(
@@ -21981,6 +22197,11 @@ def kochen(titel="Kochen"):
             if rezept_id in REZEPTE
         ]
 
+        rezept_pins = spieler.get("rezept_pins", [])
+        gelernte_rezepte.sort(
+            key=lambda rezept_id: rezept_id not in rezept_pins
+        )
+
         if not gelernte_rezepte:
             print(
                 "Du kennst momentan keine Rezepte."
@@ -22003,7 +22224,8 @@ def kochen(titel="Kochen"):
 
         for nummer, rezept_id in enumerate(gelernte_rezepte, start=1):
             rezept = REZEPTE[rezept_id]
-            print(f"{nummer}. {rezept['name']}")
+            pin_text = " ★" if rezept_id in rezept_pins else ""
+            print(f"{nummer}. {rezept['name']}{pin_text}")
             zutaten = ", ".join(
                 f"{anzahl}x {ITEMS[item_id]['name']} (vorhanden: {item_anzahl(item_id)})"
                 for item_id, anzahl in rezept["zutaten"].items()
@@ -22032,11 +22254,30 @@ def kochen(titel="Kochen"):
             f"{zurueck_nummer}. Zurück"
         )
 
+        print()
+        print("[P] Rezept anpinnen / lösen")
+
         auswahl = eingabe_menu(
             1,
             zurueck_nummer,
-            sonder_tasten=()
+            sonder_tasten=("p",)
         )
+
+        if auswahl == "p":
+            print()
+            print("Welches Rezept? (0 = Abbrechen)")
+            pin_nummer = eingabe_zahl(0, len(gelernte_rezepte))
+
+            if pin_nummer:
+                pin_id = gelernte_rezepte[pin_nummer - 1]
+                pins = spieler.setdefault("rezept_pins", [])
+
+                if pin_id in pins:
+                    pins.remove(pin_id)
+                else:
+                    pins.append(pin_id)
+
+            continue
 
         if auswahl == zurueck_nummer:
             return
@@ -22134,43 +22375,83 @@ def kochen(titel="Kochen"):
         if koch_auswahl == 2:
             continue
 
-        inventar_vorher = dict(spieler.get("inventar_items", {}))
-        zutaten_entfernt = all(
-            item_entfernen(item_id, anzahl)
-            for item_id, anzahl in rezept["zutaten"].items()
+        max_menge = min(
+            5,
+            min(
+                (
+                    item_anzahl(item_id) // anzahl
+                    for item_id, anzahl in rezept["zutaten"].items()
+                ),
+                default=1
+            )
         )
-        if not zutaten_entfernt or not item_hinzufuegen(
-            rezept["ergebnis"], rezept.get("anzahl", 1) + zusatzportion
-        ):
-            spieler["inventar_items"] = inventar_vorher
-            print("Die Zubereitung konnte nicht abgeschlossen werden. Deine Zutaten bleiben erhalten.")
-            warte_auf_taste("Zurück")
-            continue
+        menge = 1
 
-        koch_zubereitung_abschliessen(spieler, rezept_id)
-        if zusatzportion:
-            print("Vorratsküche: Eine zusätzliche Portion ist gelungen.")
+        if max_menge > 1:
+            print()
+            print(f"Wie oft zubereiten? (1-{max_menge}, 0 = Abbrechen)")
+            menge = eingabe_zahl(0, max_menge)
 
-        if koch_praxis_abschliessen(spieler, rezept_id):
-            print(f"Kochpraxis festgehalten: {rezept['name']}.")
-            if koch_praxis_fortschritt(spieler) == 2:
-                print("Erstes Kochpraxisziel abgeschlossen: zwei unterschiedliche Gerichte.")
+            if menge == 0:
+                continue
+
+        fertig = 0
+
+        for _durchgang in range(menge):
+            zusatzportion = koch_zusatzportion(spieler, rezept_id)
+            inventar_vorher = dict(spieler.get("inventar_items", {}))
+            zutaten_entfernt = all(
+                item_entfernen(item_id, anzahl)
+                for item_id, anzahl in rezept["zutaten"].items()
+            )
+            if not zutaten_entfernt or not item_hinzufuegen(
+                rezept["ergebnis"], rezept.get("anzahl", 1) + zusatzportion
+            ):
+                spieler["inventar_items"] = inventar_vorher
+                print("Die Zubereitung konnte nicht abgeschlossen werden. Deine Zutaten bleiben erhalten.")
+                break
+
+            koch_zubereitung_abschliessen(spieler, rezept_id)
+            if zusatzportion:
+                print("Vorratsküche: Eine zusätzliche Portion ist gelungen.")
+
+            if koch_praxis_abschliessen(spieler, rezept_id):
+                print(f"Kochpraxis festgehalten: {rezept['name']}.")
+                if koch_praxis_fortschritt(spieler) == 2:
+                    print("Erstes Kochpraxisziel abgeschlossen: zwei unterschiedliche Gerichte.")
+
+            fertig += 1
 
         print()
 
-        design_text(
-            f"{rezept['name']} zubereitet",
-            design="positiv",
-            art="menue"
-        )
+        if fertig:
+            design_text(
+                f"{rezept['name']} zubereitet"
+                + (f" (x{fertig})" if fertig > 1 else ""),
+                design="positiv",
+                art="menue"
+            )
 
         warte_auf_taste()
 
 def spielmenue():
+    global spieler
+
     while True:
         ort_titel(
             "Menü"
         )
+
+        fortschritt = level_fortschritt(spieler)
+
+        if fortschritt["aufstiegskosten"] is not None:
+            print(
+                f"Level {fortschritt['level']}: "
+                f"EXP {fortschritt['exp_im_level']}"
+                f"/{fortschritt['aufstiegskosten']}"
+                f" (noch {fortschritt['exp_bis_aufstieg']})"
+            )
+            print()
 
         print(
             "1. Weiterspielen"
@@ -22181,24 +22462,32 @@ def spielmenue():
         )
 
         print(
-            "3. Questlog/Erfolge"
+            "3. Kampfverlauf"
         )
 
         print(
-            "4. Spiel speichern"
+            "4. Questlog/Erfolge"
         )
 
         print(
-            "5. Optionen"
+            "5. Spiel speichern"
         )
 
         print(
-            "6. Speichern & Hauptmenü"
+            "6. Spiel laden"
+        )
+
+        print(
+            "7. Optionen"
+        )
+
+        print(
+            "8. Speichern & Hauptmenü"
         )
 
         menue_auswahl = eingabe_menu(
             1,
-            6,
+            8,
             sonder_tasten=()
         )
 
@@ -22209,19 +22498,39 @@ def spielmenue():
             textverlauf_anzeigen()
 
         elif menue_auswahl == 3:
-            questlog()
+            kampfsystem_verlauf_anzeigen()
 
         elif menue_auswahl == 4:
+            questlog()
+
+        elif menue_auswahl == 5:
             spiel_speichern(
                 spieler
             )
 
             warte_auf_taste()
 
-        elif menue_auswahl == 5:
+        elif menue_auswahl == 6:
+            slot = speicherplatz_auswahl_laden()
+
+            if slot is not None:
+                print()
+                print("Nicht gespeicherter Fortschritt geht verloren.")
+                print()
+                print("1. Spielstand laden")
+                print("2. Abbrechen")
+
+                if eingabe_menu(1, 2, sonder_tasten=()) == 1:
+                    geladen = spiel_laden(slot)
+
+                    if geladen is not None:
+                        spieler = geladen
+                        return
+
+        elif menue_auswahl == 7:
             optionen()
 
-        elif menue_auswahl == 6:
+        elif menue_auswahl == 8:
             if spiel_speichern(
                 spieler
             ):
@@ -22241,7 +22550,7 @@ def spielmenue():
             else:
                 warte_auf_taste()
 
-def prolog_haus():
+
     prolog_status = spieler.get(
         "prolog_status",
         "dorf_freigeschaltet"
@@ -23987,7 +24296,7 @@ def bjorn_waffenpflege():
     print("Verfehlen und Zauber verbrauchen keine Anwendung. Abwehrschaden erhält keinen Bonus.")
     print("Die Vorbereitung gilt für diese Waffe und verfällt mit dem nächsten Kampfende, auch bei Flucht.")
     if not schmied_waffenpflege_gelernt(spieler):
-        text_ausgeben("[Bjorn] Eine gute Schneide ist kein Zufall. Ich zeige dir, worauf du vor einem Kampf achten musst.")
+        text_ausgeben("[Bjorn] Eine gute Schneide ist kein Zufall. Ich zeig dir, was man vor einem Kampf mit ihr macht.")
         print("Die Technik zu lernen ist kostenlos. Jede spätere Vorbereitung kostet 2 Gold.")
         print()
         print("1. Waffenpflege lernen")
@@ -24881,6 +25190,28 @@ def lagerfeuer():
         elif feuer_auswahl == 3:
             return
 
+def inventar_neu_ids():
+    gesehen = spieler.get("inventar_gesehen")
+
+    if not isinstance(gesehen, list):
+        # Alte Spielstände: alles Vorhandene gilt beim ersten Öffnen als gesehen.
+        gesehen = list(spieler.get("inventar_items", {}))
+        spieler["inventar_gesehen"] = gesehen
+
+    return {
+        item_id
+        for item_id in spieler.get("inventar_items", {})
+        if item_id not in gesehen
+    }
+
+
+def inventar_als_gesehen(item_id):
+    gesehen = spieler.setdefault("inventar_gesehen", [])
+
+    if item_id not in gesehen:
+        gesehen.append(item_id)
+
+
 def gegenstaende_inventar():
     while True:
         ort_titel("Inventar - Gegenstände")
@@ -24933,20 +25264,36 @@ def gegenstaende_inventar():
             return
 
         print("Wähle einen Gegenstand:")
+        print("Neue Gegenstände sind grün, bis du sie ansiehst.")
         print()
 
+        neu_ids = inventar_neu_ids()
         nummer = 0
         for (titel, _), gruppe in zip(gruppen_definitionen, gruppen):
             if not gruppe:
                 continue
 
-            design_text(titel, design="wichtig", art="menue")
+            print("=" * 34)
+            design_text(
+                f"{titel} ({len(gruppe)})",
+                design="ort",
+                art="menue"
+            )
+            print("=" * 34)
             print()
             for item_id, anzahl in gruppe:
                 nummer += 1
                 item_daten = ITEMS[item_id]
                 menge_text = f" x{anzahl}" if anzahl > 1 else ""
-                print(f"{nummer}. {item_daten['name']}{menge_text}")
+                zeile = f"{nummer}. {item_daten['name']}{menge_text}"
+                if item_id in neu_ids:
+                    design_text(
+                        zeile + " [neu]",
+                        design="positiv",
+                        art="menue"
+                    )
+                else:
+                    print(zeile)
                 print(f"   {item_daten['typ']}")
             print()
 
@@ -24969,6 +25316,7 @@ def gegenstaende_inventar():
         ]
 
         item_daten = ITEMS[item_id]
+        inventar_als_gesehen(item_id)
 
         ort_titel(item_daten["name"])
 
@@ -25496,7 +25844,10 @@ def inventar():
         menue_trenner()
         print()
 
-        print("1. Gegenstände")
+        print(
+            "1. Gegenstände"
+            + (" [neu]" if inventar_neu_ids() else "")
+        )
         print("2. Heiltrank benutzen")
         print("3. Waffen")
         print("4. Ausrüstung")
@@ -26205,6 +26556,57 @@ def hilda_materialien_verkaufen():
     )
 
 
+def heiltraenke_kaufen(titel):
+    freie_plaetze = max(
+        0, heiltrank_limit() - spieler["heiltränke"]
+    )
+    max_heiltrank = min(spieler["gold"] // 25, freie_plaetze)
+
+    if freie_plaetze == 0:
+        design_text(
+            f"Du kannst höchstens {heiltrank_limit()} Heiltränke tragen.",
+            design="warnung", art="menue"
+        )
+        warte_auf_taste("Weiter")
+        return
+
+    if max_heiltrank == 0:
+        design_text(
+            "Du hast nicht genug Gold.",
+            design="warnung", art="menue"
+        )
+        warte_auf_taste("Weiter")
+        return
+
+    ort_titel(titel)
+    print("Preis: 25 Gold pro Heiltrank")
+    print(f"Gold: {spieler['gold']}")
+    print(
+        f"Heiltränke: {spieler['heiltränke']}/{heiltrank_limit()}"
+    )
+    print(f"Du kannst maximal {max_heiltrank} Heiltränke kaufen.")
+    print()
+    print("0. Zurück")
+    anzahl_heiltraenke = eingabe_zahl(0, max_heiltrank)
+
+    if anzahl_heiltraenke == 0:
+        return
+
+    if not handel_bestaetigen("Heiltrank", anzahl_heiltraenke, 25):
+        return
+
+    spieler["gold"] -= anzahl_heiltraenke * 25
+    spieler["heiltränke"] += anzahl_heiltraenke
+    design_text(
+        f"{anzahl_heiltraenke} Heiltränke gekauft",
+        design="positiv", art="menue"
+    )
+    print()
+    print(f"Heiltränke: {spieler['heiltränke']}")
+    print(f"Gold: {spieler['gold']}")
+    warte_auf_taste("Weiter")
+
+
 def hilda_handel():
     while True:
         ort_titel(
@@ -26232,14 +26634,18 @@ def hilda_handel():
             "2. Materialien verkaufen"
         )
 
-        zurueck_nummer = 3
+        print(
+            "3. Heiltrank kaufen"
+        )
+
+        zurueck_nummer = 4
 
         if tiefen_zukauf_offen():
             print(
-                "3. Lampenöl kaufen"
+                "4. Lampenöl kaufen"
             )
 
-            zurueck_nummer = 4
+            zurueck_nummer = 5
 
         print(
             f"{zurueck_nummer}. Zurück"
@@ -26261,6 +26667,11 @@ def hilda_handel():
             return
 
         elif auswahl == 3:
+            heiltraenke_kaufen(
+                "Marktplatz - Hildas Heiltränke"
+            )
+
+        elif auswahl == 4:
             haendler_kaufen(
                 "Marktplatz - Hildas Lampenöl",
                 (
@@ -26711,7 +27122,7 @@ def mara_glutkrieger_portion():
         print("Du benötigst eines der fünf gekochten Gerichte im Inventar.")
         warte_auf_taste("Zurück")
         return
-    text_ausgeben("[Mara] Eine Portion für unterwegs. Iss sie, wenn du ihre Kraft im Kampf brauchst.")
+    text_ausgeben("[Mara] Eine Portion für unterwegs. Heb sie dir für den Moment auf, in dem du Kraft brauchst.")
     print("Ein Gericht wird in eine Kampfportion umgewandelt; dabei erhältst du noch keine Heilung oder Nahrungseffekte.")
     print("Die unbenutzte Portion bleibt gespeichert. Höchstens eine Portion kann vorbereitet sein.")
     print()
@@ -26745,7 +27156,7 @@ def mara_glutkrieger():
         print("Beende zuerst deine andere anstehende Hybridprüfung.")
         warte_auf_taste("Zurück")
         return
-    text_ausgeben("[Mara] Teil dir deine Vorräte ein. Das gilt am Feuer genauso wie im Kampf.")
+    text_ausgeben("[Mara] Teil dir deine Vorräte ein. Am Feuer wie unterwegs.")
     print("Kampfportion [G]: 20 Leben heilen und für die drei Folgerunden +3 Waffenschaden; eine normale Kampfrunde.")
     print("Kraftschub [B]: Angriff 1 mit +60 % Waffenschaden während der Stärkung. Beendet danach den übrigen Schadensbonus, auch bei Verfehlen.")
     print("Nachwärme: in den drei Folgerunden jeweils 3 Leben regenerieren, auch nach Kraftschub.")
@@ -26858,7 +27269,7 @@ def mara_koch_ausbildung():
             return
         else:
             print(f"Eigene Gerichte: {fortschritt}/2 verschiedene")
-            text_ausgeben("[Mara] Bereite nach der Ausbildung zwei unterschiedliche Gerichte selbst zu. Nutze die Rezepte, die du schon kennst. Zu Hause oder am Lagerfeuer geht beides.")
+            text_ausgeben("[Mara] Koch zwei verschiedene Gerichte, mit Rezepten, die du schon kennst. Am Herd daheim oder am Lagerfeuer, ganz egal.")
         warte_auf_taste("Zurück")
         return
     text_ausgeben("Mara führt dich an den Küchentisch. Neben einem Brett liegen Gemüse und ein sauberer Löffel.")
@@ -27023,6 +27434,13 @@ def gasthaus():
             )
         )
 
+        optionen.append(
+            (
+                "heiltrank",
+                "Bei Mara Heiltränke kaufen"
+            )
+        )
+
     if spieler.get("prolog_status") == "prolog_abgeschlossen":
         optionen.append(("kochausbildung", "Bei Mara den Beruf Koch lernen"))
 
@@ -27139,6 +27557,9 @@ def gasthaus():
 
     elif aktion == "proviant":
         mara_proviant_kaufen()
+
+    elif aktion == "heiltrank":
+        heiltraenke_kaufen("Gasthaus - Maras Heiltränke")
     elif aktion == "zimmer":
         gasthaus_zimmer()
 
@@ -27246,7 +27667,7 @@ def bjorn_herstellungsmenue():
          "Das stärkste Beil.", lambda: bjorn_revierwaffe_herstellen("glutbeil")),
         ("Scherenhammer", 40, "1x Riesenschere + 2x Krebsschere + 3x Holz",
          "Schaden: 16–24 | Wendigkeit: 1 | Parade: 1 | Reichweite: 1",
-         "Einscherer am Wrackstrand (selten), Gezeitenkrebse, Holzsuche.",
+         "Kielbrecher am Wrackstrand (selten), Gezeitenkrebse, Holzsuche.",
          "Ein Hammer mit Hammerfähigkeiten, schwächer als der Hammer des Weges.",
          lambda: bjorn_revierwaffe_herstellen("scherenhammer")),
         ("Geweihspeer", 35, "1x Blasses Geweih + 2x Hirschgeweih + 2x Holz",
@@ -27585,77 +28006,37 @@ def schmiede():
             ]["kaufpreis"]
 
             print(f"Gold: {spieler['gold']}")
-            print(f"Heiltränke: {spieler['heiltränke']}")
             print()
             design_text("KAUFEN", design="wichtig", art="menue")
             print()
-            print("1. Heiltrank - 25 Gold")
-            print(f"2. Gepolsterte Lederweste - {lederweste_preis} Gold")
+            print(f"1. Gepolsterte Lederweste - {lederweste_preis} Gold")
             print(f"   Schutz: {AUSRUESTUNGS_GEGENSTAENDE['gepolsterte_lederweste']['schutz']}")
             print("   Nach dem Kauf im Inventar unter Ausrüstung anlegen.")
             print()
             seil_extra = 1 if tiefen_zukauf_offen() else 0
             if seil_extra:
-                print(f"3. Seil - {TIEFEN_ZUKAUF_PREISE['seil']} Gold")
+                print(f"2. Seil - {TIEFEN_ZUKAUF_PREISE['seil']} Gold")
                 print()
             print("Den Einfachen Speer kannst du unter Herstellen anfertigen lassen.")
             print()
             design_text("VERKAUFEN", design="wichtig", art="menue")
             print()
-            print(f"{3 + seil_extra}. Waffe verkaufen")
-            print(f"{4 + seil_extra}. Zurück")
+            print(f"{2 + seil_extra}. Waffe verkaufen")
+            print(f"{3 + seil_extra}. Zurück")
 
-            kaufen_auswahl = eingabe_menu(1, 4 + seil_extra, sonder_tasten=())
+            kaufen_auswahl = eingabe_menu(1, 3 + seil_extra, sonder_tasten=())
 
-            if seil_extra and kaufen_auswahl == 3:
+            if seil_extra and kaufen_auswahl == 2:
                 haendler_kaufen(
                     "Bjorns Schmiede - Seil",
                     "[Bjorn] Gutes Hanfseil. Das hält mehr aus als dich.",
                     tiefen_zukauf_sortiment(("seil",))
                 )
                 continue
-            if seil_extra and kaufen_auswahl > 3:
+            if seil_extra and kaufen_auswahl > 2:
                 kaufen_auswahl -= 1
 
             if kaufen_auswahl == 1:
-                freie_plaetze = max(
-                    0, heiltrank_limit() - spieler["heiltränke"]
-                )
-                max_heiltrank = min(spieler["gold"] // 25, freie_plaetze)
-
-                if freie_plaetze == 0:
-                    design_text(
-                        f"Du kannst höchstens {heiltrank_limit()} Heiltränke tragen.",
-                        design="warnung", art="menue"
-                    )
-                    warte_auf_taste("Weiter")
-                elif max_heiltrank == 0:
-                    design_text("Du hast nicht genug Gold.",
-                                design="warnung", art="menue")
-                    warte_auf_taste("Weiter")
-                else:
-                    ort_titel("Bjorns Schmiede - Heiltränke kaufen")
-                    print("Preis: 25 Gold pro Heiltrank")
-                    print(f"Gold: {spieler['gold']}")
-                    print(f"Heiltränke: {spieler['heiltränke']}/{heiltrank_limit()}")
-                    print(f"Du kannst maximal {max_heiltrank} Heiltränke kaufen.")
-                    print()
-                    print("0. Zurück")
-                    anzahl_heiltraenke = eingabe_zahl(0, max_heiltrank)
-                    if anzahl_heiltraenke == 0:
-                        continue
-                    if not handel_bestaetigen("Heiltrank", anzahl_heiltraenke, 25):
-                        continue
-                    spieler["gold"] -= anzahl_heiltraenke * 25
-                    spieler["heiltränke"] += anzahl_heiltraenke
-                    design_text(f"{anzahl_heiltraenke} Heiltränke gekauft",
-                                design="positiv", art="menue")
-                    print()
-                    print(f"Heiltränke: {spieler['heiltränke']}")
-                    print(f"Gold: {spieler['gold']}")
-                    warte_auf_taste("Weiter")
-
-            elif kaufen_auswahl == 2:
                 if ausruestungsgegenstand_besitzt("gepolsterte_lederweste"):
                     design_text("Du besitzt diese Rüstung bereits.",
                                 design="warnung", art="menue")
@@ -27678,9 +28059,9 @@ def schmiede():
                     print(f"Gold: {spieler['gold']}")
                     warte_auf_taste("Weiter")
 
-            elif kaufen_auswahl == 3:
+            elif kaufen_auswahl == 2:
                 waffe_verkaufen()
-            elif kaufen_auswahl == 4:
+            elif kaufen_auswahl == 3:
                 break
 
 
@@ -30479,7 +30860,7 @@ def oros_zentrale_halle():
 
     # Die Krankenstube ist immer erreichbar (Wundsalbe).
     krankenstube_option = naechste_option
-    print(f"{naechste_option}. Zur Krankenstube gehen [K]")
+    print(f"{naechste_option}. Zur Krankenstube gehen")
     naechste_option += 1
 
     versorgungshof_option = None
@@ -30488,7 +30869,7 @@ def oros_zentrale_halle():
         "entscheidung_offen", "abgeschlossen"
     ):
         versorgungshof_option = naechste_option
-        print(f"{naechste_option}. Zum Versorgungshof gehen [V]")
+        print(f"{naechste_option}. Zum Versorgungshof gehen")
         naechste_option += 1
 
 
@@ -30512,18 +30893,14 @@ def oros_zentrale_halle():
     auswahl = eingabe_menu(
         1,
         maximale_option,
-        sonder_tasten=("s", "i", "j", "t", "q") + (
-            ("k",) if krankenstube_option is not None else ()
-        ) + (
-            ("v",) if versorgungshof_option is not None else ()
-        )
+        sonder_tasten=("s", "i", "j", "t", "q")
     )
 
-    if krankenstube_option is not None and auswahl in (krankenstube_option, "k"):
+    if krankenstube_option is not None and auswahl == krankenstube_option:
         oros_krankenstube()
         return
 
-    if versorgungshof_option is not None and auswahl in (versorgungshof_option, "v"):
+    if versorgungshof_option is not None and auswahl == versorgungshof_option:
         oros_versorgungshof()
         return
 
@@ -34814,11 +35191,10 @@ def oros_archiv():
     print()
 
     if oros_listen_entscheidung_holen() == "levin_beschuldigt":
-        print("[L] Levins früheren Arbeitsplatz ansehen")
+        levin_text = "Levins früheren Arbeitsplatz ansehen"
     else:
-        print("[L] Mit Levin sprechen")
+        levin_text = "Mit Levin sprechen"
 
-    print()
     if schutz_siegelordnung_offen():
         print("1. Mit Ignaz sprechen [!]")
     else:
@@ -34839,10 +35215,13 @@ def oros_archiv():
             "3. Nach dem alten Katalogeintrag "
             "zu Bauabschnitt IV suchen [!]"
         )
+        print(f"4. {levin_text}")
         print(
-            "4. Zurück in die zentrale Halle"
+            "5. Zurück in die zentrale Halle"
         )
-        maximale_option = 4
+        levin_option = 4
+        zurueck_option = 5
+        maximale_option = 5
 
     elif (
         spieler.get(
@@ -34857,10 +35236,13 @@ def oros_archiv():
         print(
             "3. Nach Akten zum Ausbau des inneren Rings suchen [!]"
         )
+        print(f"4. {levin_text}")
         print(
-            "4. Zurück in die zentrale Halle"
+            "5. Zurück in die zentrale Halle"
         )
-        maximale_option = 4
+        levin_option = 4
+        zurueck_option = 5
+        maximale_option = 5
 
     elif (
         spieler.get(
@@ -34875,8 +35257,11 @@ def oros_archiv():
         print(
             "3. Nach alten Wegstations-Abschriften suchen [!]"
         )
-        print("4. Zurück in die zentrale Halle")
-        maximale_option = 4
+        print(f"4. {levin_text}")
+        print("5. Zurück in die zentrale Halle")
+        levin_option = 4
+        zurueck_option = 5
+        maximale_option = 5
 
     elif (
         spieler.get(
@@ -34891,12 +35276,18 @@ def oros_archiv():
         print(
             "3. Nach älteren Verwaltungsplänen von Oros suchen [!]"
         )
-        print("4. Zurück in die zentrale Halle")
-        maximale_option = 4
+        print(f"4. {levin_text}")
+        print("5. Zurück in die zentrale Halle")
+        levin_option = 4
+        zurueck_option = 5
+        maximale_option = 5
 
     else:
-        print("3. Zurück in die zentrale Halle")
-        maximale_option = 3
+        print(f"3. {levin_text}")
+        print("4. Zurück in die zentrale Halle")
+        levin_option = 3
+        zurueck_option = 4
+        maximale_option = 4
 
     print()
     print("[S] Status")
@@ -34908,12 +35299,9 @@ def oros_archiv():
     auswahl = eingabe_menu(
         1,
         maximale_option,
-        sonder_tasten=("l", "s", "i", "j", "t", "q")
+        sonder_tasten=("s", "i", "j", "t", "q")
     )
 
-    if auswahl == "l":
-        dialog_levin()
-        return
     if auswahl == "s":
         status()
         return
@@ -35593,10 +35981,11 @@ def oros_archiv():
             "Weiter"
         )
 
-    elif (
-        auswahl == 3
-        or auswahl == 4
-    ):
+    elif auswahl == levin_option:
+        dialog_levin()
+        return
+
+    elif auswahl == zurueck_option:
         spieler[
             "ort"
         ] = "oros_zentrale_halle"
@@ -45727,6 +46116,18 @@ def dialog_tomas():
                     "darauf nicht völlig bedeutungslos geworden sind."
                 )
 
+                print()
+
+                text_ausgeben(
+                    "[Tomas] Ring heißt die Straße, weil sie einmal "
+                    "einer war. So hieß es, als ich klein war."
+                )
+
+                text_ausgeben(
+                    "[Tomas] Welcher König gemeint ist, wusste schon "
+                    "damals keiner."
+                )
+
             else:
                 text_ausgeben(
                     f'[{spieler["name"]}] '
@@ -54869,7 +55270,28 @@ def caelen_huette():
         for nummer, (_, text) in enumerate(optionen, start=1):
             print(f"{nummer}. {text}")
 
-        aktion = optionen[eingabe_menu(1, len(optionen), sonder_tasten=()) - 1][0]
+        print()
+        print("[S] Status")
+        print("[I] Inventar")
+        print("[J] Questlog/Erfolge")
+        print("[T] Talente")
+        print("[Q] Speichern / Menü")
+
+        auswahl = eingabe_menu(
+            1,
+            len(optionen),
+            sonder_tasten=("s", "i", "j", "t", "q")
+        )
+
+        if auswahl == "q":
+            spielmenue()
+            return
+
+        if auswahl in ("s", "i", "j", "t"):
+            hilfsmenue_oeffnen(auswahl)
+            continue
+
+        aktion = optionen[auswahl - 1][0]
         print()
 
         if aktion == "zurueck":
@@ -56899,6 +57321,10 @@ def chronik_schubladen():
     text_ausgeben(
         "Ob der Name bewusst weggelassen wurde oder jemand ihn vergessen hat, "
         "lässt sich aus den Listen nicht erkennen."
+    )
+    text_ausgeben(
+        "Am Rand des älteren Blatts steht in kleiner Schrift: „Südbogen des "
+        "alten Rings.“"
     )
 
     if "lindweil_blatt" not in daten:
@@ -65582,14 +66008,14 @@ REVIERHERREN = {
         "taste": "Zum Pfad des Vergessens"
     },
     "wrackstrand": {
-        "herr": "Einscherer",
+        "herr": "Kielbrecher",
         "texte": (
             "Zwischen den Rippen des alten Boots liegt ein Krebs, größer als "
             "ein Fass. Eine seiner Scheren ist abgebrochen, die andere umso gewaltiger.",
             "Er schiebt sich langsam aus dem Wrack."
         ),
-        "titel": "Der Einscherer",
-        "zurueck": "Du weichst über die Steine zurück. Der Einscherer zieht sich ins Wrack zurück.",
+        "titel": "Der Kielbrecher",
+        "zurueck": "Du weichst über die Steine zurück. Der Kielbrecher zieht sich ins Wrack zurück.",
         "taste": "Zum Wrackstrand"
     },
     "ried": {
@@ -68105,11 +68531,8 @@ def wald_seitenpfad_navigieren(
         menue_trenner()
         print()
 
-        optionen = []
-
-        # -------------------------
-        # AKTIONEN AM ORT
-        # -------------------------
+        optionen = [("karte", None)]
+        print("1. Karte ansehen")
 
         for aktion_id, text in aktionen:
             optionen.append(
@@ -68123,21 +68546,6 @@ def wald_seitenpfad_navigieren(
                 f"{len(optionen)}. "
                 f"{text}"
             )
-
-        # -------------------------
-        # KARTE
-        # -------------------------
-
-        optionen.append(
-            (
-                "karte",
-                None
-            )
-        )
-
-        print(
-            f"{len(optionen)}. Karte ansehen"
-        )
 
         # -------------------------
         # WEGE
@@ -68168,6 +68576,7 @@ def wald_seitenpfad_navigieren(
             print("[Schritt]: Blutung, Gift und Mahlzeit-Wirkungen laufen dabei einen Schritt weiter.")
 
         print()
+        print("[K] Gebietskarte")
         print("[S] Status")
         print("[I] Inventar")
         print("[J] Questlog/Erfolge")
@@ -68177,8 +68586,13 @@ def wald_seitenpfad_navigieren(
         auswahl = eingabe_menu(
             1,
             len(optionen),
-            sonder_tasten=("s", "i", "j", "t", "q")
+            sonder_tasten=("k", "s", "i", "j", "t", "q")
         )
+
+        if auswahl == "k":
+            wald_gebietskarte_anzeigen()
+            hilfsmenue_rueckkehr = True
+            continue
 
         if auswahl in ("s", "i", "j", "t", "q"):
             spieler_vor_menue = spieler
@@ -68214,6 +68628,7 @@ def wald_seitenpfad_navigieren(
 
         if typ == "karte":
             wald_gebietskarte_anzeigen()
+            hilfsmenue_rueckkehr = True
             continue
 
         # -------------------------
@@ -68479,11 +68894,21 @@ def reise_umgebung_erkunden():
             f"{zurueck_nummer}. Zurück"
         )
 
+        print()
+        print("[S] Status")
+        print("[I] Inventar")
+        print("[J] Questlog/Erfolge")
+        print("[T] Talente")
+
         auswahl = eingabe_menu(
             1,
             zurueck_nummer,
-            sonder_tasten=()
+            sonder_tasten=("s", "i", "j", "t")
         )
+
+        if auswahl in ("s", "i", "j", "t"):
+            hilfsmenue_oeffnen(auswahl)
+            continue
 
         if auswahl == zurueck_nummer:
             return
@@ -68635,6 +69060,17 @@ def lagerfeuer_nacht():
     return True
 
 
+def hilfsmenue_oeffnen(taste):
+    if taste == "s":
+        status()
+    elif taste == "i":
+        inventar()
+    elif taste == "j":
+        questlog()
+    elif taste == "t":
+        talentmenue()
+
+
 def reise_rasten():
     while True:
         ort_titel(
@@ -68658,11 +69094,21 @@ def reise_rasten():
         print("2. Die Nacht am Feuer verbringen")
         print("3. Zurück")
 
+        print()
+        print("[S] Status")
+        print("[I] Inventar")
+        print("[J] Questlog/Erfolge")
+        print("[T] Talente")
+
         auswahl = eingabe_menu(
             1,
             3,
-            sonder_tasten=()
+            sonder_tasten=("s", "i", "j", "t")
         )
+
+        if auswahl in ("s", "i", "j", "t"):
+            hilfsmenue_oeffnen(auswahl)
+            continue
 
         if auswahl == 1:
             lagerfeuer()

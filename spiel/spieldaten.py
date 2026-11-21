@@ -463,7 +463,7 @@ ITEMS = {
         "name": "Riesenschere",
         "typ": "Material",
         "beschreibung": (
-            "Die gewaltige verbliebene Schere des Einscherers. "
+            "Die gewaltige verbliebene Schere des Kielbrechers. "
             "Bjorn kann daraus einen Scherenhammer schmieden."
         )
     },
@@ -660,7 +660,7 @@ KAMPF_BEUTE = {
         ]
     },
 
-    "Einscherer": {
+    "Kielbrecher": {
         "gold_min": 0,
         "gold_max": 0,
         "items": [
@@ -1505,7 +1505,7 @@ ERFOLGE = {
         "name": "Die eine Schere",
         "kategorie": "jagd",
         "verborgen": True,
-        "beschreibung": "Den Einscherer am Wrackstrand besiegt."
+        "beschreibung": "Den Kielbrecher am Wrackstrand besiegt."
     },
     "herr_der_reviere": {
         "name": "Herr der Reviere",
@@ -1691,7 +1691,7 @@ JAGDBUCH = {
         },
         "beute": "Uraltschiefer und Schieferplatten."
     },
-    "Einscherer": {
+    "Kielbrecher": {
         "beschreibung": "Gewaltiger Krebs mit nur einer Schere. Haust im alten Bootswrack am Wrackstrand. Zeigt sich nur selten.",
         "verhalten": {
             "krebs_packen": "Packt oft zu und hält bis zu drei Runden fest: in der Folgerunde verteidigen.",

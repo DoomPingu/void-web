@@ -545,6 +545,90 @@ function zeilenFarbe(z) {
 const KV_ICON = { Gold: "🪙", Lebenspunkte: "❤️", HP: "❤️", "Heiltränke": "🧪", Fackeln: "🔥", Diamanten: "💎", Level: "⭐",
   "Besiegte Gegner": "☠️", Spielzeit: "⏱", Waffe: "⚔️", "Aktuelle Waffe": "⚔️", "Gesamt-EXP": "✨", "Freie Talentpunkte": "🌟", Name: "👤", Grundklasse: "🛡️" };
 const TASTENHINWEIS =/^\s*(Mit \[?[SIJTQ]\]? (öffnest du|sicherst du)\b|Textgeschwindigkeit\s*(:|$))/;
+// Gebietskarten (Alter Seitenpfad, Alte Wegstation, Versunkene Chronik, Archiv der Schatten): Das Spiel gibt sie als
+// Textbild mit festen Spalten aus, z. B. ">Vorhof<────[Halle]". In der Leseansicht wird daraus eine Grafik: Räume als
+// Kästen, Linien als Linien. Spalten, in denen nur Linien liegen, werden gestaucht, damit die Karte in die Breite des
+// Handys passt und die Namen groß bleiben. Die Anordnung der Räume bleibt genau wie im Spiel.
+function planZeichnen(roh, breite) {
+  const zeilen = roh.slice();
+  while (zeilen.length && !zeilen[0].trim()) zeilen.shift();
+  while (zeilen.length && !zeilen[zeilen.length - 1].trim()) zeilen.pop();
+  if (!zeilen.length) return "";
+  const W = Math.max(...zeilen.map((z) => z.length));
+  const g = zeilen.map((z) => z.padEnd(W));
+  const H = g.length;
+  const raum = g.map(() => new Array(W).fill(null));
+  const raeume = [];
+  g.forEach((z, y) => {
+    const re = /\[[^\]]*\]|>[^<>]*</g;
+    let m;
+    while ((m = re.exec(z))) {
+      const r = { y, a: m.index, b: m.index + m[0].length, name: m[0].slice(1, -1), hier: m[0][0] === ">" };
+      raeume.push(r);
+      for (let x = r.a; x < r.b; x++) raum[y][x] = r;
+    }
+  });
+  if (!raeume.length) return "";
+  const links = Math.min(...g.map((z) => { const i = z.search(/\S/); return i < 0 ? W : i; }));
+  // Spaltenbreiten in Zeichen-Einheiten: Raumtext voll, senkrechte Linie halb, waagrechte Linie und Leerraum schmal.
+  const cw = [];
+  for (let x = 0; x < W; x++) {
+    let art = 0;
+    for (let y = 0; y < H; y++) {
+      const c = g[y][x];
+      if (raum[y][x]) art = Math.max(art, 3); else if (c === "│") art = Math.max(art, 2); else if (c !== " ") art = Math.max(art, 1);
+    }
+    cw.push(x < links ? 0 : [0.12, 0.22, 0.5, 1][art]);
+  }
+  const einheiten = cw.reduce((a, b) => a + b, 0);
+  const u = Math.max(4.5, Math.min(10.5, (breite - 4) / einheiten));
+  const X = [0];
+  cw.forEach((w) => X.push(X[X.length - 1] + w * u));
+  // Zeilenhöhen: Zeile mit Räumen hoch, Zeile nur mit Linien niedrig.
+  const rh = g.map((z, y) => (raum[y].some(Boolean) ? 34 : z.trim() ? 15 : 6));
+  const Y = [0];
+  rh.forEach((h) => Y.push(Y[Y.length - 1] + h));
+  // Eine Schriftgröße für alle Räume: so groß, dass der längste Name in seinen Kasten passt.
+  let schrift = 15;
+  raeume.forEach((r) => {
+    const platz = X[r.b] - X[r.a] - 8;
+    schrift = Math.min(schrift, platz / Math.max(1, r.name.length * 0.56));
+  });
+  schrift = Math.max(8.5, Math.round(schrift * 10) / 10);
+  const zeichen = (y, x) => (y < 0 || y >= H || x < 0 || x >= W ? " " : raum[y][x] ? "#" : g[y][x]);
+  let linien = "", sonst = "";
+  for (let y = 0; y < H; y++) {
+    const my = (Y[y] + Y[y + 1]) / 2;
+    for (let x = 0; x < W; x++) {
+      if (raum[y][x]) continue;
+      const c = g[y][x], mx = (X[x] + X[x + 1]) / 2;
+      const waag = c === "─" || (c === "│" && zeichen(y, x - 1) === "─" && zeichen(y, x + 1) === "─");
+      const senk = c === "│" || (c === "─" && zeichen(y - 1, x) === "│" && zeichen(y + 1, x) === "│");
+      if (waag) linien += "M" + (X[x] - 2) + "," + my + " H" + (X[x + 1] + 2) + " ";
+      if (senk) linien += "M" + mx + "," + (Y[y] - 4) + " V" + (Y[y + 1] + 4) + " ";
+      if (c === " ") {
+        // Ecke: Das Spiel lässt das Feld frei, an dem eine waagrechte Linie in eine senkrechte übergeht.
+        const vonLinks = zeichen(y, x - 1) === "─", vonRechts = zeichen(y, x + 1) === "─";
+        const hoch = zeichen(y - 1, x) === "│" || (zeichen(y - 1, x) === "#" && zeichen(y + 1, x) !== "│" && zeichen(y + 1, x) !== "#");
+        const runter = zeichen(y + 1, x) === "│" || (zeichen(y + 1, x) === "#" && zeichen(y - 1, x) !== "│" && zeichen(y - 1, x) !== "#");
+        if ((vonLinks !== vonRechts) && (hoch !== runter)) {
+          linien += "M" + (vonLinks ? X[x] - 2 : X[x + 1] + 2) + "," + my + " H" + mx + " V" + (hoch ? Y[y] - 4 : Y[y + 1] + 4) + " ";
+        }
+      } else if (c !== "─" && c !== "│") {
+        sonst += '<text class="frei" x="' + mx + '" y="' + (my + 4) + '">' + esc(c) + "</text>";
+      }
+    }
+  }
+  const kaesten = raeume.map((r) => {
+    const x = X[r.a] + 1, w = X[r.b] - X[r.a] - 2, y = Y[r.y] + 4, h = rh[r.y] - 8;
+    const klasse = r.hier ? "hier" : r.name === "?" ? "offen" : "besucht";
+    return '<g class="raum ' + klasse + '"><rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="7"/>' +
+      '<text x="' + (x + w / 2) + '" y="' + (y + h / 2 + schrift * 0.36) + '" font-size="' + schrift + '">' + esc(r.name) + "</text></g>";
+  }).join("");
+  const bw = X[W] - X[links], bh = Y[H];
+  return '<svg class="plan" viewBox="' + (X[links] - 3) + " -4 " + (bw + 6) + " " + (bh + 8) + '" width="' + Math.round(bw + 6) + '" height="' + Math.round(bh + 8) +
+    '" role="img" aria-label="Gebietskarte"><path class="linie" d="' + linien + '"/>' + sonst + kaesten + "</svg>";
+}
 function leseRendern() {
   const buf = termRef.buffer.active;
   const lese = document.getElementById("lese");
@@ -613,6 +697,18 @@ function leseRendern() {
     if (art[i] !== "peilkopf") continue;
     for (let j = i + 1; j < art.length && /^\S.{0,27}?\s{2,}\S+\s+\S+(?: \S+){0,2}\s*$/.test(zeilen[j].text); j++) art[j] = "peilzeile";
   }
+  // Gebietskarte: Alles zwischen dem Titel "GEBIETSKARTE - ..." und der nächsten Trennlinie ist das Textbild der Karte.
+  for (let i = 1; i < art.length - 1; i++) {
+    if (!/^\s*GEBIETSKARTE - /i.test(zeilen[i].text) || art[i - 1] !== "hr" || art[i + 1] !== "hr") continue;
+    let j = i + 2;
+    while (j < art.length && art[j] !== "hr") j++;
+    if (!zeilen.slice(i + 2, j).some((z) => /\[[^\]]*\]|>[^<>]*</.test(z.text))) continue;
+    for (let k = i + 2; k < j; k++) art[k] = k === i + 2 ? "plan" : "planrest";
+    art.planEnde = j;
+    for (let k = j; k < art.length; k++) {
+      if (/^\s*(>XX<|\[XX\]|\[\?\]) = /.test(zeilen[k].text)) art[k] = "planleg";
+    }
+  }
   // Quest-Namen: eine Textzeile direkt über "Ziel: …" oder einem Status-Schild.
   art.forEach((a, i) => {
     if (a !== "erzaehl") return;
@@ -648,6 +744,21 @@ function leseRendern() {
     if (a === "wahl" && (y < start || listeAus) && !mitInfo.has(i)
       && (/^\s*(\d{1,2}[.)]|\[[A-Za-z]\]|[A-Z][.)])\s/.test(t) || /^Auswahl\b/.test(t) || /^\s*\[Beliebige Taste\]/.test(t) || /^\s*>\s*\S{0,3}\s*$/.test(t))) return;
     if (a === "kampfzeile" && aktuellerGegner) return;   // steht schon als Balken oben
+    if (a === "planrest") return;
+    if (a === "plan") {
+      if (!markiert && y >= start) { html += '<i id="lesemarke"></i>'; markiert = true; }
+      const svg = planZeichnen(zeilen.slice(i, art.planEnde).map((x) => x.text.replace(/\s+$/, "")), Math.min(560, (lese.clientWidth || innerWidth) - 28));
+      html += svg ? '<div class="planrahmen">' + svg + "</div>" : '<pre class="logo">' + esc(zeilen.slice(i, art.planEnde).map((x) => x.text).join("\n")) + "</pre>";
+      vorherLeer = false;
+      return;
+    }
+    if (a === "planleg") {
+      const m = t.trim().match(/^(>XX<|\[XX\]|\[\?\]) = (.*)$/);
+      const klasse = m[1] === ">XX<" ? "hier" : m[1] === "[?]" ? "offen" : "besucht";
+      html += (art[i - 1] === "planleg" ? "" : '<div class="planleg">') + '<span><i class="' + klasse + '">' + (klasse === "offen" ? "?" : "") + "</i>" + esc(m[2]) + "</span>" + (art[i + 1] === "planleg" ? "" : "</div>");
+      vorherLeer = false;
+      return;
+    }
     if (a === "leer") { if (!vorherLeer) html += '<div class="abstand"></div>'; vorherLeer = true; return; }
     vorherLeer = false;
     if (a !== "rede") letzterSprecher = "";
@@ -921,7 +1032,7 @@ const KARTE_ORTE = [
   { id: "koehlerei", name: "Köhlerei", sym: "🔥", x: 66, y: 222, t: [0, 38, "middle"], hier: /k[oö]e?hlerei|brandschneise/i, besucht: /k[oö]e?hlerei/i, knopf: /K[öo]e?hlerei/ },
   { id: "oros", name: "Oros", sym: "🏛️", x: 160, y: 118, t: [30, 4, "start"], hier: /oros|tiefen|universit/i, besucht: /oros|tiefen|universit/i, knopf: /Oros|Universit|Faden/ },
   { id: "dorf", name: "Verlassenes Dorf", sym: "🏚️", x: 160, y: 352, t: [30, 4, "start"], hier: /verlassenes_dorf|verlassenes dorf|alte_schmiede|alte schmiede|lagerkeller|huette/i, besucht: /dorf|alte_schmiede|lagerkeller/i, knopf: /Dorf|Pfad des Vergessens/ },
-  { id: "hafen", name: "Letzthafen", sym: "⚓", x: 272, y: 262, t: [0, 38, "middle"], hier: /letzthafen|wrackstrand|edda|namenstein|leuchtfeuer|klippe/i, besucht: /letzthafen|hafen|wrack|edda/i, knopf: /Letzthafen|K[öo]nigsring/ },
+  { id: "hafen", name: "Letzthafen", sym: "⚓", x: 272, y: 262, t: [8, -34, "middle"], hier: /letzthafen|wrackstrand|edda|namenstein|leuchtfeuer|klippe/i, besucht: /letzthafen|hafen|wrack|edda/i, knopf: /Letzthafen|K[öo]nigsring/ },
   { id: "chronik", spaet: true, name: "Versunkene Chronik", sym: "📜", x: 62, y: 372, t: [0, 38, "middle"], hier: /versunkene_chronik/i, besucht: /versunkene_chronik/i, knopf: /Versunkene Chronik|alten Straße hinter der Schmiede|Tiefen Ring zur Chronik/ },
   { id: "schattenarchiv", spaet: true, name: "Archiv der Schatten", sym: "🕯️", x: 160, y: 36, t: [30, 4, "start"], hier: /archiv_schatten/i, besucht: /archiv_schatten/i, knopf: /Archiv der Schatten/ },
   { id: "brunnfeld", spaet: true, name: "Brunnfeld", sym: "⛲", x: 268, y: 150, t: [0, 38, "middle"], hier: /brunnfeld/i, besucht: /brunnfeld/i, knopf: /Läuferpfad . Brunnfeld|Richtung Brunnfeld/ },
@@ -942,8 +1053,12 @@ const KARTE_ORTE = [
 const KARTE_WEGE = [
   { von: "eichenruh", nach: "koehlerei", name: "Waldweg", n: [116, 228, 15] },
   { von: "eichenruh", nach: "oros", name: "Faden der Erinnerung", n: [152, 192, 0, "end"] },
-  { von: "eichenruh", nach: "dorf", name: "Pfad des Vergessens", n: [152, 306, 0, "end"] },
-  { von: "eichenruh", nach: "hafen", name: "Königsring", n: [220, 248, 7] },
+  // Der Königsring ist ein Ring südöstlich von Eichenruh (Beschluss vom 21.11.): erhalten ist das Nordostviertel nach
+  // Letzthafen, der Pfad des Vergessens ist das vergessene Westviertel, der gekappte Ostarm der verlorene Südbogen.
+  // Der Südbogen erscheint erst, wenn die Chronik bekannt ist, denn dort erfährt man vom Ostarm.
+  { von: "dorf", nach: "eichenruh", name: "Pfad des Vergessens", d: "M160,352 A72.4,72.4 0 0 1 160,248", n: [132, 305, 0, "end"] },
+  { von: "eichenruh", nach: "hafen", name: "Königsring", d: "M160,248 A72.4,72.4 0 0 1 272,262", n: [213, 220, 4] },
+  { von: "hafen", nach: "dorf", name: "Ostarm", d: "M272,262 A72.4,72.4 0 0 1 160,352", n: [214, 387, 0], verloren: true, ab: "chronik" },
   { von: "dorf", nach: "chronik", name: "Tiefer Ring", n: [112, 353, -11] },
   { von: "chronik", nach: "oros", name: "Nordstraße", d: "M62,350 C0,300 20,120 138,118", n: [84, 121, -17] },
   { von: "oros", nach: "schattenarchiv", name: "Bleicher Pfad", n: [152, 80, 0, "end"] },
@@ -969,11 +1084,12 @@ function kartenZeichnen() {
   const wert = (id) => w.find((x) => x.o.id === id);
   const gross = w.filter(({ o, sichtbar }) => !o.klein && (!o.spaet || sichtbar));
   const da = (id) => gross.some((x) => x.o.id === id);
-  const linien = KARTE_WEGE.filter((weg) => da(weg.von) && da(weg.nach)).map((weg) => {
+  const kennt = (id) => { const x = wert(id); return !!x && (x.hier || x.bekannt); };
+  const linien = KARTE_WEGE.filter((weg) => da(weg.von) && da(weg.nach) && (!weg.ab || kennt(weg.ab))).map((weg) => {
     const A = wert(weg.von).o, B = wert(weg.nach).o;
     const [nx, ny, dreh, anker] = weg.n;
-    return '<path class="weg" d="' + (weg.d || "M" + A.x + "," + A.y + " L" + B.x + "," + B.y) + '"/>' +
-      '<text class="wegname" x="' + nx + '" y="' + ny + '"' + (anker ? ' style="text-anchor:' + anker + '"' : "") + (dreh ? ' transform="rotate(' + dreh + " " + nx + " " + ny + ')"' : "") + ">" + esc(weg.name) + "</text>";
+    return '<path class="weg' + (weg.verloren ? " verloren" : "") + '" d="' + (weg.d || "M" + A.x + "," + A.y + " L" + B.x + "," + B.y) + '"/>' +
+      '<text class="wegname' + (weg.verloren ? " verloren" : "") + '" x="' + nx + '" y="' + ny + '"' + (anker ? ' style="text-anchor:' + anker + '"' : "") + (dreh ? ' transform="rotate(' + dreh + " " + nx + " " + ny + ')"' : "") + ">" + esc(weg.name) + "</text>";
   }).join("");
   const orte = gross.map(({ o, klasse, sichtbar }) =>
     '<g class="ort ' + klasse + '" data-id="' + o.id + '"><circle cx="' + o.x + '" cy="' + o.y + '" r="22"/><text class="sym" x="' + o.x + '" y="' + (o.y + 6) + '">' + (sichtbar ? o.sym : "?") +
@@ -1027,7 +1143,8 @@ const NEUES = {
     "<b>Drei neue Kapitel:</b> „Die versunkene Chronik“, „Das Archiv der Schatten“ und „Der Weg nach Hause“ mit dem Dorf Brunnfeld, dazu Kirans Nebenquest in Oros.",
     "<b>Klassen:</b> Magier lernen drei Techniken, neu sind Runenschmied und Fährtensteller. An einzelnen Stellen der Geschichte öffnet deine Klasse einen eigenen Weg.",
     "<b>Neue Bilder:</b> Orte, Räume, Gegner und Figuren der neuen Kapitel. Tippe auf den Ortsnamen für das ganze Bild und auf das Gegnerbild zum Vergrößern.",
-    "<b>App:</b> Sie startet nach dem ersten Mal deutlich schneller und läuft ohne fremde Server. Die Karte kennt die neuen Orte, der Kopf zeigt die Frist aus Kapitel 8, und Kampftechniken stehen in einer eigenen Gruppe."
+    "<b>Karten:</b> Die Übersichtskarte ist neu gezeichnet, mit dem Königsring als Ring. Die Gebietskarten von Seitenpfad, Wegstation, Chronik und Archiv erscheinen als Grafik in Bildschirmbreite.",
+    "<b>App:</b> Sie startet nach dem ersten Mal deutlich schneller und läuft ohne fremde Server. Der Kopf zeigt die Frist aus Kapitel 8, und Kampftechniken stehen in einer eigenen Gruppe."
   ],
   "2026-10-25-29": [
     "<b>Schlafen bis zum Morgen:</b> Ab dem Abend kannst du im Bett zu Hause, in einem Zimmer im Gasthaus (10 Gold) oder auf Reisen am Lagerfeuer (4 Holz, mit Überfallrisiko) die Nacht verschlafen. Danach ist es Morgen, und das Wetter ist ein anderes.",
@@ -1487,7 +1604,7 @@ function punktSetzen() {
 }
 // Version, Offline-Speicher und Update-Hinweis.
 const APP_STAND = "2026-11-11-30";
-const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bache.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_einscherer.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_haltender.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_schlickbeisser.jpg","bilder/gegner_schwarzgeweih.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_alter_mann.jpg","bilder/npc_arvid.jpg","bilder/npc_berit.jpg","bilder/npc_bjorn.jpg","bilder/npc_bruno.jpg","bilder/npc_der_haltende.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hannes.jpg","bilder/npc_hedda.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_ilka.jpg","bilder/npc_jonte.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_marit.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_oswin.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_sanna.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_archiv_namenswand.jpg","bilder/ort_archiv_schatten.jpg","bilder/ort_archiv_tiefe.jpg","bilder/ort_bachlauf.jpg","bilder/ort_bossraum.jpg","bilder/ort_brunnfeld.jpg","bilder/ort_brunnfeld_laeuferhaus.jpg","bilder/ort_brunnfeld_steg.jpg","bilder/ort_chronik_bandregale.jpg","bilder/ort_chronik_ringhof.jpg","bilder/ort_chronik_schreibstube.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_laeuferpfad_marken.jpg","bilder/ort_laeuferpfad_ried.jpg","bilder/ort_laeuferpfad_unterstand.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_rand_der_senke.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_versunkene_chronik.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.ogg","klang/feuer.ogg","klang/hoehle.ogg","klang/intro.ogg","klang/kampf.ogg","klang/kueste.ogg","klang/markt.m4a","klang/taverne.ogg","klang/wald.ogg","klang/wind.ogg","klang/zimmer.ogg"];
+const OFFLINE_DATEIEN = ["bilder/gegner_aschenkoenig.jpg","bilder/gegner_bache.jpg","bilder/gegner_bandit.jpg","bilder/gegner_blasser_hirsch.jpg","bilder/gegner_blindmolch.jpg","bilder/gegner_echohirsch.jpg","bilder/gegner_gezeitenkrebs.jpg","bilder/gegner_glutsalamander.jpg","bilder/gegner_graupelz.jpg","bilder/gegner_haltender.jpg","bilder/gegner_keiler.jpg","bilder/gegner_kielbrecher.jpg","bilder/gegner_kohlenschmuggler.jpg","bilder/gegner_kreischer.jpg","bilder/gegner_rudelloser_wolf.jpg","bilder/gegner_schachtflatterer.jpg","bilder/gegner_schachtkriecher.jpg","bilder/gegner_schachtspinner.jpg","bilder/gegner_schieferpanzer.jpg","bilder/gegner_schlickbeisser.jpg","bilder/gegner_schwarzgeweih.jpg","bilder/gegner_steinvater.jpg","bilder/gegner_waldwaechter.jpg","bilder/gegner_wolf.jpg","bilder/gegner_wrackpluenderer.jpg","bilder/npc_ahrens.jpg","bilder/npc_alter_mann.jpg","bilder/npc_arvid.jpg","bilder/npc_berit.jpg","bilder/npc_bjorn.jpg","bilder/npc_bruno.jpg","bilder/npc_der_haltende.jpg","bilder/npc_edda.jpg","bilder/npc_elian.jpg","bilder/npc_enno.jpg","bilder/npc_finch.jpg","bilder/npc_fischer.jpg","bilder/npc_gerrit.jpg","bilder/npc_haller.jpg","bilder/npc_hannes.jpg","bilder/npc_hedda.jpg","bilder/npc_hilda.jpg","bilder/npc_ida.jpg","bilder/npc_ignaz.jpg","bilder/npc_ilka.jpg","bilder/npc_jonte.jpg","bilder/npc_joris.jpg","bilder/npc_kiran.jpg","bilder/npc_koehler.jpg","bilder/npc_levin.jpg","bilder/npc_mara.jpg","bilder/npc_marek.jpg","bilder/npc_marit.jpg","bilder/npc_mira.jpg","bilder/npc_nela.jpg","bilder/npc_oswin.jpg","bilder/npc_raban.jpg","bilder/npc_rika.jpg","bilder/npc_runa.jpg","bilder/npc_sanna.jpg","bilder/npc_schreiber.jpg","bilder/npc_selene.jpg","bilder/npc_sera.jpg","bilder/npc_tarek.jpg","bilder/npc_tomas.jpg","bilder/npc_valerie.jpg","bilder/ort_archiv_namenswand.jpg","bilder/ort_archiv_schatten.jpg","bilder/ort_archiv_tiefe.jpg","bilder/ort_bachlauf.jpg","bilder/ort_bossraum.jpg","bilder/ort_brunnfeld.jpg","bilder/ort_brunnfeld_laeuferhaus.jpg","bilder/ort_brunnfeld_steg.jpg","bilder/ort_chronik_bandregale.jpg","bilder/ort_chronik_ringhof.jpg","bilder/ort_chronik_schreibstube.jpg","bilder/ort_eichenruh.jpg","bilder/ort_felsterrassen.jpg","bilder/ort_gasthaus.jpg","bilder/ort_huette.jpg","bilder/ort_koehlerei.jpg","bilder/ort_laeuferpfad_marken.jpg","bilder/ort_laeuferpfad_ried.jpg","bilder/ort_laeuferpfad_unterstand.jpg","bilder/ort_lagerfeuer.jpg","bilder/ort_lagerkeller.jpg","bilder/ort_marktplatz.jpg","bilder/ort_oros_archiv.jpg","bilder/ort_oros_halle.jpg","bilder/ort_oros_lehrhallen.jpg","bilder/ort_oros_tor.jpg","bilder/ort_pfad_des_vergessens.jpg","bilder/ort_rand_der_senke.jpg","bilder/ort_schmiede.jpg","bilder/ort_spielerzimmer.jpg","bilder/ort_tiefen.jpg","bilder/ort_verlassenes_dorf.jpg","bilder/ort_versorgungskehre.jpg","bilder/ort_versunkene_chronik.jpg","bilder/ort_wald.jpg","bilder/ort_waldlichtung.jpg","bilder/ort_wrackstrand.jpg","klang/drinnen.ogg","klang/feuer.ogg","klang/hoehle.ogg","klang/intro.ogg","klang/kampf.ogg","klang/kueste.ogg","klang/markt.m4a","klang/taverne.ogg","klang/wald.ogg","klang/wind.ogg","klang/zimmer.ogg"];
 // Python (Pyodide) liegt in der App selbst und gehört zum Offline-Paket.
 const PYODIDE_DATEIEN = ["pyodide/pyodide.js", "pyodide/pyodide.asm.js", "pyodide/pyodide.asm.wasm", "pyodide/python_stdlib.zip", "pyodide/pyodide-lock.json", "xterm/xterm.js", "xterm/xterm.css", "xterm/addon-fit.js"];
 async function offlineListe() {

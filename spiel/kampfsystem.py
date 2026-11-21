@@ -1,6 +1,9 @@
 import random
 import time
 import os
+import re
+import sys
+import contextlib
 
 FARBEN = {
     "rot": "\033[31m",
@@ -61,6 +64,55 @@ def bildschirm_leeren():
     )
 
 
+KAMPF_VERLAUF = []
+KAMPF_VERLAUF_MAX = 40
+_ANSI_CODE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+
+
+class _Mitschrift:
+    # Reicht alle Ausgaben unverändert weiter und merkt sich die letzten Zeilen.
+    def __init__(self, ziel):
+        self._ziel = ziel
+        self._rest = ""
+
+    def write(self, text):
+        ergebnis = self._ziel.write(text)
+        self._rest += _ANSI_CODE.sub("", text)
+        *zeilen, self._rest = self._rest.split("\n")
+
+        for zeile in zeilen:
+            zeile = zeile.rstrip()
+
+            if (
+                zeile.strip()
+                and set(zeile.strip()) != {"-"}
+                and zeile != "[X] Kampfverlauf"
+            ):
+                KAMPF_VERLAUF.append(zeile)
+
+        del KAMPF_VERLAUF[:-KAMPF_VERLAUF_MAX]
+
+        return ergebnis
+
+    def __getattr__(self, name):
+        return getattr(self._ziel, name)
+
+
+def kampf_verlauf_anzeigen():
+    print()
+    print("Kampfverlauf (letzte Zeilen)")
+    print("-" * 34)
+
+    if not KAMPF_VERLAUF:
+        print("Noch kein Kampf.")
+
+    for zeile in KAMPF_VERLAUF:
+        print(zeile)
+
+    print("-" * 34)
+    input("Enter zum Weiterspielen > ")
+
+
 def kampf_auswahl_trenner():
     print() 
     print("-" * 34)
@@ -73,6 +125,9 @@ def kampf_eingabe(gueltige_werte):
     )
 
     fehler = False
+
+    if "x" not in gueltige_werte:
+        print("[X] Kampfverlauf")
 
     while True:
         if fehler and ANSI_FARBEN_AKTIV:
@@ -88,6 +143,11 @@ def kampf_eingabe(gueltige_werte):
             prompt = "> "
 
         eingabe = input(prompt).strip().lower()
+
+        if eingabe == "x" and "x" not in gueltige_werte:
+            kampf_verlauf_anzeigen()
+            fehler = False
+            continue
 
         if eingabe in gueltige_werte:
             if fehler and ANSI_FARBEN_AKTIV:
@@ -486,7 +546,7 @@ GEBEUGTE_GEGNER = {
 
 # WM-D: Revierherren und Waldwächter; Falle 1 Runde, Hinterhalt schwächer.
 FAEHRTEN_STARK = (
-    "Waldwächter", "Graupelz", "Aschenkönig", "Steinvater", "Einscherer",
+    "Waldwächter", "Graupelz", "Aschenkönig", "Steinvater", "Kielbrecher",
     "Blasser Hirsch", "Schwarzgeweih"
 )
 # Welche Angriffsvorbereitung die Falle behindert (Textrunde WM-D, Teil C).
@@ -506,7 +566,7 @@ FAEHRTEN_FALLE_TEXT = {
     "Schachtkriecher": "kann sich nicht einrollen",
     "Kreischer": "kommt nicht vom Boden hoch",
     "Gezeitenkrebs": "kann nicht zum Packen ansetzen",
-    "Einscherer": "kann nicht zum Packen ansetzen",
+    "Kielbrecher": "kann nicht zum Packen ansetzen",
     "Schlickbeißer": "kann nicht zum Packen ansetzen",
     "Wrackplünderer": "bekommt sein Netz nicht frei",
     "Waldwächter": "kann nicht zu seinem schweren Schlag ausholen",
@@ -535,7 +595,12 @@ def gegner_name(gegner, fall):
     return f"{fall} {typ}"
 
 
-def kampf_starten(
+def kampf_starten(*args, **kwargs):
+    with contextlib.redirect_stdout(_Mitschrift(sys.stdout)):
+        return _kampf_starten_ohne_mitschrift(*args, **kwargs)
+
+
+def _kampf_starten_ohne_mitschrift(
     lebenspunkte=100,
     heiltraenke=1,
     waffe=None,
@@ -809,8 +874,8 @@ def kampf_starten(
         "waffe": {"typ": "Biss", "wendigkeit": 1, "parade": 0, "reichweite": 0, "schaden_min": 11, "schaden_max": 16}
     }
 
-    einscherer = {
-        "typ": "Einscherer", "hp": 160, "max_hp": 160, "wahrnehmung": 2, "waldkenntnis": 1, "verstecken": 2,
+    kielbrecher = {
+        "typ": "Kielbrecher", "hp": 160, "max_hp": 160, "wahrnehmung": 2, "waldkenntnis": 1, "verstecken": 2,
         "angriffsart": "Nahkampf", "krit_chance": 5,
         "waffe": {"typ": "Schere", "wendigkeit": 1, "parade": 0, "reichweite": 0, "schaden_min": 12, "schaden_max": 17}
     }
@@ -1293,8 +1358,8 @@ def kampf_starten(
     elif gegner_typ == "Steinvater":
         gegner = steinvater.copy()
 
-    elif gegner_typ == "Einscherer":
-        gegner = einscherer.copy()
+    elif gegner_typ == "Kielbrecher":
+        gegner = kielbrecher.copy()
 
     elif gegner_typ == "Wrackplünderer":
         gegner = wrackpluenderer.copy()
@@ -1770,7 +1835,7 @@ def kampf_starten(
     netz_spieler_bonus = 0
     netz_bonus_runde = 0
     wurfnetz_gross = gegner["typ"] in (
-        "Waldwächter", "Graupelz", "Aschenkönig", "Steinvater", "Einscherer",
+        "Waldwächter", "Graupelz", "Aschenkönig", "Steinvater", "Kielbrecher",
         "Blasser Hirsch", "Blindmolch"
     )
     gnade_angekuendigt = False
@@ -1830,7 +1895,7 @@ def kampf_starten(
     bestienjaeger_abwehr_erfolgreich = False
     jagdinstinkt_bonus = 10 if bestienjaeger_gelernt and gegner["typ"] in (
         "Wolf", "Keiler", "Bache", "Glutsalamander", "Schieferpanzer", "Kreischer", "Gezeitenkrebs", "Graupelz",
-        "Aschenkönig", "Steinvater", "Einscherer", "Rudelloser Wolf", "Echohirsch", "Blasser Hirsch",
+        "Aschenkönig", "Steinvater", "Kielbrecher", "Rudelloser Wolf", "Echohirsch", "Blasser Hirsch",
         "Schachtflatterer", "Schachtkriecher", "Blindmolch", "Schachtspinner", "Schlickbeißer", "Schwarzgeweih"
     ) else 0
 
@@ -2259,7 +2324,7 @@ def kampf_starten(
             if runde <= schmuggler_benommen_bis and not kreischer_in_luft:
                 print("Der Schrei hallt noch in deinen Ohren nach. Du triffst schlechter.")
 
-        if gegner["typ"] in ("Gezeitenkrebs", "Einscherer", "Schlickbeißer"):
+        if gegner["typ"] in ("Gezeitenkrebs", "Kielbrecher", "Schlickbeißer"):
             if krebs_halt_runden > 0:
                 print()
                 print("Das Maul hält deinen Arm fest." if maul else "Die Schere hält deinen Arm fest umklammert.")
@@ -2275,7 +2340,7 @@ def kampf_starten(
                       else f"{gegner_name(gegner, 'Der')} schnappt mit der offenen Schere nach dir!")
             elif (not starkes_taumeln_aktiv
                     and not gegner_zurueckgedraengt_aktiv
-                    and random.randint(1, 100) <= (35 if gegner["typ"] == "Einscherer" else 25)):
+                    and random.randint(1, 100) <= (35 if gegner["typ"] == "Kielbrecher" else 25)):
                 krebs_packen_bereit = True
                 print()
                 print(f"{gegner_name(gegner, 'Der')} duckt sich ins flache Wasser und reißt das Maul auf." if maul
@@ -3716,7 +3781,7 @@ def kampf_starten(
                     waffenpflege_anwendungen -= 1
                     print(f"Waffenpflege wirkt: +{waffenpflege_bonus} Schaden. Verbleibende Anwendungen: {waffenpflege_anwendungen}.")
 
-            if (gegner["typ"] in ("Gezeitenkrebs", "Einscherer", "Schlickbeißer") and krebs_halt_runden > 0
+            if (gegner["typ"] in ("Gezeitenkrebs", "Kielbrecher", "Schlickbeißer") and krebs_halt_runden > 0
                     and schaden > 0 and spieler["waffe"].get("typ") != "Messer"):
                 schaden = max(1, int(schaden * 0.5))
                 print("Mit festgehaltenem Arm triffst du nur halb so hart.")
@@ -4043,9 +4108,9 @@ def kampf_starten(
                 break
             print("Der Wrackplünderer greift wieder nach seinem Haken.")
 
-        if gegner["typ"] in ("Gezeitenkrebs", "Einscherer", "Schlickbeißer") and krebs_halt_runden > 0 and aktion == "verteidigen":
+        if gegner["typ"] in ("Gezeitenkrebs", "Kielbrecher", "Schlickbeißer") and krebs_halt_runden > 0 and aktion == "verteidigen":
             losreissen_chance = max(20, min(90, 50 + 10 * (spieler["staerke"] - 1)
-                                            - (10 if gegner["typ"] == "Einscherer" else 0)))
+                                            - (10 if gegner["typ"] == "Kielbrecher" else 0)))
             if random.randint(1, 100) <= losreissen_chance:
                 krebs_halt_runden = 0
                 oeffnung_naechste_runde = True
@@ -4134,7 +4199,7 @@ def kampf_starten(
             if aktion != "verteidigen":
                 print("Der Wolf springt dich ohne jede Vorwarnung an!")
 
-        elif gegner["typ"] in ("Gezeitenkrebs", "Einscherer", "Schlickbeißer") and krebs_halt_runden > 0 and not krebs_packen_diese_runde:
+        elif gegner["typ"] in ("Gezeitenkrebs", "Kielbrecher", "Schlickbeißer") and krebs_halt_runden > 0 and not krebs_packen_diese_runde:
             spezial_schaden_faktor = 0.7
 
         elif salamander_eingegraben and aktion != "verteidigen":
@@ -4217,7 +4282,7 @@ def kampf_starten(
                       else "Du weichst der Schere im letzten Moment aus.")
             else:
                 gegner_treffer_art = "voll"
-                krebs_halt_runden = 3 if gegner["typ"] == "Einscherer" else 2
+                krebs_halt_runden = 3 if gegner["typ"] == "Kielbrecher" else 2
                 print("Das Maul schließt sich um deinen Arm!" if maul else "Die Schere schließt sich um deinen Arm!")
         elif krebs_halt_runden > 0:
             gegner_treffer_art = "voll"
