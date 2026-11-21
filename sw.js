@@ -1,5 +1,5 @@
 // Service Worker für VOID: macht die App installierbar und lässt sie auch ohne Netz starten.
-// Eigene Dateien: erst Netz (immer aktuell), sonst Zwischenspeicher. Pyodide vom CDN: Zwischenspeicher zuerst.
+// Eigene Dateien: erst Netz (immer aktuell), bei Netz- oder Serverfehler (z. B. 429/503) der Zwischenspeicher. Pyodide vom CDN: Zwischenspeicher zuerst.
 const VERSION = "void-app-1";
 const SCHALE = ["./", "index.html", "app.css", "app.js", "klang.js", "worker.js", "umbruch.py", "dateien.json", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "klang/LIESMICH.txt"];
 
@@ -30,7 +30,9 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(a.url);
   if (url.origin === location.origin) {
     e.respondWith(
-      fetch(a, { cache: "no-cache" }).then((r) => ablegen(a, r)).catch(() => caches.match(a, { ignoreSearch: true }).then((r) => r || Response.error()))
+      fetch(a, { cache: "no-cache" })
+        .then((r) => r.ok ? ablegen(a, r) : caches.match(a, { ignoreSearch: true }).then((alt) => alt || r))
+        .catch(() => caches.match(a, { ignoreSearch: true }).then((r) => r || Response.error()))
     );
   } else if (url.hostname === "cdn.jsdelivr.net") {
     e.respondWith(
