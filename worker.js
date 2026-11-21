@@ -80,10 +80,29 @@ self.ziele_melden = (s) => postMessage({ typ: "ziele", daten: JSON.parse(s) });
 // Mit dem Laden sofort beginnen, noch bevor die Seite fertig ist: Python und die Spieldateien werden gleichzeitig geholt.
 const vorabPyodide = loadPyodide({ indexURL: PYODIDE_ORT });
 vorabPyodide.catch(() => {});
+// Holt eine Datei und prüft die Antwort. Ohne diese Prüfung landet eine Fehlerseite des Servers
+// (z. B. GitHubs "Hello future GitHubber"-Seite bei 429/5xx) als vermeintlicher Python-Code im Spiel.
+async function holen(pfad, versuche = 4) {
+  let fehler;
+  for (let i = 0; i < versuche; i++) {
+    if (i > 0) await new Promise((ok) => setTimeout(ok, 400 * 2 ** (i - 1)));
+    try {
+      const r = await fetch(pfad, { cache: "no-cache" });
+      if (!r.ok) throw new Error(pfad + ": HTTP " + r.status);
+      const daten = new Uint8Array(await r.arrayBuffer());
+      if (pfad.endsWith(".py") && /^\s*<(!doctype|html)/i.test(dec.decode(daten.subarray(0, 200)))) {
+        throw new Error(pfad + ": HTML statt Python erhalten");
+      }
+      return daten;
+    } catch (e) { fehler = e; }
+  }
+  throw fehler;
+}
+
 const vorabDateien = (async () => {
-  const liste = await (await fetch("dateien.json", { cache: "no-cache" })).json();
-  const teile = await Promise.all(liste.map(async (n) => [n, new Uint8Array(await (await fetch("spiel/" + n, { cache: "no-cache" })).arrayBuffer())]));
-  const umbruchDaten = new Uint8Array(await (await fetch("umbruch.py", { cache: "no-cache" })).arrayBuffer());
+  const liste = JSON.parse(dec.decode(await holen("dateien.json")));
+  const teile = await Promise.all(liste.map(async (n) => [n, await holen("spiel/" + n)]));
+  const umbruchDaten = await holen("umbruch.py");
   return { teile, umbruchDaten };
 })();
 vorabDateien.catch(() => {});
@@ -100,12 +119,9 @@ async function starten(m) {
     for (const [name, daten] of vorab.teile) pyodide.FS.writeFile("/void/" + name, daten);
     pyodide.FS.writeFile("/web/umbruch.py", vorab.umbruchDaten);
   } else {
-    for (const name of m.dateien) {
-      const antwort = await fetch("spiel/" + name, { cache: "no-cache" });
-      pyodide.FS.writeFile("/void/" + name, new Uint8Array(await antwort.arrayBuffer()));
-    }
-    const umbruch = await fetch("umbruch.py", { cache: "no-cache" });
-    pyodide.FS.writeFile("/web/umbruch.py", new Uint8Array(await umbruch.arrayBuffer()));
+    // Zweiter Anlauf, nacheinander statt gleichzeitig (schont den Server bei Ratenbegrenzung).
+    for (const name of m.dateien) pyodide.FS.writeFile("/void/" + name, await holen("spiel/" + name));
+    pyodide.FS.writeFile("/web/umbruch.py", await holen("umbruch.py"));
   }
   for (const [name, text] of Object.entries(m.spielstaende || {})) {
     pyodide.FS.writeFile("/void/" + name, text, { encoding: "utf8" });
@@ -300,7 +316,11 @@ onmessage = (e) => {
   const m = e.data;
   if (m.typ === "start") {
     spaltenzahl = m.spalten || 80;
-    starten(m);
+    starten(m).catch((err) => {
+      postMessage({ typ: "status", text: "" });
+      postMessage({ typ: "text", text: "\r\n[Fehler] Spieldateien konnten nicht geladen werden (" + (err && err.message || err) + "). Bitte später mit Netz neu laden.\r\n" });
+      postMessage({ typ: "ende" });
+    });
   } else if (m.typ === "spalten") {
     spaltenzahl = m.spalten;
   } else if (m.typ === "zeile") {
