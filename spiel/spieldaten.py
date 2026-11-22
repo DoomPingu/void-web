@@ -549,7 +549,7 @@ KAMPF_BEUTE = {
         "gold_min": 0,
         "gold_max": 0,
         "items": [
-            {"item_id": "netzgarn", "chance": 50}
+            {"item_id": "netzgarn", "chance": 100}
         ]
     },
 
@@ -580,7 +580,20 @@ KAMPF_BEUTE = {
     "Bandit": {
         "gold_min": 6,
         "gold_max": 14,
-        "items": []
+        "items": [
+            {
+                "item_id": "brot",
+                "min": 1,
+                "max": 1,
+                "chance": 100
+            },
+            {
+                "item_id": "bandage",
+                "min": 1,
+                "max": 1,
+                "chance": 20
+            }
+        ]
     },
 
     "Wolf": {
@@ -609,8 +622,8 @@ KAMPF_BEUTE = {
             {
                 "item_id": "glutschuppe",
                 "min": 1,
-                "max": 2,
-                "chance": 55
+                "max": 1,
+                "chance": 100
             }
         ]
     },
@@ -696,7 +709,7 @@ KAMPF_BEUTE = {
                 "item_id": "krebsschere",
                 "min": 1,
                 "max": 1,
-                "chance": 55
+                "chance": 100
             }
         ]
     },
@@ -709,7 +722,7 @@ KAMPF_BEUTE = {
                 "item_id": "schlickhaut",
                 "min": 1,
                 "max": 1,
-                "chance": 60
+                "chance": 100
             }
         ]
     },
@@ -730,8 +743,8 @@ KAMPF_BEUTE = {
             {
                 "item_id": "netzgarn",
                 "min": 1,
-                "max": 2,
-                "chance": 70
+                "max": 1,
+                "chance": 100
             }
         ]
     },
@@ -743,8 +756,8 @@ KAMPF_BEUTE = {
             {
                 "item_id": "schieferplatte",
                 "min": 1,
-                "max": 2,
-                "chance": 60
+                "max": 1,
+                "chance": 100
             }
         ]
     },
@@ -756,8 +769,8 @@ KAMPF_BEUTE = {
             {
                 "item_id": "kreischerfeder",
                 "min": 1,
-                "max": 3,
-                "chance": 70
+                "max": 2,
+                "chance": 100
             }
         ]
     },
@@ -765,7 +778,14 @@ KAMPF_BEUTE = {
     "Schmuggler": {
         "gold_min": 6,
         "gold_max": 14,
-        "items": []
+        "items": [
+            {
+                "item_id": "holzkohle",
+                "min": 1,
+                "max": 2,
+                "chance": 100
+            }
+        ]
     },
 
     "Kohlenschmuggler": {
@@ -924,6 +944,22 @@ MARA_SORTIMENT = {
     "brot": {
         "preis": 6
     }
+}
+
+# Feedback 16: Mara kauft Esswaren an, billig und ohne Händlerbonus.
+# Immer unter dem Kaufpreis, auch nach dem Kochen (keine Goldschleife).
+MARA_ESSEN_ANKAUF = {
+    "wildfleisch": {"preis": 2},
+    "gebratenes_wildfleisch": {"preis": 3},
+    "raeucherfleisch": {"preis": 5},
+    "apfel": {"preis": 1},
+    "karotte": {"preis": 1},
+    "kuechenkraeuter": {"preis": 1},
+    "brot": {"preis": 2},
+    "geroestetes_brot": {"preis": 3},
+    "apfelkompott": {"preis": 3},
+    "kraeuterbrot": {"preis": 4},
+    "gemuesesuppe": {"preis": 4}
 }
 
 HILDA_MATERIAL_ANKAUF = {
@@ -1483,6 +1519,12 @@ ERFOLGE = {
         "verborgen": False,
         "beschreibung": "Einen Wrackplünderer laufen lassen."
     },
+    "milde_hand": {
+        "name": "Milde Hand",
+        "kategorie": "jagd",
+        "verborgen": False,
+        "beschreibung": "Sechs Gegner verschonen."
+    },
     "der_alte_leitwolf": {
         "name": "Der alte Leitwolf",
         "kategorie": "jagd",
@@ -1571,7 +1613,8 @@ JAGDBUCH = {
     "Wolf": {
         "beschreibung": "Schnell und aufmerksam. Jagt auf der Wildspur und an Waldwegen.",
         "verhalten": {
-            "wolf_sprung": "Umkreist dich und duckt sich: Danach springt er. Abwehren oder mit dem Speer abfangen."
+            "wolf_sprung": "Umkreist dich und duckt sich: Danach springt er. Abwehren oder mit dem Speer abfangen.",
+            "wolf_gnade": "Weicht am Ende geduckt zurück: Verteidigen lässt ihn ziehen."
         },
         "beute": "Wildfleisch, manchmal ein Wolfsfell."
     },
@@ -1592,9 +1635,10 @@ JAGDBUCH = {
     "Bandit": {
         "beschreibung": "Ein Mensch mit Dolch, der von Reisenden lebt.",
         "verhalten": {
-            "bandit_hieb": "Holt weit aus: Ein schwerer Hieb folgt. Blockieren lohnt sich."
+            "bandit_hieb": "Holt weit aus: Ein schwerer Hieb folgt. Blockieren lohnt sich.",
+            "bandit_gnade": "Bittet am Ende um Gnade: Verteidigen lässt ihn gehen, er lässt seinen Beutel da. Wer weiter angreift, macht ihn panisch."
         },
-        "beute": "Etwas Gold."
+        "beute": "Etwas Gold und Brot, selten eine Bandage. Wer ihn gehen lässt, bekommt nur das Gold."
     },
     "Glutsalamander": {
         "beschreibung": "Lebt in der warmen Asche der Brandschneise hinter der Köhlerei.",
@@ -1602,7 +1646,7 @@ JAGDBUCH = {
             "salamander_gluehen": "Glühende Haut: Nahkampf verbrennt dich. Speer oder Stab halten ihn auf Abstand.",
             "salamander_eingraben": "Verschwindet in der Asche: Abwarten und verteidigen, nicht blind zuschlagen."
         },
-        "beute": "Manchmal Glutschuppen."
+        "beute": "Eine Glutschuppe."
     },
     "Kohlenschmuggler": {
         "beschreibung": "Stiehlt den Köhlern Kohle und versteckt sich in der Brandschneise.",
@@ -1618,7 +1662,7 @@ JAGDBUCH = {
             "panzer_einrollen": "Rollt sich ein: Wuchtige Schläge prallen ab, schnelle Stiche treffen die Lücken.",
             "panzer_bruch": "Schwere Schläge oder ein Hammer brechen den Panzer. Danach ist er verwundbar."
         },
-        "beute": "Manchmal Schieferplatten."
+        "beute": "Eine Schieferplatte."
     },
     "Kreischer": {
         "beschreibung": "Großer Raubvogel der Felsterrassen. Greift aus der Luft an.",
@@ -1626,7 +1670,7 @@ JAGDBUCH = {
             "kreischer_aufstieg": "Steigt auf: Nur Speer oder Stab reichen hinauf. Danach stürzt er herab; mit langer Waffe abfangen.",
             "kreischer_schrei": "Ein schriller Schrei macht dich kurz benommen."
         },
-        "beute": "Meist Kreischerfedern."
+        "beute": "Kreischerfedern."
     },
     "Gezeitenkrebs": {
         "beschreibung": "Krebs von der Größe eines Hundes. Lebt zwischen Wrackteilen am Strand unter den Klippen von Letzthafen.",
@@ -1634,7 +1678,7 @@ JAGDBUCH = {
             "krebs_packen": "Öffnet die Schere weit: Verteidigen weicht aus, sonst hält er dich fest.",
             "krebs_losreissen": "Festgehalten: Verteidigen reißt dich los, ein Messer sticht durch die Schere."
         },
-        "beute": "Manchmal eine Krebsschere."
+        "beute": "Eine Krebsschere."
     },
     "Wrackplünderer": {
         "beschreibung": "Sucht am Wrackstrand nach Strandgut und überfällt, wer ihm in die Quere kommt.",
@@ -1655,7 +1699,8 @@ JAGDBUCH = {
     "Rudelloser Wolf": {
         "beschreibung": "Ein einzelner Wolf ohne Rudel. Streift am Pfad des Vergessens umher und verhält sich anders als andere Wölfe.",
         "verhalten": {
-            "rudellos_sprung": "Springt ohne sichtbare Vorwarnung. Wer ihn spürt, kann rechtzeitig ausweichen."
+            "rudellos_sprung": "Springt ohne sichtbare Vorwarnung. Wer ihn spürt, kann rechtzeitig ausweichen.",
+            "rudellos_gnade": "Hält am Ende Abstand: Verteidigen lässt ihn ziehen."
         },
         "beute": "Wildfleisch, oft ein Wolfsfell."
     },
@@ -1705,7 +1750,7 @@ JAGDBUCH = {
             "krebs_packen": "Duckt sich ins Wasser und reißt das Maul auf: Verteidigen weicht aus, sonst hält er dich fest.",
             "krebs_losreissen": "Festgehalten: Verteidigen reißt dich los, ein Messer sticht ins Maul."
         },
-        "beute": "Manchmal eine Schlickhaut."
+        "beute": "Eine Schlickhaut."
     },
     "Schwarzgeweih": {
         "beschreibung": "Ein Elch, so hoch wie der Unterstand, mit einem Geweih wie verbrannte Äste. Verteidigt das Ried, wo es in den Wald geht. Zeigt sich nur selten.",

@@ -488,6 +488,9 @@ def kampf_status_nach_gegnertreffer(
     elif gegner_typ in ("Keiler", "Bache", "Schwarzgeweih"):
         chance = 8
 
+    elif gegner_typ in ("Rudelloser Wolf", "Graupelz"):
+        chance = 10
+
     else:
         return False
 
@@ -534,6 +537,65 @@ def kampf_status_nach_gegnertreffer(
 # =========================
 # Gegnernamen mit Artikel. Die Bache ist bisher der einzige weibliche Gegner.
 WEIBLICHE_GEGNER = ("Bache", "Gestalt")
+
+# Bosse für die Weltstufe (Feedback 28, 32): Waldwächter, Revierherren,
+# Haltender und Gestalt.
+BOSS_GEGNER = (
+    "Waldwächter", "Graupelz", "Aschenkönig", "Steinvater", "Kielbrecher",
+    "Blasser Hirsch", "Schwarzgeweih", "Haltender", "Gestalt"
+)
+# Diese zwei waren schon in Kapitel 3 und 4 zu leicht: fest +15 % LP.
+# Graupelz nicht, er ist schon in Kapitel 1 und 2 schwer.
+BOSS_LP_ZUSCHLAG = ("Steinvater", "Kielbrecher")
+
+# Gnade (Feedback 23): Bei höchstens einem Viertel LP bitten diese Gegner einmal um
+# Gnade, Verteidigen in der Runde danach verschont sie. In Story-Kämpfen
+# (kampf_situation["gnade"] is False) nicht, der Wrackplünderer wie bisher immer.
+GNADE_TEXTE = {
+    "Wrackplünderer": {
+        "angebot": "Der Wrackplünderer weicht zurück und hebt die Hände.",
+        "bitte": "[Wrackplünderer] Lass mich laufen! Ich geb dir, was ich habe!",
+        "hinweis": "Mit Verteidigen lässt du ihn gehen.",
+        "verschont": "Du lässt ihn gehen. Er wirft dir seinen Geldbeutel vor die Füße "
+                     "und rennt den Strand hinunter.",
+        "weiter": "Der Wrackplünderer greift wieder nach seinem Haken.",
+        "kennung": ("pluenderer_gnade", "pluenderer_verschont")
+    },
+    "Bandit": {
+        "angebot": "Der Bandit stolpert zurück und lässt den Dolch sinken.",
+        "bitte": "[Bandit] Schon gut, schon gut! Lass mich laufen, du siehst mich nie wieder!",
+        "hinweis": "Mit Verteidigen lässt du ihn gehen.",
+        "verschont": "Du senkst die Waffe. Er lässt seinen Beutel fallen und ist weg, "
+                     "bevor du es dir anders überlegst.",
+        "weiter": "Der Bandit sieht, dass du nicht aufhörst.",
+        "kennung": ("bandit_gnade", "bandit_verschont")
+    },
+    "Schmuggler": {
+        "angebot": "Der Schmuggler weicht zurück und hebt die freie Hand.",
+        "bitte": "[Schmuggler] Genug! Nimm das Geld und lass mich gehen.",
+        "hinweis": "Mit Verteidigen lässt du ihn gehen.",
+        "verschont": "Du lässt ihn gehen. Er wirft dir seinen Beutel zu und läuft den Pfad "
+                     "hinunter, ohne sich umzusehen.",
+        "weiter": "Der Schmuggler packt seinen Knüppel fester.",
+        "kennung": ("schmuggler_gnade", "schmuggler_verschont")
+    },
+    "Wolf": {
+        "angebot": "Der Wolf weicht geduckt zurück, die Ohren flach am Kopf.",
+        "bitte": "Er sucht einen Weg an dir vorbei.",
+        "hinweis": "Mit Verteidigen lässt du ihn ziehen.",
+        "verschont": "Du trittst einen Schritt zur Seite. Der Wolf hinkt an dir vorbei und ist fort.",
+        "weiter": "Der Wolf fletscht wieder die Zähne.",
+        "kennung": ("wolf_gnade", "wolf_verschont")
+    },
+    "Rudelloser Wolf": {
+        "angebot": "Der rudellose Wolf lässt von dir ab und hält Abstand.",
+        "bitte": "Er sieht dich an, als warte er ab, was du tust.",
+        "hinweis": "Mit Verteidigen lässt du ihn ziehen.",
+        "verschont": "Du senkst die Waffe. Der Wolf dreht sich um und verschwindet im Nebel.",
+        "weiter": "Der rudellose Wolf kommt wieder näher.",
+        "kennung": ("rudellos_gnade", "rudellos_verschont")
+    }
+}
 
 # Gegner, deren Name sich nach dem Artikel beugt.
 GEBEUGTE_GEGNER = {
@@ -1395,6 +1457,24 @@ def _kampf_starten_ohne_mitschrift(
             f"Unbekannter Gegnertyp: {gegner_typ}"
         )
 
+    # Weltstufe (level_system.weltstufe): je Stufe normale Gegner +15 % LP
+    # und +1 Schaden, Bosse +25 % LP und +2 Schaden. Die Vorlagen oben
+    # werden nur flach kopiert, darum bekommt die Waffe eine eigene Kopie.
+    stufe = kampfwerte.get("weltstufe", 0)
+    stufe = min(3, stufe) if type(stufe) is int and stufe > 0 else 0
+    ist_boss = gegner["typ"] in BOSS_GEGNER
+    lp_prozent = 100 + (25 if ist_boss else 15) * stufe
+    if gegner["typ"] in BOSS_LP_ZUSCHLAG:
+        lp_prozent += 15
+    if lp_prozent > 100:
+        gegner["max_hp"] = gegner["max_hp"] * lp_prozent // 100
+        gegner["hp"] = gegner["max_hp"]
+    if stufe > 0:
+        plus = (2 if ist_boss else 1) * stufe
+        gegner["waffe"] = dict(gegner["waffe"])
+        gegner["waffe"]["schaden_min"] += plus
+        gegner["waffe"]["schaden_max"] += plus
+
     flucht_erlaubt = gegner["typ"] != "Waldwächter"
 
     gegner_sicht = umgebungs_sicht
@@ -1840,7 +1920,12 @@ def _kampf_starten_ohne_mitschrift(
     )
     gnade_angekuendigt = False
     gnade_bereit = False
+    gnade_moeglich = gegner["typ"] in GNADE_TEXTE and (
+        gegner["typ"] == "Wrackplünderer"
+        or not (isinstance(kampf_situation, dict) and kampf_situation.get("gnade") is False)
+    )
     gegner_verschont = False
+    todesstoss_ueberschuss = 0
     graupelz_sprung_naechste_runde = False
     graupelz_geheult = False
     rudellos_sprung_naechste_runde = False
@@ -2205,7 +2290,8 @@ def _kampf_starten_ohne_mitschrift(
             if gegner_spezialangriff:
                 bandit_schwerer_hieb_bereit_ab = runde + 2
 
-        elif gegner["typ"] == "Wolf" and not starkes_taumeln_aktiv and not gegner_zurueckgedraengt_aktiv:
+        elif (gegner["typ"] == "Wolf" and not starkes_taumeln_aktiv and not gegner_zurueckgedraengt_aktiv
+              and not gnade_diese_runde):
             if wolf_sprungbereit:
                 wolf_sprung_diese_runde = True
                 wolf_sprungbereit = False
@@ -2387,6 +2473,11 @@ def _kampf_starten_ohne_mitschrift(
             if rudel_runden > 0:
                 print("Zwei Wölfe umkreisen dich und warten auf eine Lücke.")
                 print("Mit Verteidigen hältst du sie auf Abstand.")
+
+        if gnade_diese_runde and gegner["typ"] != "Wrackplünderer":
+            print()
+            print(GNADE_TEXTE[gegner["typ"]]["bitte"])
+            print(GNADE_TEXTE[gegner["typ"]]["hinweis"])
 
         if gegner["typ"] == "Wrackplünderer":
             if gnade_diese_runde:
@@ -3544,7 +3635,8 @@ def _kampf_starten_ohne_mitschrift(
                 break
             if (gegner["typ"] == "Bandit"
                     and gegner["hp"] <= gegner["max_hp"] * 0.25
-                    and not bandit_raserei):
+                    and not bandit_raserei
+                    and (gnade_angekuendigt or not gnade_moeglich)):
                 bandit_raserei = True
                 print(f"{gegner_name(gegner, 'Der')} gerät in Panik!")
                 print("Er kämpft jetzt wilder, lässt dabei aber seine Deckung fallen.")
@@ -3830,6 +3922,7 @@ def _kampf_starten_ohne_mitschrift(
             gegner["hp"] -= schaden
 
             if gegner["hp"] < 0:
+                todesstoss_ueberschuss = -gegner["hp"]
                 gegner["hp"] = 0
 
 
@@ -3896,7 +3989,8 @@ def _kampf_starten_ohne_mitschrift(
                     "Sein nächster Angriff ist ungenauer."
                 )
 
-            if gegner["typ"] == "Bandit" and gegner["hp"] <= gegner["max_hp"] * 0.25 and gegner["hp"] > 0 and not bandit_raserei:
+            if (gegner["typ"] == "Bandit" and gegner["hp"] <= gegner["max_hp"] * 0.25 and gegner["hp"] > 0
+                    and not bandit_raserei and (gnade_angekuendigt or not gnade_moeglich)):
                 bandit_raserei = True
                 print(f"{gegner_name(gegner, 'Der')} gerät in Panik!")
                 print("Er kämpft jetzt wilder, lässt dabei aber seine Deckung fallen.")
@@ -3926,12 +4020,12 @@ def _kampf_starten_ohne_mitschrift(
                 print("Aus dem Unterholz antworten zwei Wölfe und kommen heran.")
                 angekuendigt.add("graupelz_heulen")
 
-            if (gegner["typ"] == "Wrackplünderer" and 0 < gegner["hp"] <= gegner["max_hp"] * 0.25
+            if (gnade_moeglich and 0 < gegner["hp"] <= gegner["max_hp"] * 0.25
                     and not gnade_angekuendigt):
                 gnade_angekuendigt = True
                 gnade_bereit = True
-                print("Der Wrackplünderer weicht zurück und hebt die Hände.")
-                angekuendigt.add("pluenderer_gnade")
+                print(GNADE_TEXTE[gegner["typ"]]["angebot"])
+                angekuendigt.add(GNADE_TEXTE[gegner["typ"]]["kennung"][0])
 
             if (gegner["typ"] == "Kohlenschmuggler" and 0 < gegner["hp"] <= gegner["max_hp"] * 0.25
                     and not schmuggler_flucht_angekuendigt):
@@ -4098,15 +4192,16 @@ def _kampf_starten_ohne_mitschrift(
             if rudel_runden == 0:
                 print("Die beiden Wölfe ziehen sich ins Unterholz zurück.")
 
-        if gegner["typ"] == "Wrackplünderer" and gnade_diese_runde and gegner["hp"] > 0:
+        if gegner["typ"] in GNADE_TEXTE and gnade_diese_runde and gegner["hp"] > 0:
+            gnade_text = GNADE_TEXTE[gegner["typ"]]
             if aktion == "verteidigen":
                 gegner_verschont = True
                 gegner["hp"] = 0
                 print()
-                print("Du lässt ihn gehen. Er wirft dir seinen Geldbeutel vor die Füße und rennt den Strand hinunter.")
-                angekuendigt.add("pluenderer_verschont")
+                print(gnade_text["verschont"])
+                angekuendigt.add(gnade_text["kennung"][1])
                 break
-            print("Der Wrackplünderer greift wieder nach seinem Haken.")
+            print(gnade_text["weiter"])
 
         if gegner["typ"] in ("Gezeitenkrebs", "Kielbrecher", "Schlickbeißer") and krebs_halt_runden > 0 and aktion == "verteidigen":
             losreissen_chance = max(20, min(90, 50 + 10 * (spieler["staerke"] - 1)
@@ -4708,6 +4803,7 @@ def _kampf_starten_ohne_mitschrift(
                 gegner["typ"] == "Bandit"
                 and 0 < gegner["hp"] <= gegner["max_hp"] * 0.25
                 and not bandit_raserei
+                and (gnade_angekuendigt or not gnade_moeglich)
             ):
                 bandit_raserei = True
                 print(f"{gegner_name(gegner, 'Der')} gerät in Panik!")
@@ -4739,6 +4835,16 @@ def _kampf_starten_ohne_mitschrift(
         status_definitionen
     )
 
+    # Wer blutend aus dem Kampf geht, blutet mindestens 4 Schritte nach
+    # (Feedback 36). Außerhalb des Kampfes nie unter 1 LP (main.py).
+    blutung_rest = status_effekte.get("bluten")
+    if isinstance(blutung_rest, dict) and spieler["hp"] > 0:
+        rest = blutung_rest.get("dauer")
+        if isinstance(rest, int) and not isinstance(rest, bool) and 0 < rest < 4:
+            blutung_rest["dauer"] = 4
+        print()
+        print("Die Wunde blutet weiter. Eine Bandage stillt die Blutung.")
+
     ergebnis = {
         "lebenspunkte": spieler["hp"],
         "heiltraenke": spieler["heiltraenke"],
@@ -4750,6 +4856,14 @@ def _kampf_starten_ohne_mitschrift(
         "geflohen": geflohen,
         "gegner_geflohen": gegner_geflohen,
         "gegner_verschont": gegner_verschont,
+        # Großer Überschuss beim Todesstoß zerstört die Beute (Feedback 27).
+        # Bosse nie: Ihre Beute gibt es nur einmal.
+        "zerschmettert": (
+            gegner["hp"] <= 0
+            and not gegner_verschont
+            and gegner["typ"] not in BOSS_GEGNER
+            and todesstoss_ueberschuss * 4 >= gegner["max_hp"]
+        ),
         "angekuendigt": sorted(angekuendigt),
         "besiegt": spieler["hp"] <= 0,
         "gegner_typ": gegner["typ"],

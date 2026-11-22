@@ -89,7 +89,8 @@ from klassen_system import (
 
 from level_system import (
     level_fortschritt,
-    exp_ziele_abgleichen
+    exp_ziele_abgleichen,
+    weltstufe
 )
 from talent_system import (
     TALENTE,
@@ -206,6 +207,7 @@ from spieldaten import (
     HILDA_MATERIAL_ANKAUF,
     STATUS_EFFEKTE,
     MARA_SORTIMENT,
+    MARA_ESSEN_ANKAUF,
     HILDA_SORTIMENT,
     REZEPTE,
     REZEPT_SAMMLUNGEN,
@@ -2954,6 +2956,11 @@ def status_anzeigen():
         "Zurück"
     )
 
+# Merkt sich, ob der letzte Kampf den Gegner zerschmettert hat; die
+# Beutevergabe danach liest und löscht das (nicht im Spielstand).
+LETZTER_KAMPF = {"zerschmettert": False}
+
+
 def kampf_starten(
     lebenspunkte=100,
     heiltraenke=1,
@@ -2984,6 +2991,7 @@ def kampf_starten(
         ruestung_schutz = 0
 
     kampfwerte = {
+        "weltstufe": weltstufe(spieler),
         "staerke": spieler_pruefwert(
             "staerke"
         ),
@@ -3072,6 +3080,8 @@ def kampf_starten(
         kampf_situation=kampf_situation,
         trueber_geist=trueber_geist
     )
+    LETZTER_KAMPF["zerschmettert"] = ergebnis.get("zerschmettert") is True
+    LETZTER_KAMPF["verschont"] = ergebnis.get("gegner_verschont") is True
 
     # Umgangen (Wachsam): kein Kampf, also nichts verbraucht, nichts eingetragen.
     if ergebnis.get("umgangen"):
@@ -3094,7 +3104,11 @@ def kampf_starten(
             "Teil davon ist zurückgegangen, genau so viel, wie du wolltest."
         )
     if ergebnis.get("gegner_verschont"):
-        spieler["wrackpluenderer_verschont"] = True
+        # Karma (Feedback 23): verdeckter Zähler, Folgen nur in Texten.
+        karma = spieler.get("karma", 0)
+        spieler["karma"] = (karma if type(karma) is int else 0) + 1
+        if ergebnis.get("gegner_typ") == "Wrackplünderer":
+            spieler["wrackpluenderer_verschont"] = True
     if kampfwerte["glutkrieger_portion"]:
         glutkrieger_portion_verbrauchen(spieler, ergebnis)
 
@@ -3190,6 +3204,23 @@ def kampf_beute_vergeben(
     jaeger_jagd=False,
     ohne_items=False
 ):
+    # Zerschmettert (Feedback 27): Gegenstände sind hin, Gold bleibt.
+    # Jäger-Jagden zielen aufs Material, dort gilt es nicht.
+    zerschmettert = (
+        LETZTER_KAMPF.get("zerschmettert") is True
+        and not ohne_items
+        and jaeger_jagd is not True
+    )
+    LETZTER_KAMPF["zerschmettert"] = False
+
+    if zerschmettert:
+        ohne_items = True
+
+    # Verschont (Feedback 23): Menschen lassen ihren Beutel da, sonst nichts.
+    if LETZTER_KAMPF.get("verschont") is True:
+        ohne_items = True
+    LETZTER_KAMPF["verschont"] = False
+
     beute_daten = KAMPF_BEUTE.get(
         gegner_typ
     )
@@ -3288,7 +3319,13 @@ def kampf_beute_vergeben(
             f"{ITEMS[item_id]['name']}"
         )
 
-    if (
+    if zerschmettert:
+        print(
+            "Von deinem Gegner ist nicht mehr viel übrig. "
+            "Brauchbares findest du nicht."
+        )
+
+    elif (
         gefundenes_gold <= 0
         and not gefundene_items
     ):
@@ -19799,6 +19836,9 @@ def erfolg_bedingung_erfuellt(erfolg_id):
         return "krebs_losreissen" in buch.get("Gezeitenkrebs", {}).get("verhalten", [])
     if erfolg_id == "gnade_am_strand":
         return spieler.get("wrackpluenderer_verschont") is True
+    if erfolg_id == "milde_hand":
+        karma = spieler.get("karma", 0)
+        return type(karma) is int and karma >= 6
     if erfolg_id == "der_alte_leitwolf":
         return buch.get("Graupelz", {}).get("beute") is True
     if erfolg_id == "asche_zu_asche":
@@ -26250,7 +26290,8 @@ def haendler_kaufen(
 def materialien_verkaufen(
     titel,
     begruessung,
-    ankauf
+    ankauf,
+    leer_text="Du hast momentan keine Materialien, die hier angekauft werden."
 ):
     while True:
         ort_titel(
@@ -26290,8 +26331,7 @@ def materialien_verkaufen(
 
         if not verkaufbare_items:
             print(
-                "Du hast momentan keine Materialien, "
-                "die hier angekauft werden."
+                leer_text
             )
 
             warte_auf_taste(
@@ -26441,6 +26481,14 @@ def mara_proviant_kaufen():
             "nimm wenigstens etwas Vernünftiges mit."
         ),
         MARA_SORTIMENT
+    )
+
+def mara_esswaren_verkaufen():
+    materialien_verkaufen(
+        "Gasthaus - Esswaren verkaufen",
+        "[Mara] Fleisch und Brot nehme ich dir ab. Reich wirst du davon nicht.",
+        {item_id: dict(daten) for item_id, daten in MARA_ESSEN_ANKAUF.items()},
+        leer_text="Du hast nichts dabei, was Mara in ihrer Küche brauchen kann."
     )
 
 def hilda_lohn_waehlen():
@@ -27436,6 +27484,13 @@ def gasthaus():
 
         optionen.append(
             (
+                "esswaren",
+                "Mara Esswaren verkaufen"
+            )
+        )
+
+        optionen.append(
+            (
                 "heiltrank",
                 "Bei Mara Heiltränke kaufen"
             )
@@ -27557,6 +27612,9 @@ def gasthaus():
 
     elif aktion == "proviant":
         mara_proviant_kaufen()
+
+    elif aktion == "esswaren":
+        mara_esswaren_verkaufen()
 
     elif aktion == "heiltrank":
         heiltraenke_kaufen("Gasthaus - Maras Heiltränke")
@@ -43484,6 +43542,7 @@ def dialog_hilda():
         ort_titel("Marktplatz von Eichenruh")
         dialog_titel("Hilda")
         eichenruh_nach_riss_satz("hilda")
+        karma_satz("hilda")
 
         text_ausgeben(
             ortstext_wechsel(
@@ -46991,6 +47050,7 @@ def wegstation_keller_untersuchen():
             waffe=spieler["waffe"],
             gegner_typ="Bandit",
             kampf_situation={
+                "gnade": False,
                 "gebiet": "Alte Wegstation",
                 "umgebung": "Enge Ruine",
                 "tageszeit": spieler.get(
@@ -47086,6 +47146,7 @@ def wegstation_keller_untersuchen():
             waffe=spieler["waffe"],
             gegner_typ="Wolf",
             kampf_situation={
+                "gnade": False,
                 "gebiet": "Alte Wegstation",
                 "umgebung": "Enge Ruine",
                 "tageszeit": spieler.get(
@@ -54455,6 +54516,7 @@ def nachriss_kampf(gegner_typ, gebiet, umgebung, sieg_zeilen):
         waffe=spieler["waffe"],
         gegner_typ=gegner_typ,
         kampf_situation={
+            "gnade": False,
             "gebiet": gebiet,
             "umgebung": umgebung,
             "tageszeit": spieler.get("tageszeit", "Tag"),
@@ -55125,7 +55187,9 @@ EICHENRUH_NACH_RISS_SAETZE = {
         "[Mara] Seitdem kommen keine Gäste mehr vom Königsring."
     ],
     "bjorn": [
-        "[Bjorn] Die Esse brennt, der Stahl ist Stahl. Was soll sich ändern."
+        "[Bjorn] Die Esse brennt, der Stahl ist Stahl. Was soll sich ändern.",
+        "[Bjorn] Draußen schon. Die Tiere sind seit der Nacht gereizter. "
+        "Unterschätz sie nicht."
     ],
     "tomas": [
         "[Tomas] Ich habe die Karten meines Großvaters noch einmal ausgerollt. "
@@ -55167,6 +55231,19 @@ def eichenruh_nach_riss_satz(npc):
     for zeile in zeilen:
         text_ausgeben(zeile)
 
+    print()
+
+
+def karma_satz(npc):
+    # Feedback 23: Ab drei verschonten Gegnern spricht es sich herum, einmal.
+    karma = spieler.get("karma", 0)
+    if type(karma) is not int or karma < 3 or npc_reaktion_gezeigt(npc, "karma_gnade"):
+        return
+    npc_reaktion_markieren(npc, "karma_gnade")
+    text_ausgeben(
+        "[Hilda] Man erzählt sich, dass du draußen nicht jeden erschlägst, der dir "
+        "in die Quere kommt. Hier hört man so etwas gern."
+    )
     print()
 
 
@@ -61037,6 +61114,7 @@ def zurueckgelassene_felsweg():
                 waffe=spieler["waffe"],
                 gegner_typ="Wolf",
                 kampf_situation={
+                    "gnade": False,
                     "gebiet": "Nordweg",
                     "umgebung": "Offener Weg",
                     "tageszeit": spieler.get("tageszeit", "Tag"),

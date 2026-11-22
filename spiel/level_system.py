@@ -453,6 +453,28 @@ def level_fuer_exp(gesamt_exp):
     return len(LEVEL_KOSTEN) + 1
 
 
+def weltstufe(spieler_daten):
+    # Die Welt wird mit der Geschichte gefährlicher, nicht mit dem Level
+    # (Feedback 28): 1 ab dem Riss, 2 ab der Senke (Kapitel 7),
+    # 3 nach dem Archiv der Schatten (Kapitel 9). Dieselben Felder wie
+    # die EXP-Quellen akt1_ende, chronik_senke und archiv_abschluss.
+    if not isinstance(spieler_daten, dict):
+        return 0
+
+    kapitel7 = spieler_daten.get("kapitel7")
+
+    if spieler_daten.get("quest_archiv") == "abgeschlossen":
+        return 3
+
+    if isinstance(kapitel7, dict) and kapitel7.get("senke_gesehen") is True:
+        return 2
+
+    if spieler_daten.get("akt1_riss_geschehen") is True:
+        return 1
+
+    return 0
+
+
 def level_fortschritt(spieler_daten):
     if not level_system_sicherstellen(spieler_daten):
         raise TypeError(
